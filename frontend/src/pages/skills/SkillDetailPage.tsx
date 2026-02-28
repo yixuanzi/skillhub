@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { useSkill, useSkillVersions, useBuildSkill, usePublishSkill, useInvokeSkill } from '@/hooks/useSkills';
 import { Button, Card, Badge, Loading, Modal } from '@/components/ui';
-import { ArrowLeft, Build, Upload, Play, Code } from 'lucide-react';
+import { ArrowLeft, Hammer, Upload, Play, Code } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { Textarea } from '@/components/ui';
@@ -89,7 +89,7 @@ export const SkillDetailPage = () => {
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => setBuildModal(true)}>
-            <Build className="w-4 h-4" />
+            <Hammer className="w-4 h-4" />
             Build
           </Button>
           <Button variant="secondary" onClick={() => setTestModal(true)}>
@@ -252,13 +252,13 @@ export const SkillDetailPage = () => {
             <Play className="w-4 h-4" />
             {invokeSkill.isPending ? 'Running...' : 'Run Test'}
           </Button>
-          {testResult && (
+          {testResult !== null && (
             <div className="mt-4">
               <h4 className="font-mono text-xs text-gray-500 uppercase tracking-wider mb-2">
                 Result
               </h4>
               <pre className="bg-void-950 p-4 rounded-lg overflow-auto max-h-64 text-sm font-mono text-gray-300">
-                {JSON.stringify(testResult, null, 2)}
+                {JSON.stringify(testResult, null, 2) as string}
               </pre>
             </div>
           )}

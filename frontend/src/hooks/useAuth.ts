@@ -32,7 +32,7 @@ export const useRegister = () => {
 
   return useMutation({
     mutationFn: (data: RegisterRequest) => authApi.register(data),
-    onSuccess: (user) => {
+    onSuccess: () => {
       // Backend returns user info, but no tokens
       // Navigate to login with success message
       navigate('/login');

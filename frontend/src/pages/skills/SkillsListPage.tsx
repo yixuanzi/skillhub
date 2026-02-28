@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useSkills, useDeleteSkill } from '@/hooks/useSkills';
 import { Button, Card, Badge, Loading, Modal } from '@/components/ui';
 import { useSkillFilters } from '@/store/skillFilters';
-import { Plus, Search, Trash2, Build, Upload } from 'lucide-react';
+import { Plus, Search, Trash2, Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/utils/cn';
-import { SkillType, SkillRuntime, SkillStatus } from '@/types';
+import { SkillType, SkillStatus } from '@/types';
 
 export const SkillsListPage = () => {
   const { data, isLoading } = useSkills();

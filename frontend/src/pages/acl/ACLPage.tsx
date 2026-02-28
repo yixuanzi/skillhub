@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { useACLRules, useAuditLogs } from '@/hooks/useACL';
+import { useACLRules } from '@/hooks/useACL';
 import { Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Loading, Button } from '@/components/ui';
 import { Shield, Plus, History } from 'lucide-react';
 import { cn } from '@/utils/cn';
-import { formatRelativeTime } from '@/utils/date';
 
 export const ACLPage = () => {
   const { data: rulesData, isLoading } = useACLRules();

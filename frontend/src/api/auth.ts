@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { LoginRequest, RegisterRequest, User, ApiResponse } from '@/types';
+import { LoginRequest, RegisterRequest } from '@/types';
 
 // Backend token response format (no wrapper)
 interface BackendTokenResponse {

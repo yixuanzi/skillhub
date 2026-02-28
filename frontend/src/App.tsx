@@ -7,7 +7,6 @@ import { SkillsListPage, SkillDetailPage, SkillCreatePage } from './pages/skills
 import { UsersPage } from './pages/users';
 import { ACLPage } from './pages/acl';
 import { useAuthStore } from './store/authStore';
-import { PageLoading } from './components/ui';
 
 const queryClient = new QueryClient({
   defaultOptions: {

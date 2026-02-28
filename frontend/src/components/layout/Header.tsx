@@ -1,11 +1,8 @@
-import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Menu, Bell, Search } from 'lucide-react';
-import { cn } from '@/utils/cn';
 
 export const Header = () => {
-  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { sidebarOpen, setSidebarOpen } = useUIStore();
 

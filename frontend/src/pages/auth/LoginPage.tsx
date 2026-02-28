@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useLogin } from '@/hooks/useAuth';
 import { Button, Input, Alert } from '@/components/ui';
 import { Box } from 'lucide-react';
@@ -11,7 +11,6 @@ interface ApiError {
 }
 
 export const LoginPage = () => {
-  const navigate = useNavigate();
   const login = useLogin();
   const [formData, setFormData] = useState({
     username: '',

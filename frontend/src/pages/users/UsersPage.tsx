@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { useUsers, useRoles } from '@/hooks/useUsers';
 import { Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Loading } from '@/components/ui';
 import { UserPlus, Shield } from 'lucide-react';
-import { cn } from '@/utils/cn';
 import { formatRelativeTime } from '@/utils/date';
 
 export const UsersPage = () => {
