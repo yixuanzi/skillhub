@@ -4,12 +4,8 @@
 
 /* Base Styles */
 @layer base {
-  * {
-    @apply border-border;
-  }
-
   body {
-    @apply bg-void-950 font-body text-gray-100 antialiased;
+    @apply bg-void-950 text-gray-100 antialiased;
     font-family: 'IBM Plex Sans', sans-serif;
   }
 
