@@ -118,38 +118,40 @@ class AuthService:
             AuthException: If token creation fails
         """
         try:
+            # Generate a unique token ID (jti - JWT ID)
+            import uuid
+            jti = str(uuid.uuid4())
+
             # Create JWT tokens
             access_token = create_access_token({
-                "user_id": user.id,
+                "sub": str(user.id),  # Standard JWT claim for subject
                 "username": user.username
             })
 
             refresh_token = create_refresh_token({
-                "user_id": user.id,
-                "username": user.username
+                "sub": str(user.id),  # Standard JWT claim for subject
+                "username": user.username,
+                "jti": jti  # JWT ID for database lookup
             })
 
             # Calculate refresh token expiration
             expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
-            # Hash refresh token for storage
-            from core.security import get_password_hash
-            token_hash = get_password_hash(refresh_token)
-
-            # Store refresh token in database
+            # Store refresh token in database using jti (JWT ID)
             db_token = RefreshToken(
-                token_hash=token_hash,
-                user_id=user.id,
+                id=jti,  # Use jti as the primary key
+                user_id=str(user.id),
+                token_hash=refresh_token,  # Store full token for reference (or could store just jti)
                 expires_at=expires_at
             )
 
             db.add(db_token)
             db.commit()
 
-            # Return truncated tokens (last 32 chars)
+            # Return full tokens (standard JWT practice)
             return TokenResponse(
-                access_token=get_token_last32(access_token),
-                refresh_token=get_token_last32(refresh_token),
+                access_token=access_token,
+                refresh_token=refresh_token,
                 token_type="bearer",
                 expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
             )
@@ -159,12 +161,12 @@ class AuthService:
             raise AuthException(f"Failed to create tokens: {str(e)}")
 
     @staticmethod
-    def refresh_token(db: Session, refresh_token_last32: str) -> RefreshTokenResponse:
+    def refresh_token(db: Session, refresh_token: str) -> RefreshTokenResponse:
         """Refresh access token using refresh token.
 
         Args:
             db: Database session
-            refresh_token_last32: Last 32 characters of refresh token
+            refresh_token: Full refresh token (not truncated)
 
         Returns:
             New access token response
@@ -175,74 +177,80 @@ class AuthService:
         """
         from core.security import get_password_hash, verify_token
 
-        # Query all refresh tokens for user
-        # We need to find by matching hash - iterate through user's tokens
-        refresh_tokens = db.query(RefreshToken).all()
+        # Verify the refresh token JWT
+        payload = verify_token(refresh_token)
+        if payload is None:
+            raise AuthException("Invalid refresh token")
 
-        matched_token = None
+        user_id = payload.get("sub")  # Standard JWT claim
+        jti = payload.get("jti")  # JWT ID
+
+        if not user_id or not jti:
+            raise AuthException("Invalid refresh token payload")
+
+        # Find token in database by jti
+        refresh_token_record = db.query(RefreshToken).filter(
+            RefreshToken.id == jti
+        ).first()
+
+        if not refresh_token_record:
+            raise NotFoundException("Refresh token not found")
+
+        # Check expiration
         now = datetime.now(timezone.utc)
-        for token in refresh_tokens:
-            # Check if last32 matches
-            # We can't directly match hash, so we need to find token first
-            # This is a limitation of truncated tokens
-            # In production, you'd store a token_id mapping
-            # For now, we'll verify the token exists and hasn't expired
+        token_expires = refresh_token_record.expires_at
+        if token_expires.tzinfo is None:
+            token_expires = token_expires.replace(tzinfo=timezone.utc)
 
-            # Handle both timezone-aware and naive datetimes from database
-            token_expires = token.expires_at
-            if token_expires.tzinfo is None:
-                # Convert naive datetime to aware for comparison
-                token_expires = token_expires.replace(tzinfo=timezone.utc)
-
-            if token_expires < now:
-                continue  # Skip expired tokens
-
-            # Found a valid token for this user
-            matched_token = token
-            break
-
-        if not matched_token:
-            raise AuthException("Invalid or expired refresh token")
+        if token_expires < now:
+            raise AuthException("Refresh token expired")
 
         # Get user
-        user = db.query(User).filter(User.id == matched_token.user_id).first()
+        user = db.query(User).filter(User.id == user_id).first()
         if not user or not user.is_active:
             raise AuthException("User not found or inactive")
 
         # Create new access token
-        access_token = create_access_token({
-            "user_id": user.id,
+        new_access_token = create_access_token({
+            "sub": str(user.id),  # Standard JWT claim
             "username": user.username
         })
 
-        # Return new access token
         return RefreshTokenResponse(
-            access_token=get_token_last32(access_token),
+            access_token=new_access_token,
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
         )
 
     @staticmethod
-    def logout(db: Session, refresh_token_last32: str) -> None:
+    def logout(db: Session, refresh_token: str) -> None:
         """Invalidate refresh token (logout).
 
         Args:
             db: Database session
-            refresh_token_last32: Last 32 characters of refresh token to invalidate
+            refresh_token: Full refresh token to invalidate
 
         Raises:
             AuthException: If refresh token is invalid
         """
-        # Query all refresh tokens
-        refresh_tokens = db.query(RefreshToken).all()
-
-        # Find and delete the token
-        # Note: With truncated tokens, we can't directly match
-        # In production, you'd use token_id or similar
-        # For now, we'll delete the most recent token for the user
-        if refresh_tokens:
-            # Delete the first matching token (most recent)
-            db.delete(refresh_tokens[0])
-            db.commit()
-        else:
+        # Decode token to get jti
+        from core.security import verify_token
+        payload = verify_token(refresh_token)
+        if payload is None:
             raise AuthException("Invalid refresh token")
+
+        jti = payload.get("jti")
+        if not jti:
+            raise AuthException("Invalid refresh token payload")
+
+        # Find token in database by jti
+        refresh_token_record = db.query(RefreshToken).filter(
+            RefreshToken.id == jti
+        ).first()
+
+        if not refresh_token_record:
+            raise AuthException("Invalid refresh token")
+
+        # Delete the token
+        db.delete(refresh_token_record)
+        db.commit()

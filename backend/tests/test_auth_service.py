@@ -193,8 +193,8 @@ class TestAuthServiceCreateTokens:
         tokens = AuthService.create_tokens(db, authenticated_user)
 
         assert isinstance(tokens, TokenResponse)
-        assert len(tokens.access_token) == 32  # Last 32 chars
-        assert len(tokens.refresh_token) == 32  # Last 32 chars
+        assert len(tokens.access_token) > 32  # Full JWT token
+        assert len(tokens.refresh_token) > 32  # Full JWT token
         assert tokens.token_type == "bearer"
         assert tokens.expires_in > 0
 
@@ -257,7 +257,7 @@ class TestAuthServiceRefreshToken:
 
         new_tokens = AuthService.refresh_token(db, tokens.refresh_token)
 
-        assert len(new_tokens.access_token) == 32
+        assert len(new_tokens.access_token) > 32  # Full JWT token
         assert new_tokens.token_type == "bearer"
         assert new_tokens.expires_in > 0
 
