@@ -24,11 +24,20 @@ def db():
     try:
         yield db
         db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
-        # Clean up resources after each test
-        db.query(SkillList).delete()
-        db.commit()
         db.close()
+        # Clean up all data after each test using a fresh session
+        cleanup_db = SessionLocal()
+        try:
+            cleanup_db.query(SkillList).delete()
+            cleanup_db.commit()
+        except Exception:
+            cleanup_db.rollback()
+        finally:
+            cleanup_db.close()
 
 
 class TestSkillListServiceCreate:

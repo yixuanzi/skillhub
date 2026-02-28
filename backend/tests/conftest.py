@@ -2,6 +2,8 @@ import pytest
 from fastapi.testclient import TestClient
 from database import Base, engine, SessionLocal
 from models.user import User, RefreshToken, Role, Permission
+from models.resource import Resource
+from models.skill_list import SkillList
 from schemas.auth import UserCreate
 from services.auth_service import AuthService
 from main import app
@@ -23,16 +25,25 @@ def db():
     try:
         yield session
         session.commit()
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
-        # Clean up all data after each test
-        session = SessionLocal()
-        session.query(RefreshToken).delete()
-        session.query(User).delete()
-        session.query(Permission).delete()
-        session.query(Role).delete()
-        session.commit()
-        session.close()
+        # Clean up all data after each test using a fresh session
+        cleanup_session = SessionLocal()
+        try:
+            cleanup_session.query(SkillList).delete()
+            cleanup_session.query(Resource).delete()
+            cleanup_session.query(RefreshToken).delete()
+            cleanup_session.query(User).delete()
+            cleanup_session.query(Permission).delete()
+            cleanup_session.query(Role).delete()
+            cleanup_session.commit()
+        except Exception:
+            cleanup_session.rollback()
+        finally:
+            cleanup_session.close()
 
 
 @pytest.fixture(scope="function")
@@ -55,12 +66,18 @@ def client(db):
 @pytest.fixture(scope="function")
 def test_user(db: SessionLocal):
     """Create a test user fixture."""
+    # Check if user already exists
+    existing_user = db.query(User).filter(User.username == "testuser").first()
+    if existing_user:
+        return existing_user
+
     user_data = UserCreate(
         username="testuser",
         email="test@example.com",
         password="testpassword123"
     )
     user = AuthService.register(db, user_data)
+    db.commit()
     return user
 
 

@@ -55,7 +55,7 @@ def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user",
         )
-
+    setattr(user, "access_token", token)
     return user
 
 
