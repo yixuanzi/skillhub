@@ -26,6 +26,20 @@ npm-debug.log*
 # Test
 coverage/
 .nyc_output/
+.pytest_cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/data/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
 # Temporary
 tmp/
