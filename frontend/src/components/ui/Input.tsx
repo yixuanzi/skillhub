@@ -19,10 +19,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           type={type}
           className={cn(
-            'cyber-card px-4 py-2.5 font-mono text-sm',
+            'px-4 py-2.5 font-mono text-sm rounded-lg',
             'bg-void-900/50 border border-void-700',
             'text-gray-100 placeholder:text-gray-600',
-            'focus:outline-none focus:border-cyber-primary focus:border-glow',
+            'focus:outline-none focus:border-cyber-primary',
             'transition-all duration-200',
             error && 'border-cyber-accent focus:border-cyber-accent',
             className
