@@ -3,3 +3,4 @@ from models.skill import Skill, SkillVersion, SkillType, SkillRuntime, SkillStat
 from models.acl import ACLRule, ACLRuleRole, AuditLog, AccessMode, AuditResult
 from models.resource import Resource, ResourceType
 from models.skill_list import SkillList
+from models.mtoken import MToken

@@ -8,6 +8,7 @@ from api.resource import router as resource_router
 from api.acl_resource import router as acl_resource_router
 from api.gateway import router as gateway_router
 from api.skill_list import router as skill_list_router
+from api.mtoken import router as mtoken_router
 
 
 @asynccontextmanager
@@ -41,6 +42,7 @@ app.include_router(resource_router, prefix="/api/v1")
 app.include_router(acl_resource_router, prefix="/api/v1")
 app.include_router(gateway_router, prefix="/api/v1")
 app.include_router(skill_list_router, prefix="/api/v1")
+app.include_router(mtoken_router, prefix="/api/v1")
 
 
 @app.get("/")
