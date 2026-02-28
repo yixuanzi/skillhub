@@ -10,12 +10,14 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/Table';
+import { cn } from '@/utils/cn';
 
 interface ResourceTableProps {
   resources: Resource[];
   loading?: boolean;
   onEdit?: (resource: Resource) => void;
   onDelete?: (resource: Resource) => void;
+  deleteConfirm?: Resource | null;
 }
 
 // Type badge color mapping
@@ -32,7 +34,7 @@ const getTypeBadgeVariant = (type: Resource['type']): 'info' | 'warning' | 'succ
   }
 };
 
-export const ResourceTable = ({ resources, loading, onEdit, onDelete }: ResourceTableProps) => {
+export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConfirm }: ResourceTableProps) => {
   // Loading state
   if (loading) {
     return (
@@ -108,7 +110,7 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete }: Resource
               </TableCell>
               <TableCell>
                 <span className="text-xs text-gray-500 font-mono">
-                  {formatRelativeTime(resource.createdAt)}
+                  {formatRelativeTime(resource.created_at)}
                 </span>
               </TableCell>
               {(onEdit || onDelete) && (
@@ -129,7 +131,12 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete }: Resource
                         variant="ghost"
                         size="sm"
                         onClick={() => onDelete(resource)}
-                        className="p-1.5 text-cyber-accent hover:text-cyber-accent"
+                        className={cn(
+                          'p-1.5 transition-all duration-200',
+                          deleteConfirm?.id === resource.id
+                            ? 'bg-cyber-accent/20 border border-cyber-accent text-cyber-accent animate-pulse'
+                            : 'text-cyber-accent hover:text-cyber-accent'
+                        )}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -146,7 +153,6 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete }: Resource
 };
 
 // Helper function for relative time formatting
-// Note: This will be implemented in Task 9
 function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();

@@ -1,23 +1,7 @@
-import { useUsers, useRoles } from '@/hooks/useUsers';
-import { Card, Badge, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Loading } from '@/components/ui';
-import { UserPlus, Shield } from 'lucide-react';
-import { formatRelativeTime } from '@/utils/date';
+import { Card } from '@/components/ui';
+import { Users, Shield, Wrench } from 'lucide-react';
 
 export const UsersPage = () => {
-  const { data: usersData, isLoading } = useUsers();
-  const { data: rolesData } = useRoles();
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loading size="lg" />
-      </div>
-    );
-  }
-
-  const users = usersData?.data?.items || [];
-  const roles = rolesData?.data || [];
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -27,104 +11,111 @@ export const UsersPage = () => {
             Users & Roles
           </h1>
           <p className="font-mono text-sm text-gray-500">
-            {users.length} users • {roles.length} roles
+            User and role management
           </p>
         </div>
-        <button className="inline-flex items-center gap-2 px-4 py-2 bg-cyber-primary/10 border border-cyber-primary text-cyber-primary rounded-lg font-mono text-sm hover:bg-cyber-primary/20 transition-all">
-          <UserPlus className="w-4 h-4" />
-          Add User
-        </button>
       </div>
 
+      {/* Feature Coming Soon */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Users List */}
+        {/* Users Section */}
         <div className="lg:col-span-2">
           <Card>
-            <h2 className="font-display text-lg font-semibold text-gray-100 mb-4">
-              Users
-            </h2>
-            {users.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No users found</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Roles</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user, index) => (
-                    <TableRow
-                      key={user.id}
-                      className="animate-slide-in"
-                      style={{ animationDelay: `${index * 0.05}s` }}
-                    >
-                      <TableCell>
-                        <div>
-                          <p className="font-mono text-sm text-gray-200">{user.username}</p>
-                          <p className="text-xs text-gray-500">{user.email}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1 flex-wrap">
-                          {user.roles.map((role) => (
-                            <Badge key={role.id} variant="info" className="text-xs">
-                              {role.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-gray-500">
-                          {formatRelativeTime(user.createdAt)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <button className="text-cyber-primary hover:text-cyber-secondary text-sm font-mono">
-                          Edit
-                        </button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-cyber-primary/10">
+                  <Users className="w-6 h-6 text-cyber-primary" />
+                </div>
+                <div>
+                  <h2 className="font-display text-lg font-semibold text-gray-100">
+                    Users Management
+                  </h2>
+                  <p className="text-xs text-gray-500 font-mono">
+                    Create and manage user accounts
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center py-12">
+              <Wrench className="w-16 h-16 text-gray-700 mx-auto mb-4" />
+              <h3 className="font-display text-xl text-gray-300 mb-2">
+                Feature Coming Soon
+              </h3>
+              <p className="text-gray-500 font-mono text-sm max-w-md mx-auto">
+                User management functionality is under development.
+                This will include user creation, role assignment, and permission management.
+              </p>
+            </div>
           </Card>
         </div>
 
-        {/* Roles List */}
+        {/* Roles Section */}
         <div>
           <Card>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-lg font-semibold text-gray-100">
-                Roles
-              </h2>
-              <Shield className="w-5 h-5 text-cyber-secondary" />
-            </div>
-            <div className="space-y-2">
-              {roles.map((role) => (
-                <div
-                  key={role.id}
-                  className="p-3 rounded-lg bg-void-900/50 border border-void-700 hover:border-void-600 transition-all"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="font-mono text-sm text-gray-200">{role.name}</p>
-                    <Badge variant="info" className="text-xs">
-                      {role.permissions.length} perms
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {role.permissions.slice(0, 2).map((p) => p.resource).join(', ')}
-                    {role.permissions.length > 2 && '...'}
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-cyber-secondary/10">
+                  <Shield className="w-5 h-5 text-cyber-secondary" />
+                </div>
+                <div>
+                  <h2 className="font-display text-lg font-semibold text-gray-100">
+                    Roles
+                  </h2>
+                  <p className="text-xs text-gray-500 font-mono">
+                    Access control
                   </p>
                 </div>
-              ))}
+              </div>
+            </div>
+
+            <div className="text-center py-8">
+              <Wrench className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+              <p className="text-gray-500 font-mono text-sm">
+                Role management coming soon
+              </p>
             </div>
           </Card>
         </div>
+      </div>
+
+      {/* Info Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-cyber-primary/10">
+              <Users className="w-5 h-5 text-cyber-primary" />
+            </div>
+            <div>
+              <h3 className="font-mono text-sm text-gray-200 mb-1">User Management</h3>
+              <p className="text-xs text-gray-500">Create, update, and delete user accounts</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-cyber-secondary/10">
+              <Shield className="w-5 h-5 text-cyber-secondary" />
+            </div>
+            <div>
+              <h3 className="font-mono text-sm text-gray-200 mb-1">Role Assignment</h3>
+              <p className="text-xs text-gray-500">Assign roles to control access</p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 rounded-lg bg-cyber-warning/10">
+              <Wrench className="w-5 h-5 text-cyber-warning" />
+            </div>
+            <div>
+              <h3 className="font-mono text-sm text-gray-200 mb-1">Permissions</h3>
+              <p className="text-xs text-gray-500">Fine-grained access control</p>
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
   );

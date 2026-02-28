@@ -1,29 +1,36 @@
 import apiClient from './client';
-import { Resource, ResourceCreate, ResourceUpdate, ApiResponse, PaginatedResponse } from '@/types';
+import { Resource, ResourceCreate, ResourceUpdate } from '@/types';
+
+// Backend returns direct Pydantic models, not wrapped in ApiResponse
+interface ResourceListResponse {
+  items: Resource[];
+  total: number;
+  page: number;
+  size: number;
+}
 
 export const resourcesApi = {
-  list: async (params?: { page?: number; pageSize?: number; resource_type?: string }): Promise<ApiResponse<PaginatedResponse<Resource>>> => {
-    const response = await apiClient.get<ApiResponse<PaginatedResponse<Resource>>>('/resources', { params });
+  list: async (params?: { page?: number; pageSize?: number; resource_type?: string }): Promise<ResourceListResponse> => {
+    const response = await apiClient.get<ResourceListResponse>('/resources/', { params });
     return response.data;
   },
 
-  getById: async (id: string): Promise<ApiResponse<Resource>> => {
-    const response = await apiClient.get<ApiResponse<Resource>>(`/resources/${id}`);
+  getById: async (id: string): Promise<Resource> => {
+    const response = await apiClient.get<Resource>(`/resources/${id}/`);
     return response.data;
   },
 
-  create: async (data: ResourceCreate): Promise<ApiResponse<Resource>> => {
-    const response = await apiClient.post<ApiResponse<Resource>>('/resources', data);
+  create: async (data: ResourceCreate): Promise<Resource> => {
+    const response = await apiClient.post<Resource>('/resources/', data);
     return response.data;
   },
 
-  update: async (id: string, data: ResourceUpdate): Promise<ApiResponse<Resource>> => {
-    const response = await apiClient.put<ApiResponse<Resource>>(`/resources/${id}`, data);
+  update: async (id: string, data: ResourceUpdate): Promise<Resource> => {
+    const response = await apiClient.put<Resource>(`/resources/${id}/`, data);
     return response.data;
   },
 
-  delete: async (id: string): Promise<ApiResponse<void>> => {
-    const response = await apiClient.delete<ApiResponse<void>>(`/resources/${id}`);
-    return response.data;
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/resources/${id}/`);
   },
 };

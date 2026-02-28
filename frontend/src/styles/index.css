@@ -84,6 +84,7 @@
   .cyber-card > * {
     position: relative;
     z-index: 1;
+    pointer-events: auto;
   }
 
   .cyber-card:hover::before {
@@ -161,4 +162,17 @@
 
 .animate-scale-in {
   animation: scaleIn 0.2s ease-out;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }

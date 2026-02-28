@@ -48,40 +48,47 @@ export interface Skill {
   id: string;
   name: string;
   description: string;
-  type: SkillType;
-  runtime: SkillRuntime;
-  status: SkillStatus;
-  currentVersion: string;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
-  metadata: Record<string, unknown>;
+  content?: string;
+  created_by: string;
+  category?: string;
+  tags?: string;
+  version: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SkillVersion {
   id: string;
-  skillId: string;
+  skill_id: string;
   version: string;
   status: 'draft' | 'published';
-  artifactPath: string;
+  artifact_path: string;
   checksum: string;
-  createdBy: string;
-  createdAt: string;
+  created_by: string;
+  created_at: string;
   changelog?: string;
 }
 
 export interface SkillCreateRequest {
   name: string;
   description: string;
-  type: SkillType;
-  runtime: SkillRuntime;
-  code: string;
-  requirements?: string;
-  metadata?: Record<string, unknown>;
+  content?: string;
+  category?: string;
+  tags?: string;
+  version?: string;
+}
+
+export interface SkillUpdateRequest {
+  name?: string;
+  description?: string;
+  content?: string;
+  category?: string;
+  tags?: string;
+  version?: string;
 }
 
 export interface SkillInvokeRequest {
-  skillId: string;
+  skill_id: string;
   version?: string;
   params: Record<string, unknown>;
   context?: Record<string, unknown>;
@@ -112,8 +119,8 @@ export interface Resource {
   type: ResourceType;
   url?: string;
   ext?: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ResourceCreate {
@@ -132,38 +139,40 @@ export interface ResourceUpdate {
   ext?: Record<string, unknown>;
 }
 
-export interface ResourceListResponse {
-  items: Resource[];
-  total: number;
-  page: number;
-  size: number;
-}
-
 // ACL Types
 export type AccessMode = 'any' | 'rbac';
 
 export interface ACLRule {
   id: string;
-  resourceId: string;
-  accessMode: AccessMode;
-  roles?: string[];
-  conditions: ACLConditions;
-  enabled: boolean;
-  createdAt: string;
-  updatedAt: string;
+  resource_id: string;
+  resource_name: string;
+  access_mode: AccessMode;
+  conditions?: ACLConditions;
+  created_at: string;
+  role_bindings?: RoleBinding[];
+}
+
+export interface RoleBinding {
+  id: string;
+  role_id: string;
+  role_name?: string;
+  permissions: string[];
+  created_at: string;
 }
 
 export interface ACLConditions {
-  rateLimit?: {
-    maxRequests: number;
-    windowSeconds: number;
+  users?: string[];
+  roles?: string[];
+  ip_whitelist?: string[];
+  rate_limit?: {
+    requests: number;
+    window: number;
   };
-  ipWhitelist?: string[];
-  timeWindows?: Array<{
+  time_windows?: Array<{
     start: string;
     end: string;
-    days: number[];
   }>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AuditLog {
@@ -176,7 +185,41 @@ export interface AuditLog {
   details: Record<string, unknown>;
 }
 
-// API Response Wrapper
+// MToken Types
+export interface MToken {
+  id: string;
+  app_name: string;
+  key_name: string;
+  value: string;
+  desc?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MTokenCreate {
+  app_name: string;
+  key_name: string;
+  value: string;
+  desc?: string;
+}
+
+export interface MTokenUpdate {
+  app_name?: string;
+  key_name?: string;
+  value?: string;
+  desc?: string;
+}
+
+// Pagination
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+// API Response Wrapper (for other APIs that still use it)
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -185,13 +228,4 @@ export interface ApiResponse<T> {
     message: string;
     details?: unknown[];
   };
-}
-
-// Pagination
-export interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
 }

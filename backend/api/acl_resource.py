@@ -98,7 +98,7 @@ async def list_acl_rules(
     )
 
 
-@router.get("/{acl_rule_id}", response_model=ACLRuleResponse)
+@router.get("/{acl_rule_id}/", response_model=ACLRuleResponse)
 async def get_acl_rule(
     acl_rule_id: str,
     db: Session = Depends(get_db),
@@ -126,7 +126,7 @@ async def get_acl_rule(
     return acl_rule
 
 
-@router.get("/resource/{resource_id}", response_model=ACLRuleResponse)
+@router.get("/resource/{resource_id}/", response_model=ACLRuleResponse)
 async def get_acl_rule_by_resource(
     resource_id: str,
     db: Session = Depends(get_db),
@@ -154,7 +154,7 @@ async def get_acl_rule_by_resource(
     return acl_rule
 
 
-@router.put("/{acl_rule_id}", response_model=ACLRuleResponse)
+@router.put("/{acl_rule_id}/", response_model=ACLRuleResponse)
 async def update_acl_rule(
     acl_rule_id: str,
     acl_data: ACLRuleUpdate,
@@ -184,7 +184,7 @@ async def update_acl_rule(
         )
 
 
-@router.delete("/{acl_rule_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{acl_rule_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_acl_rule(
     acl_rule_id: str,
     db: Session = Depends(get_db),

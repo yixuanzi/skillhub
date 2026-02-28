@@ -27,28 +27,28 @@ interface BackendUserResponse {
 
 export const authApi = {
   login: async (data: LoginRequest): Promise<BackendTokenResponse> => {
-    const response = await apiClient.post<BackendTokenResponse>('/auth/login', data);
+    const response = await apiClient.post<BackendTokenResponse>('/auth/login/', data);
     return response.data;
   },
 
   register: async (data: RegisterRequest): Promise<BackendUserResponse> => {
-    const response = await apiClient.post<BackendUserResponse>('/auth/register', data);
+    const response = await apiClient.post<BackendUserResponse>('/auth/register/', data);
     return response.data;
   },
 
   logout: async (refreshToken: string): Promise<void> => {
-    await apiClient.post('/auth/logout', { refresh_token: refreshToken });
+    await apiClient.post('/auth/logout/', { refresh_token: refreshToken });
   },
 
   refresh: async (refreshToken: string): Promise<BackendRefreshResponse> => {
-    const response = await apiClient.post<BackendRefreshResponse>('/auth/refresh', {
+    const response = await apiClient.post<BackendRefreshResponse>('/auth/refresh/', {
       refresh_token: refreshToken,
     });
     return response.data;
   },
 
   getCurrentUser: async (): Promise<BackendUserResponse> => {
-    const response = await apiClient.get<BackendUserResponse>('/auth/me');
+    const response = await apiClient.get<BackendUserResponse>('/auth/me/');
     return response.data;
   },
 };

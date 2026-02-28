@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  Key,
 } from 'lucide-react';
 
 interface NavItem {
@@ -24,6 +25,7 @@ const navItems: NavItem[] = [
   { path: '/skills', label: 'Skills', icon: Box },
   { path: '/users', label: 'Users', icon: Users },
   { path: '/resources', label: 'Resources', icon: Database },
+  { path: '/tokens', label: 'Tokens', icon: Key },
   { path: '/acl', label: 'ACL Rules', icon: Shield },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];

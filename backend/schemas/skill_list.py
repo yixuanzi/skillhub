@@ -13,15 +13,16 @@ class SkillListBase(BaseModel):
     description: Optional[str] = Field(
         None, max_length=10000, description="Detailed description of the skill list"
     )
-    content: Optional[str] = Field(
+    content: str = Field(
         None, max_length=100000, description="Content of the skill list"
     )
-    created_by: str = Field(
-        ...,
-        min_length=1,
-        max_length=255,
-        description="User ID who created the skill list",
-    )
+    created_by: Optional[str] = None 
+    # Field(
+    #     ...,
+    #     min_length=1,
+    #     max_length=255,
+    #     description="User ID who created the skill list",
+    # )
     category: Optional[str] = Field(
         None, max_length=100, description="Category of the skill list"
     )

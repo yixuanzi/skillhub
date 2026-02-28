@@ -34,17 +34,18 @@ def get_current_user(
     user_id = None
     auth_type = "unknown"
 
-    # 尝试作为 JWT token 验证
-    payload = verify_token(token)
-    if payload is not None:
-        user_id = payload.get("sub")
-        auth_type = "jwt"
-
-    # 如果 JWT 验证失败，尝试作为 tmpkey 验证
-    if user_id is None:
+    # 先尝试作为 tmpkey 验证
+    if len(token)==32:
         user_id = get_user_id_by_tmpkey(token)
         if user_id is not None:
             auth_type = "tmpkey"
+
+    # 尝试作为 JWT token 验证
+    if user_id is None:
+        payload = verify_token(token)
+        if payload is not None:
+            user_id = payload.get("sub")
+            auth_type = "jwt"
 
     # 如果两种验证都失败
     if user_id is None:

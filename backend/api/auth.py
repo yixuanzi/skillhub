@@ -29,7 +29,7 @@ from core.exceptions import AuthException, ValidationException, NotFoundExceptio
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserCreate,
     db: Session = Depends(get_db)
@@ -56,7 +56,7 @@ async def register(
         )
 
 
-@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+@router.post("/login/", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def login(
     login_data: LoginRequest,
     db: Session = Depends(get_db)
@@ -89,7 +89,7 @@ async def login(
         )
 
 
-@router.post("/refresh", response_model=RefreshTokenResponse, status_code=status.HTTP_200_OK)
+@router.post("/refresh/", response_model=RefreshTokenResponse, status_code=status.HTTP_200_OK)
 async def refresh(
     refresh_data: RefreshTokenRequest,
     db: Session = Depends(get_db)
@@ -117,7 +117,7 @@ async def refresh(
         )
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/logout/", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     refresh_data: RefreshTokenRequest,
     db: Session = Depends(get_db)
@@ -145,7 +145,7 @@ async def logout(
         )
 
 
-@router.get("/me", response_model=UserResponse, status_code=status.HTTP_200_OK)
+@router.get("/me/", response_model=UserResponse, status_code=status.HTTP_200_OK)
 async def get_current_user(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ):

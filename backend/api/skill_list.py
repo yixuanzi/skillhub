@@ -47,7 +47,7 @@ async def create_skill(
     from core.exceptions import ValidationException
 
     try:
-        return SkillListService.create(db, skill_data)
+        return SkillListService.create(db, skill_data,current_user)
     except ValidationException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -104,7 +104,7 @@ async def list_skills(
     )
 
 
-@router.get("/{skill_id}", response_model=SkillListResponse)
+@router.get("/{skill_id}/", response_model=SkillListResponse)
 async def get_skill(
     skill_id: str,
     db: Session = Depends(get_db),
@@ -132,7 +132,7 @@ async def get_skill(
     return SkillListResponse.model_validate(skill)
 
 
-@router.put("/{skill_id}", response_model=SkillListResponse)
+@router.put("/{skill_id}/", response_model=SkillListResponse)
 async def update_skill(
     skill_id: str,
     skill_data: SkillListUpdate,
@@ -170,7 +170,7 @@ async def update_skill(
         )
 
 
-@router.delete("/{skill_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{skill_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_skill(
     skill_id: str,
     db: Session = Depends(get_db),

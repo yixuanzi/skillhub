@@ -92,7 +92,7 @@ async def list_resources(
     )
 
 
-@router.get("/{resource_id}", response_model=ResourceResponse)
+@router.get("/{resource_id}/", response_model=ResourceResponse)
 async def get_resource(
     resource_id: str,
     db: Session = Depends(get_db),
@@ -120,7 +120,7 @@ async def get_resource(
     return ResourceResponse.model_validate(resource)
 
 
-@router.put("/{resource_id}", response_model=ResourceResponse)
+@router.put("/{resource_id}/", response_model=ResourceResponse)
 async def update_resource(
     resource_id: str,
     resource_data: ResourceUpdate,
@@ -158,7 +158,7 @@ async def update_resource(
         )
 
 
-@router.delete("/{resource_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{resource_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_resource(
     resource_id: str,
     db: Session = Depends(get_db),

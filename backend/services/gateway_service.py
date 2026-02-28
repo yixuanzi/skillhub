@@ -73,7 +73,7 @@ class GatewayService:
                     f"to resource '{resource_name}': {permission_result.reason}"
                 )
                 raise ValidationException(
-                    f"Permission denied: {permission_result.reason}"
+                    f"Permission denied"
                 )
 
             # Step 3: Invoke resource based on type

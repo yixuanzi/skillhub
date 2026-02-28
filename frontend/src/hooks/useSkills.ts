@@ -1,8 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { skillsApi } from '@/api/skills';
-import { SkillCreateRequest, SkillInvokeRequest } from '@/types';
+import { SkillCreateRequest, SkillUpdateRequest, SkillInvokeRequest } from '@/types';
 
-export const useSkills = (params?: { page?: number; pageSize?: number; type?: string }) => {
+export const useSkills = (params?: { page?: number; pageSize?: number; category?: string; tags?: string; author?: string }) => {
   return useQuery({
     queryKey: ['skills', params],
     queryFn: () => skillsApi.list(params),
@@ -40,7 +40,7 @@ export const useUpdateSkill = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<SkillCreateRequest> }) =>
+    mutationFn: ({ id, data }: { id: string; data: SkillUpdateRequest }) =>
       skillsApi.update(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['skill', variables.id] });
@@ -56,31 +56,6 @@ export const useDeleteSkill = () => {
     mutationFn: (id: string) => skillsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['skills'] });
-    },
-  });
-};
-
-export const useBuildSkill = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (id: string) => skillsApi.build(id),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['skillVersions', variables] });
-      queryClient.invalidateQueries({ queryKey: ['skill', variables] });
-    },
-  });
-};
-
-export const usePublishSkill = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({ id, version }: { id: string; version: string }) =>
-      skillsApi.publish(id, version),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['skillVersions', variables.id] });
-      queryClient.invalidateQueries({ queryKey: ['skill', variables.id] });
     },
   });
 };

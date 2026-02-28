@@ -51,26 +51,19 @@ export const JsonEditor: React.FC<JsonEditorProps> = ({
     onChange('');
   };
 
-  const getBorderColor = () => {
-    if (!value.trim()) return 'border-gray-300 dark:border-gray-600';
-    return isValid
-      ? 'border-green-500 dark:border-green-400'
-      : 'border-red-500 dark:border-red-400';
-  };
-
   const getStatusIcon = () => {
     if (!value.trim()) return null;
     return isValid ? (
-      <Check className="w-5 h-5 text-green-500 dark:text-green-400" />
+      <Check className="w-5 h-5 text-cyber-primary" />
     ) : (
-      <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400" />
+      <AlertCircle className="w-5 h-5 text-cyber-accent" />
     );
   };
 
   return (
     <div className={`relative ${className}`}>
       <div className="flex items-center justify-between mb-2">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="text-sm font-mono text-gray-400 uppercase tracking-wider">
           JSON Data
         </label>
         <div className="flex items-center gap-2">
@@ -78,7 +71,7 @@ export const JsonEditor: React.FC<JsonEditorProps> = ({
             type="button"
             onClick={handleFormat}
             disabled={!value.trim() || !isValid}
-            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono text-gray-300 bg-void-800 border border-void-600 rounded hover:bg-void-700 hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             title="Format JSON (pretty print)"
           >
             <Code className="w-3 h-3" />
@@ -88,7 +81,7 @@ export const JsonEditor: React.FC<JsonEditorProps> = ({
             type="button"
             onClick={handleClear}
             disabled={!value.trim()}
-            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono text-gray-300 bg-void-800 border border-void-600 rounded hover:bg-void-700 hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             title="Clear JSON"
           >
             <X className="w-3 h-3" />
@@ -102,12 +95,12 @@ export const JsonEditor: React.FC<JsonEditorProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full px-3 py-2 font-mono text-sm border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 ${getBorderColor()} min-h-[200px]`}
+        className="w-full px-4 py-3 font-mono text-sm border rounded-lg focus:outline-none focus:border-cyber-primary bg-void-900/50 text-gray-200 placeholder:text-gray-600 min-h-[200px] transition-colors"
         spellCheck={false}
       />
 
       {!isValid && error && (
-        <div className="mt-2 p-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded">
+        <div className="mt-2 p-2 text-xs text-cyber-accent bg-cyber-accent/10 border border-cyber-accent/30 rounded">
           <strong>JSON Error:</strong> {error}
         </div>
       )}

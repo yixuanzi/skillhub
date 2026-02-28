@@ -13,11 +13,11 @@ export const Layout = () => {
       <div
         className={cn(
           'transition-all duration-300',
-          sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'
+          sidebarOpen ? 'ml-64 lg:ml-64' : 'ml-20 lg:ml-20'
         )}
       >
         <Header />
-        <main className="p-6 scanlines">
+        <main className="p-6">
           <Outlet />
         </main>
       </div>

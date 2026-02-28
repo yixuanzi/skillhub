@@ -14,6 +14,7 @@ build/
 .vscode/
 *.swp
 *.swo
+*.pyc
 
 # OS
 .DS_Store

@@ -13,10 +13,10 @@ export const DashboardPage = () => {
     );
   }
 
-  const skills = skillsData?.data?.items || [];
+  const skills = skillsData?.items || [];
   const totalSkills = skills.length;
-  const publishedSkills = skills.filter((s) => s.status === 'published').length;
-  const draftSkills = skills.filter((s) => s.status === 'draft').length;
+  const publishedSkills = skills.length; // All skills are published in the current model
+  const draftSkills = 0; // No draft status in the current model
 
   const stats = [
     {
@@ -117,14 +117,12 @@ export const DashboardPage = () => {
                       {skill.name}
                     </p>
                     <p className="text-xs text-gray-500 font-mono">
-                      {skill.type} • {skill.runtime}
+                      v{skill.version} {skill.category && `• ${skill.category}`}
                     </p>
                   </div>
                 </div>
-                <Badge
-                  variant={skill.status === 'published' ? 'success' : 'warning'}
-                >
-                  {skill.status}
+                <Badge variant="info">
+                  {skill.created_by}
                 </Badge>
               </div>
             ))}

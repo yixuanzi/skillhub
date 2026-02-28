@@ -1,4 +1,5 @@
 import { ReactNode, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/utils/cn';
 
 interface ModalProps {
@@ -23,7 +24,7 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }: ModalPr
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
@@ -61,6 +62,7 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }: ModalPr
         {/* Content */}
         <div className="p-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -6,8 +6,10 @@ import { DashboardPage } from './pages/dashboard';
 import { SkillsListPage, SkillDetailPage, SkillCreatePage } from './pages/skills';
 import { UsersPage } from './pages/users';
 import { ResourcesPage } from './pages/resources';
+import { TokensPage } from './pages/tokens';
 import { ACLPage } from './pages/acl';
 import { useAuthStore } from './store/authStore';
+import { ApiConfigDebug } from './components/debug/ApiConfigDebug';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,6 +45,9 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      {/* Debug component - shows API configuration in console */}
+      <ApiConfigDebug />
+
       <BrowserRouter>
         <Routes>
           {/* Public Routes */}
@@ -79,6 +84,7 @@ function App() {
             <Route path="skills/:id" element={<SkillDetailPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="resources" element={<ResourcesPage />} />
+            <Route path="tokens" element={<TokensPage />} />
             <Route path="acl" element={<ACLPage />} />
             <Route path="settings" element={<div className="text-gray-400">Settings coming soon</div>} />
           </Route>

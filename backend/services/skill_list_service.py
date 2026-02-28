@@ -14,7 +14,7 @@ class SkillListService:
     """Service class for skill market management operations."""
 
     @staticmethod
-    def create(db: Session, skill_data: SkillListCreate) -> SkillListResponse:
+    def create(db: Session, skill_data: SkillListCreate,current_user) -> SkillListResponse:
         """Create a new skill.
 
         Args:
@@ -37,7 +37,7 @@ class SkillListService:
             name=skill_data.name,
             description=skill_data.description,
             content=skill_data.content,
-            created_by=skill_data.created_by,
+            created_by=current_user.username,
             category=skill_data.category,
             tags=skill_data.tags,
             version=skill_data.version

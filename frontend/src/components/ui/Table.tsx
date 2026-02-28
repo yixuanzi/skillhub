@@ -3,7 +3,7 @@ import { cn } from '@/utils/cn';
 
 export const Table = forwardRef<HTMLTableElement, HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto" style={{ pointerEvents: 'auto' }}> 
       <table
         ref={ref}
         className={cn('w-full border-collapse', className)}
