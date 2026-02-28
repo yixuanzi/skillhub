@@ -5,6 +5,7 @@ import { LoginPage, RegisterPage } from './pages/auth';
 import { DashboardPage } from './pages/dashboard';
 import { SkillsListPage, SkillDetailPage, SkillCreatePage } from './pages/skills';
 import { UsersPage } from './pages/users';
+import { ResourcesPage } from './pages/resources';
 import { ACLPage } from './pages/acl';
 import { useAuthStore } from './store/authStore';
 
@@ -77,6 +78,7 @@ function App() {
             <Route path="skills/new" element={<SkillCreatePage />} />
             <Route path="skills/:id" element={<SkillDetailPage />} />
             <Route path="users" element={<UsersPage />} />
+            <Route path="resources" element={<ResourcesPage />} />
             <Route path="acl" element={<ACLPage />} />
             <Route path="settings" element={<div className="text-gray-400">Settings coming soon</div>} />
           </Route>

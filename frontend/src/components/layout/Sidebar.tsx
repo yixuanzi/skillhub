@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Box,
   Users,
+  Database,
   Shield,
   Settings,
   ChevronLeft,
@@ -22,6 +23,7 @@ const navItems: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/skills', label: 'Skills', icon: Box },
   { path: '/users', label: 'Users', icon: Users },
+  { path: '/resources', label: 'Resources', icon: Database },
   { path: '/acl', label: 'ACL Rules', icon: Shield },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
