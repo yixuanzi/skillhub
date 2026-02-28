@@ -77,6 +77,13 @@
     background: linear-gradient(90deg, transparent, #00ff9f, transparent);
     opacity: 0;
     transition: opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .cyber-card > * {
+    position: relative;
+    z-index: 1;
   }
 
   .cyber-card:hover::before {
