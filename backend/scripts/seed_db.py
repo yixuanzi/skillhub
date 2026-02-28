@@ -166,7 +166,7 @@ def seed_admin_user(db, roles):
     # Create admin user
     admin_user = User(
         username="admin",
-        email="admin@skillhub.local",
+        email="admin@skillhub.com",
         hashed_password=get_password_hash("admin123"),
         is_active=True
     )
@@ -174,7 +174,7 @@ def seed_admin_user(db, roles):
 
     db.add(admin_user)
     print(f"  + Created admin user: admin / admin123")
-    print(f"    Email: admin@skillhub.local")
+    print(f"    Email: admin@skillhub.com")
     print(f"    Role: super_admin")
 
 
