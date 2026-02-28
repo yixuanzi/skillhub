@@ -1,7 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import datetime
-import uuid
 
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
@@ -11,7 +10,7 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=8, max_length=100)
 
 class UserResponse(UserBase):
-    id: uuid.UUID
+    id: str  # UUID stored as string in SQLite
     is_active: bool
     created_at: datetime
 
@@ -44,14 +43,14 @@ class RoleCreate(RoleBase):
     pass
 
 class RoleResponse(RoleBase):
-    id: uuid.UUID
+    id: str  # UUID stored as string in SQLite
     created_at: datetime
 
     class Config:
         from_attributes = True
 
 class PermissionResponse(BaseModel):
-    id: uuid.UUID
+    id: str  # UUID stored as string in SQLite
     resource: str
     action: str
     description: Optional[str] = None
