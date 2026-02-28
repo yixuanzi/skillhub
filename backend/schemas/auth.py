@@ -24,6 +24,7 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str  # Last 32 chars
     refresh_token: str  # Last 32 chars
+    tmpkey: str  # 32字符的临时密钥，可用于API认证
     token_type: str = "bearer"
     expires_in: int  # Seconds
 
