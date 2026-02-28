@@ -523,7 +523,80 @@ version: "1.0.0"
 
 ---
 
-## 7. ACL 管理 API
+## 7. 技能市场 API
+
+### 7.1 创建技能
+
+**端点**: `POST /skills`
+
+**请求**:
+```json
+{
+  "name": "string (1-255, required)",
+  "description": "string (optional, max 10000)",
+  "content": "string (optional, max 100000)",
+  "created_by": "string (1-255, required)",
+  "category": "string (optional, max 100)",
+  "tags": "string (optional, comma-separated, max 500)",
+  "version": "string (optional, default '1.0.0')"
+}
+```
+
+**响应** (201): 返回创建的技能对象
+
+### 7.2 列出技能
+
+**端点**: `GET /skills`
+
+**查询参数**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| page | int | 否 | 页码，默认 1 |
+| size | int | 否 | 每页数量，默认 20，最大 100 |
+| category | str | 否 | 按类别过滤 |
+| tags | str | 否 | 按标签过滤（逗号分隔） |
+| author | str | 否 | 按创建者用户 ID 过滤 |
+
+**响应** (200): 返回分页的技能列表
+
+### 7.3 获取技能详情
+
+**端点**: `GET /skills/{id}`
+
+**响应** (200): 返回技能对象
+
+**响应** (404): 技能不存在
+
+### 7.4 更新技能
+
+**端点**: `PUT /skills/{id}`
+
+**请求**: 所有字段可选
+```json
+{
+  "name": "string (1-255, optional)",
+  "description": "string (optional, max 10000)",
+  "content": "string (optional, max 100000)",
+  "category": "string (optional, max 100)",
+  "tags": "string (optional, comma-separated, max 500)"
+}
+```
+
+**响应** (200): 返回更新后的技能对象
+
+**响应** (404): 技能不存在
+
+### 7.5 删除技能
+
+**端点**: `DELETE /skills/{id}`
+
+**响应** (204): 删除成功
+
+**响应** (404): 技能不存在
+
+---
+
+## 8. ACL 管理 API
 
 ### 7.1 列出 ACL 规则
 
@@ -658,7 +731,7 @@ version: "1.0.0"
 
 ---
 
-## 8. 网关 API
+## 9. 网关 API
 
 ### 8.1 统一调用入口
 
@@ -743,7 +816,7 @@ version: "1.0.0"
 
 ---
 
-## 9. 错误码参考
+## 10. 错误码参考
 
 | 错误码 | HTTP 状态 | 说明 |
 |--------|----------|------|
@@ -764,7 +837,7 @@ version: "1.0.0"
 
 ---
 
-## 10. 分页规范
+## 11. 分页规范
 
 所有列表 API 支持统一分页参数：
 
@@ -786,9 +859,9 @@ version: "1.0.0"
 
 ---
 
-## 11. 认证说明
+## 12. 认证说明
 
-### 11.1 Token 使用
+### 12.1 Token 使用
 
 在请求头中添加 JWT Token：
 
@@ -796,7 +869,7 @@ version: "1.0.0"
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-### 11.2 Token 刷新
+### 12.2 Token 刷新
 
 当 Access Token 过期时，使用 Refresh Token 获取新的 Access Token：
 
@@ -807,7 +880,7 @@ POST /api/v1/auth/refresh
 }
 ```
 
-### 11.3 需要 Token 的端点
+### 12.3 需要 Token 的端点
 
 除 `/auth/register` 和 `/auth/login` 外，所有端点都需要有效的 JWT Token。
 
