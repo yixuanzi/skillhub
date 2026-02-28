@@ -102,6 +102,43 @@ export interface SkillInvokeResponse {
   requestId: string;
 }
 
+// Resource Types
+export type ResourceType = 'build' | 'gateway' | 'third';
+
+export interface Resource {
+  id: string;
+  name: string;
+  desc?: string;
+  type: ResourceType;
+  url?: string;
+  ext?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResourceCreate {
+  name: string;
+  desc?: string;
+  type: ResourceType;
+  url?: string;
+  ext?: Record<string, unknown>;
+}
+
+export interface ResourceUpdate {
+  name?: string;
+  desc?: string;
+  type?: ResourceType;
+  url?: string;
+  ext?: Record<string, unknown>;
+}
+
+export interface ResourceListResponse {
+  items: Resource[];
+  total: number;
+  page: number;
+  size: number;
+}
+
 // ACL Types
 export type AccessMode = 'any' | 'rbac';
 
