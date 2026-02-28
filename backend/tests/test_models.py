@@ -86,11 +86,11 @@ def test_refresh_token(db):
     db.refresh(user)
 
     # Create refresh token
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     token = RefreshToken(
         token_hash="hashed_token_value",
         user_id=user.id,
-        expires_at=datetime.utcnow() + timedelta(days=7)
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7)
     )
     db.add(token)
     db.commit()
