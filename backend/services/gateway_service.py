@@ -8,6 +8,7 @@ from models.resource import Resource, ResourceType
 from models.user import User
 from schemas.acl_resource import PermissionCheckRequest
 from services.acl_resource_service import ACLResourceService
+from services.mtoken_service import MTokenService
 from core.exceptions import NotFoundException, ValidationException
 from typing import Optional, Dict, Any
 import httpx
@@ -15,12 +16,82 @@ import asyncio
 import time
 import json
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
 
 class GatewayService:
     """Service class for gateway operations."""
+
+    @staticmethod
+    def _replace_token_placeholders(db: Session, user_id: str, config: Any) -> Any:
+        """Replace token placeholders in config with actual token values from mtoken.
+
+        This function recursively traverses the config dictionary and replaces
+        any string values containing {key} pattern with the corresponding token value
+        from the user's mtoken storage.
+
+        Args:
+            db: Database session
+            user_id: ID of the current user
+            config: Configuration dictionary (may contain nested dicts/lists/strings)
+
+        Returns:
+            New config dictionary with placeholders replaced
+
+        Example:
+            Input:  {"headers": {"Authorization": "Bearer {github_token}"}}
+            Output: {"headers": {"Authorization": "Bearer ghp_xxx"}}
+        """
+        # Handle string case - process for placeholders
+        if isinstance(config, str):
+            pattern = r'\{([a-zA-Z0-9_]+)\}'
+            matches = re.findall(pattern, config)
+
+            if matches:
+                new_value = config
+                for placeholder in matches:
+                    token_key = placeholder
+                    # Find token from user's mtoken storage
+                    mtokens = MTokenService.list_all(db, user_id, limit=1000)
+                    found = False
+
+                    for mtoken in mtokens:
+                        if mtoken.app_name == token_key:
+                            new_value = new_value.replace(f"{{{placeholder}}}", mtoken.value)
+                            found = True
+                            logger.info(f"Replaced token placeholder: {{{placeholder}}} -> ***")
+                            break
+
+                    if not found:
+                        logger.warning(f"Token placeholder {{{placeholder}}} not found in user's mtokens")
+
+                return new_value
+            return config
+
+        # Handle list case - process each item
+        if isinstance(config, list):
+            new_list = []
+            for item in config:
+                if isinstance(item, (dict, list, str)):
+                    new_list.append(GatewayService._replace_token_placeholders(db, user_id, item))
+                else:
+                    new_list.append(item)
+            return new_list
+
+        # Handle dict case - process each value
+        if isinstance(config, dict):
+            new_config = {}
+            for key, value in config.items():
+                if isinstance(value, (dict, list, str)):
+                    new_config[key] = GatewayService._replace_token_placeholders(db, user_id, value)
+                else:
+                    new_config[key] = value
+            return new_config
+
+        # Return other types as-is
+        return config
 
     @staticmethod
     def _build_url(base_url: str, path: str) -> str:
@@ -161,7 +232,7 @@ class GatewayService:
 
     @staticmethod
     async def _invoke_resource(
-        user,
+        user: User,
         resource: Resource,
         method: str,
         headers: Optional[Dict[str, str]] = None,
@@ -194,18 +265,18 @@ class GatewayService:
             )
         elif resource_type == ResourceType.GATEWAY:
             return await GatewayService._invoke_gateway_resource(
-                resource, method, headers, params, body, path
+                user,resource, method, headers, params, body, path
             )
         elif resource_type == ResourceType.THIRD:
             return await GatewayService._invoke_third_party_resource(
-                resource, method, headers, params, body
+                user,resource, method, headers, params, body
             )
         else:
             raise Exception(f"Unsupported resource type: {resource_type}")
 
     @staticmethod
     async def _invoke_build_resource(
-        user,
+        user:User,
         resource: Resource,
         method: str,
         headers: Optional[Dict[str, str]] = None,
@@ -222,6 +293,17 @@ class GatewayService:
 
         # Parse ext for additional configuration
         ext_config = resource.ext or {}
+
+        # Replace token placeholders with actual token values from user's mtoken
+        from database import get_db
+        db = next(get_db())
+        try:
+            ext_config = GatewayService._replace_token_placeholders(
+                db, str(user.id), ext_config
+            )
+        finally:
+            db.close()
+
         timeout = ext_config.get("timeout", 30)
         auth_headers = ext_config.get("headers", {})
 
@@ -284,6 +366,7 @@ class GatewayService:
 
     @staticmethod
     async def _invoke_gateway_resource(
+        user:User,
         resource: Resource,
         method: str,
         headers: Optional[Dict[str, str]] = None,
@@ -315,6 +398,17 @@ class GatewayService:
 
         # Parse ext for additional configuration
         ext_config = resource.ext or {}
+
+        # Replace token placeholders with actual token values from user's mtoken
+        from database import get_db
+        db = next(get_db())
+        try:
+            ext_config = GatewayService._replace_token_placeholders(
+                db, str(user.id), ext_config
+            )
+        finally:
+            db.close()
+
         timeout = ext_config.get("timeout", 30)
         auth_headers = ext_config.get("headers", {})
 
@@ -375,6 +469,7 @@ class GatewayService:
 
     @staticmethod
     async def _invoke_third_party_resource(
+        user:User,
         resource: Resource,
         method: str,
         headers: Optional[Dict[str, str]] = None,
