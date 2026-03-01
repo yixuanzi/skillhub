@@ -26,6 +26,10 @@ class GatewayCallRequest(BaseModel):
         default=None,
         description="Request body for POST/PUT requests"
     )
+    path: Optional[str] = Field(
+        default="",
+        description="Additional path to append to resource URL (for gateway type resources)"
+    )
 
 
 class GatewayResponse(BaseModel):

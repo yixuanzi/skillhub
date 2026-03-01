@@ -23,6 +23,42 @@ class GatewayService:
     """Service class for gateway operations."""
 
     @staticmethod
+    def _build_url(base_url: str, path: str) -> str:
+        """Build a complete URL by intelligently joining base_url and path.
+
+        This function handles slash placement to ensure a properly formed URL:
+        - Removes trailing slash from base_url
+        - Ensures path starts with a slash (unless empty)
+
+        Args:
+            base_url: The base URL (e.g., "https://api.example.com" or "https://api.example.com/")
+            path: The path to append (e.g., "/users" or "users" or "")
+
+        Returns:
+            Properly joined URL string
+
+        Examples:
+            >>> GatewayService._build_url("https://api.example.com", "/users")
+            "https://api.example.com/users"
+            >>> GatewayService._build_url("https://api.example.com/", "users")
+            "https://api.example.com/users"
+            >>> GatewayService._build_url("https://api.example.com/", "/v1/data")
+            "https://api.example.com/v1/data"
+            >>> GatewayService._build_url("https://api.example.com", "")
+            "https://api.example.com"
+        """
+        # Remove trailing slash from base_url
+        base = base_url.rstrip("/")
+
+        # Ensure path starts with slash (unless empty)
+        if path and not path.startswith("/"):
+            path = "/" + path
+        elif not path:
+            path = ""
+
+        return base + path
+
+    @staticmethod
     async def call_resource(
         db: Session,
         resource_name: str,
@@ -30,7 +66,8 @@ class GatewayService:
         method: str = "GET",
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, Any]] = None,
-        body: Optional[Dict[str, Any]] = None
+        body: Optional[Dict[str, Any]] = None,
+        path: str = ""
     ) -> Dict[str, Any]:
         """Call a resource through the gateway with ACL permission checking.
 
@@ -42,6 +79,7 @@ class GatewayService:
             headers: Additional headers to include
             params: Query parameters
             body: Request body for POST/PUT
+            path: Additional path to append to resource URL (for gateway type resources)
 
         Returns:
             Gateway response dict with success, data, error, etc.
@@ -78,7 +116,7 @@ class GatewayService:
 
             # Step 3: Invoke resource based on type
             result = await GatewayService._invoke_resource(
-                user,resource, method, headers, params, body
+                user, resource, method, headers, params, body, path
             )
 
             execution_time = (time.time() - start_time) * 1000  # Convert to ms
@@ -128,16 +166,19 @@ class GatewayService:
         method: str,
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, Any]] = None,
-        body: Optional[Dict[str, Any]] = None
+        body: Optional[Dict[str, Any]] = None,
+        path: str = ""
     ) -> Dict[str, Any]:
         """Invoke a resource based on its type.
 
         Args:
+            user: Current user for auth headers
             resource: Resource model
             method: HTTP method
             headers: Additional headers
             params: Query parameters
             body: Request body
+            path: Additional path to append to resource URL (for gateway type)
 
         Returns:
             Response dict with status_code and data
@@ -149,11 +190,11 @@ class GatewayService:
 
         if resource_type == ResourceType.BUILD:
             return await GatewayService._invoke_build_resource(
-                user,resource, method, headers, params, body
+                user, resource, method, headers, params, body
             )
         elif resource_type == ResourceType.GATEWAY:
             return await GatewayService._invoke_gateway_resource(
-                resource, method, headers, params, body
+                resource, method, headers, params, body, path
             )
         elif resource_type == ResourceType.THIRD:
             return await GatewayService._invoke_third_party_resource(
@@ -247,17 +288,90 @@ class GatewayService:
         method: str,
         headers: Optional[Dict[str, str]] = None,
         params: Optional[Dict[str, Any]] = None,
-        body: Optional[Dict[str, Any]] = None
+        body: Optional[Dict[str, Any]] = None,
+        path: str = ""
     ) -> Dict[str, Any]:
         """Invoke a gateway-type resource.
 
         Gateway resources are typically external API gateways or proxies.
+        This method supports additional path appending for flexible routing.
+
+        Args:
+            resource: Resource model
+            method: HTTP method
+            headers: Additional headers
+            params: Query parameters
+            body: Request body
+            path: Additional path to append to the resource URL
+
+        Returns:
+            Response dict with status_code and data
         """
-        # For now, similar to build resources
-        # In the future, this might have specific gateway routing logic
-        return await GatewayService._invoke_build_resource(
-            resource, method, headers, params, body
-        )
+        if not resource.url:
+            raise Exception("Gateway resource has no URL configured")
+
+        # Build full URL with path
+        full_url = GatewayService._build_url(resource.url, path)
+
+        # Parse ext for additional configuration
+        ext_config = resource.ext or {}
+        timeout = ext_config.get("timeout", 30)
+        auth_headers = ext_config.get("headers", {})
+
+        # Merge headers
+        merged_headers = {}
+        if headers:
+            merged_headers.update(headers)
+        if auth_headers:
+            merged_headers.update(auth_headers)
+
+        # Make HTTP call
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
+                if method.upper() == "GET":
+                    response = await client.get(
+                        full_url,
+                        headers=merged_headers if merged_headers else None,
+                        params=params
+                    )
+                elif method.upper() == "POST":
+                    response = await client.post(
+                        full_url,
+                        headers=merged_headers if merged_headers else None,
+                        params=params,
+                        json=body
+                    )
+                elif method.upper() == "PUT":
+                    response = await client.put(
+                        full_url,
+                        headers=merged_headers if merged_headers else None,
+                        params=params,
+                        json=body
+                    )
+                elif method.upper() == "DELETE":
+                    response = await client.delete(
+                        full_url,
+                        headers=merged_headers if merged_headers else None,
+                        params=params
+                    )
+                else:
+                    raise Exception(f"Unsupported HTTP method: {method}")
+
+                # Try to parse response as JSON
+                try:
+                    response_data = response.json()
+                except Exception:
+                    response_data = {"content": response.text}
+
+                return {
+                    "status_code": response.status_code,
+                    "data": response_data
+                }
+
+            except httpx.TimeoutException:
+                raise Exception(f"Request timed out after {timeout}s")
+            except httpx.HTTPError as e:
+                raise Exception(f"HTTP error: {str(e)}")
 
     @staticmethod
     async def _invoke_third_party_resource(

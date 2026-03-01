@@ -31,7 +31,7 @@ async def call_resource(
 
     Args:
         resource_name: Name of the resource to call (path parameter)
-        request_data: Optional request data (method, headers, params, body)
+        request_data: Optional request data (method, headers, params, body, path)
         request: FastAPI Request object for additional context
         db: Database session
         current_user: Authenticated user
@@ -67,7 +67,8 @@ async def call_resource(
         method=request_data.method or "GET",
         headers=headers if headers else None,
         params=request_data.params,
-        body=request_data.body
+        body=request_data.body,
+        path=request_data.path or ""
     )
 
     # Check for specific error types
@@ -187,6 +188,273 @@ async def call_resource_post(
         method="POST",
         params=params if params else None,
         body=body
+    )
+
+    # Check for errors
+    if not result["success"]:
+        error = result.get("error", "Unknown error")
+        error_type = result.get("error_type", "internal_error")
+
+        if error_type == "permission_denied":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error
+            )
+        elif error_type == "resource_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error
+            )
+
+    return GatewayResponse(**result)
+
+
+# New routes with path support for gateway-type resources
+@router.get("/{resource_name}/{path:path}", response_model=GatewayResponse)
+async def call_resource_with_path_get(
+    resource_name: str,
+    path: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """GET method for calling a gateway resource with additional path.
+
+    This endpoint allows calling gateway-type resources with an additional path
+    that will be appended to the resource's base URL.
+
+    Example:
+        GET /api/v1/gateway/my-api/users/123
+        -> Calls resource 'my-api' with path '/users/123'
+
+    Args:
+        resource_name: Name of the resource to call
+        path: Additional path to append to the resource URL
+        request: FastAPI Request object
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        Gateway response with success status, resource info, and data/error
+    """
+    # Extract query parameters
+    params = dict(request.query_params)
+
+    # Call the resource with GET method and path
+    result = await GatewayService.call_resource(
+        db=db,
+        resource_name=resource_name,
+        user=current_user,
+        method="GET",
+        params=params if params else None,
+        path=path
+    )
+
+    # Check for errors
+    if not result["success"]:
+        error = result.get("error", "Unknown error")
+        error_type = result.get("error_type", "internal_error")
+
+        if error_type == "permission_denied":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error
+            )
+        elif error_type == "resource_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error
+            )
+
+    return GatewayResponse(**result)
+
+
+@router.post("/{resource_name}/{path:path}", response_model=GatewayResponse)
+async def call_resource_with_path_post(
+    resource_name: str,
+    path: str,
+    body: Dict[str, Any] | None = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """POST method for calling a gateway resource with additional path.
+
+    This endpoint allows calling gateway-type resources with an additional path
+    that will be appended to the resource's base URL.
+
+    Example:
+        POST /api/v1/gateway/my-api/users
+        -> Calls resource 'my-api' with path '/users'
+
+    Args:
+        resource_name: Name of the resource to call
+        path: Additional path to append to the resource URL
+        body: Request body to send
+        request: FastAPI Request object
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        Gateway response with success status, resource info, and data/error
+    """
+    # Extract query parameters
+    params = {}
+    if request:
+        params = dict(request.query_params)
+
+    # Call the resource with POST method and path
+    result = await GatewayService.call_resource(
+        db=db,
+        resource_name=resource_name,
+        user=current_user,
+        method="POST",
+        params=params if params else None,
+        body=body,
+        path=path
+    )
+
+    # Check for errors
+    if not result["success"]:
+        error = result.get("error", "Unknown error")
+        error_type = result.get("error_type", "internal_error")
+
+        if error_type == "permission_denied":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error
+            )
+        elif error_type == "resource_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error
+            )
+
+    return GatewayResponse(**result)
+
+
+@router.put("/{resource_name}/{path:path}", response_model=GatewayResponse)
+async def call_resource_with_path_put(
+    resource_name: str,
+    path: str,
+    body: Dict[str, Any] | None = None,
+    request: Request = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """PUT method for calling a gateway resource with additional path.
+
+    This endpoint allows calling gateway-type resources with an additional path
+    that will be appended to the resource's base URL.
+
+    Example:
+        PUT /api/v1/gateway/my-api/users/123
+        -> Calls resource 'my-api' with path '/users/123'
+
+    Args:
+        resource_name: Name of the resource to call
+        path: Additional path to append to the resource URL
+        body: Request body to send
+        request: FastAPI Request object
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        Gateway response with success status, resource info, and data/error
+    """
+    # Extract query parameters
+    params = {}
+    if request:
+        params = dict(request.query_params)
+
+    # Call the resource with PUT method and path
+    result = await GatewayService.call_resource(
+        db=db,
+        resource_name=resource_name,
+        user=current_user,
+        method="PUT",
+        params=params if params else None,
+        body=body,
+        path=path
+    )
+
+    # Check for errors
+    if not result["success"]:
+        error = result.get("error", "Unknown error")
+        error_type = result.get("error_type", "internal_error")
+
+        if error_type == "permission_denied":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=error
+            )
+        elif error_type == "resource_not_found":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error
+            )
+
+    return GatewayResponse(**result)
+
+
+@router.delete("/{resource_name}/{path:path}", response_model=GatewayResponse)
+async def call_resource_with_path_delete(
+    resource_name: str,
+    path: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """DELETE method for calling a gateway resource with additional path.
+
+    This endpoint allows calling gateway-type resources with an additional path
+    that will be appended to the resource's base URL.
+
+    Example:
+        DELETE /api/v1/gateway/my-api/users/123
+        -> Calls resource 'my-api' with path '/users/123'
+
+    Args:
+        resource_name: Name of the resource to call
+        path: Additional path to append to the resource URL
+        request: FastAPI Request object
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        Gateway response with success status, resource info, and data/error
+    """
+    # Extract query parameters
+    params = dict(request.query_params)
+
+    # Call the resource with DELETE method and path
+    result = await GatewayService.call_resource(
+        db=db,
+        resource_name=resource_name,
+        user=current_user,
+        method="DELETE",
+        params=params if params else None,
+        path=path
     )
 
     # Check for errors
