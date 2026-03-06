@@ -83,6 +83,15 @@ class PermissionResponse(BaseModel):
         from_attributes = True
 
 
+class AdminUserCreate(BaseModel):
+    """Schema for admin user creation."""
+    username: str = Field(..., min_length=3, max_length=50)
+    email: str = Field(..., format="email")
+    password: str = Field(..., min_length=8, max_length=100)
+    role_ids: List[str] = Field(default_factory=list)
+    is_active: bool = Field(default=True)
+
+
 def require_admin(user: User) -> User:
     """Dependency to check if user is admin or superadmin."""
     admin_roles = {"admin", "superadmin"}
