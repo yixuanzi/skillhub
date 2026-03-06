@@ -1,5 +1,5 @@
 import { Resource } from '@/types';
-import { Pencil, Trash2, ExternalLink } from 'lucide-react';
+import { Pencil, Trash2, ExternalLink, Globe, Lock, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
@@ -21,17 +21,35 @@ interface ResourceTableProps {
 }
 
 // Type badge color mapping
-const getTypeBadgeVariant = (type: Resource['type']): 'info' | 'warning' | 'success' => {
+const getTypeBadgeVariant = (type: Resource['type']): 'info' | 'warning' | 'success' | 'default' => {
   switch (type) {
-    case 'build':
-      return 'info';
     case 'gateway':
       return 'warning';
     case 'third':
       return 'success';
+    case 'mcp':
+      return 'default';
     default:
       return 'info';
   }
+};
+
+// View scope badge component
+const ViewScopeBadge: React.FC<{ scope: 'public' | 'private' }> = ({ scope }) => {
+  if (scope === 'public') {
+    return (
+      <Badge variant="outline" className="border-cyber-primary/30 text-cyber-primary">
+        <Globe className="w-3 h-3 mr-1" />
+        Public
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="bg-void-800 border-void-600">
+      <Lock className="w-3 h-3 mr-1" />
+      Private
+    </Badge>
+  );
 };
 
 export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConfirm }: ResourceTableProps) => {
@@ -60,7 +78,7 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
         </div>
         <h3 className="text-lg font-mono font-semibold text-gray-300 mb-2">No Resources Found</h3>
         <p className="text-sm text-gray-500 text-center max-w-md">
-          Get started by creating your first resource. Resources can be build artifacts, gateway endpoints, or third-party integrations.
+          Get started by creating your first resource. Resources can be MCP servers, gateway endpoints, or third-party integrations.
         </p>
       </div>
     );
@@ -73,8 +91,10 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Type</TableHead>
+            <TableHead>Visibility</TableHead>
             <TableHead>URL</TableHead>
             <TableHead>Description</TableHead>
+            <TableHead className="w-20">Docs</TableHead>
             <TableHead>Created</TableHead>
             {(onEdit || onDelete) && <TableHead className="w-32">Actions</TableHead>}
           </TableRow>
@@ -87,6 +107,9 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
               </TableCell>
               <TableCell>
                 <Badge variant={getTypeBadgeVariant(resource.type)}>{resource.type}</Badge>
+              </TableCell>
+              <TableCell>
+                <ViewScopeBadge scope={resource.view_scope || 'public'} />
               </TableCell>
               <TableCell>
                 {resource.url ? (
@@ -107,6 +130,23 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
                 <span className="text-sm text-gray-400 line-clamp-2 max-w-xs">
                   {resource.desc || <span className="text-gray-600">No description</span>}
                 </span>
+              </TableCell>
+              <TableCell>
+                {resource.api_description ? (
+                  <div
+                    className="group relative inline-block"
+                    title="API documentation available"
+                  >
+                    <FileText className="w-4 h-4 text-cyber-secondary" />
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-10">
+                      <div className="bg-void-900 border border-void-700 rounded px-2 py-1 text-xs text-gray-300 whitespace-nowrap max-w-xs">
+                        API documentation available
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-gray-600 font-mono text-xs">—</span>
+                )}
               </TableCell>
               <TableCell>
                 <span className="text-xs text-gray-500 font-mono">

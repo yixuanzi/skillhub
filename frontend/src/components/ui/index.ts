@@ -7,3 +7,8 @@ export { Modal } from './Modal';
 export { Alert } from './Alert';
 export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './Table';
 export { Loading, PageLoading } from './Loading';
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs';
+export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './Dialog';
+export { Label } from './Label';
+export { Checkbox } from './Checkbox';
+export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './Select';

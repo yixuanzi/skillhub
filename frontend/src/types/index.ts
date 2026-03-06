@@ -110,7 +110,18 @@ export interface SkillInvokeResponse {
 }
 
 // Resource Types
-export type ResourceType = 'build' | 'gateway' | 'third';
+export type ResourceType = 'gateway' | 'third' | 'mcp';
+export type ViewScope = 'public' | 'private';
+export type MCPTransportType = 'stdio' | 'sse' | 'ws';
+
+export interface MCPConfig {
+  transport: MCPTransportType;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  timeout?: number;
+  endpoint?: string;
+}
 
 export interface Resource {
   id: string;
@@ -119,6 +130,9 @@ export interface Resource {
   type: ResourceType;
   url?: string;
   ext?: Record<string, unknown>;
+  view_scope: ViewScope;
+  api_description?: string;
+  owner_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -129,6 +143,8 @@ export interface ResourceCreate {
   type: ResourceType;
   url?: string;
   ext?: Record<string, unknown>;
+  view_scope?: ViewScope;
+  api_description?: string;
 }
 
 export interface ResourceUpdate {
@@ -137,6 +153,8 @@ export interface ResourceUpdate {
   type?: ResourceType;
   url?: string;
   ext?: Record<string, unknown>;
+  view_scope?: ViewScope;
+  api_description?: string;
 }
 
 // ACL Types

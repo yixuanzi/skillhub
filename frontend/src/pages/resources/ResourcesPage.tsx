@@ -119,7 +119,7 @@ export const ResourcesPage = () => {
             <span className="text-cyber-primary">/&gt;</span>
           </h1>
           <p className="font-mono text-sm text-gray-500">
-            Manage build artifacts, gateway endpoints, and third-party integrations
+            Manage MCP servers, gateway endpoints, and third-party integrations
           </p>
         </div>
         <Button
@@ -158,9 +158,9 @@ export const ResourcesPage = () => {
               className="px-4 py-2 font-mono text-sm rounded-lg bg-void-900/50 border border-void-700 text-gray-100 focus:outline-none focus:border-cyber-primary transition-all duration-200"
             >
               <option value="">All Types</option>
-              <option value="build">Build</option>
               <option value="gateway">Gateway</option>
               <option value="third">Third Party</option>
+              <option value="mcp">MCP Server</option>
             </select>
           </div>
         </div>

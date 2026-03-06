@@ -1,7 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Textarea, Alert, Button } from '@/components/ui';
+import { Lock, Globe, Server } from 'lucide-react';
+import {
+  Modal,
+  Input,
+  Textarea,
+  Alert,
+  Button,
+  Label,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui';
 import { JsonEditor } from './JsonEditor';
-import { Resource, ResourceCreate, ResourceType } from '@/types';
+import { Resource, ResourceCreate, ResourceType, MCPConfig, MCPTransportType, ViewScope } from '@/types';
 
 interface ResourceFormModalProps {
   isOpen: boolean;
@@ -11,6 +24,16 @@ interface ResourceFormModalProps {
   mode: 'create' | 'edit';
 }
 
+// Helper to parse MCP config from ext
+const parseMcpConfig = (ext?: Record<string, unknown>): MCPConfig | undefined => {
+  if (!ext) return undefined;
+
+  const mcpConfig = ext.mcp_config as MCPConfig | undefined;
+  if (!mcpConfig) return undefined;
+
+  return mcpConfig;
+};
+
 export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
   isOpen,
   onClose,
@@ -18,10 +41,23 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
   resource,
   mode,
 }) => {
+  // Form state
   const [name, setName] = useState('');
-  const [type, setType] = useState<ResourceType>('build');
+  const [type, setType] = useState<ResourceType>('gateway');
   const [url, setUrl] = useState('');
   const [description, setDescription] = useState('');
+  const [viewScope, setViewScope] = useState<ViewScope>('public');
+  const [apiDescription, setApiDescription] = useState('');
+
+  // MCP config state
+  const [mcpTransport, setMcpTransport] = useState<MCPTransportType>('stdio');
+  const [mcpCommand, setMcpCommand] = useState('');
+  const [mcpArgs, setMcpArgs] = useState('');
+  const [mcpEndpoint, setMcpEndpoint] = useState('');
+  const [mcpTimeout, setMcpTimeout] = useState('30000');
+  const [mcpEnv, setMcpEnv] = useState('');
+
+  // UI state
   const [ext, setExt] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,12 +70,34 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
         setType(resource.type);
         setUrl(resource.url || '');
         setDescription(resource.desc || '');
+        setViewScope(resource.view_scope || 'public');
+        setApiDescription(resource.api_description || '');
+
+        // Parse MCP config from ext
+        const mcpConfig = parseMcpConfig(resource.ext);
+        if (mcpConfig) {
+          setMcpTransport(mcpConfig.transport || 'stdio');
+          setMcpCommand(mcpConfig.command || '');
+          setMcpArgs(mcpArgs => mcpConfig.args ? mcpConfig.args.join(' ') : '');
+          setMcpEndpoint(mcpConfig.endpoint || '');
+          setMcpTimeout(String(mcpConfig.timeout || 30000));
+          setMcpEnv(mcpConfig.env ? JSON.stringify(mcpConfig.env, null, 2) : '');
+        }
+
         setExt(resource.ext ? JSON.stringify(resource.ext, null, 2) : '');
       } else {
         setName('');
-        setType('build');
+        setType('gateway');
         setUrl('');
         setDescription('');
+        setViewScope('public');
+        setApiDescription('');
+        setMcpTransport('stdio');
+        setMcpCommand('');
+        setMcpArgs('');
+        setMcpEndpoint('');
+        setMcpTimeout('30000');
+        setMcpEnv('');
         setExt('');
       }
       setError('');
@@ -52,11 +110,39 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
       return false;
     }
 
+    // Validate URL for gateway and third types
+    if ((type === 'gateway' || type === 'third') && !url.trim()) {
+      setError('URL is required for Gateway and Third Party types');
+      return false;
+    }
+
+    // Validate MCP config
+    if (type === 'mcp') {
+      if (mcpTransport === 'stdio' && !mcpCommand.trim()) {
+        setError('Command is required for STDIO transport');
+        return false;
+      }
+      if ((mcpTransport === 'sse' || mcpTransport === 'ws') && !mcpEndpoint.trim()) {
+        setError('Endpoint is required for SSE and WebSocket transports');
+        return false;
+      }
+
+      // Validate env JSON if provided
+      if (mcpEnv.trim()) {
+        try {
+          JSON.parse(mcpEnv);
+        } catch {
+          setError('Invalid JSON in environment variables');
+          return false;
+        }
+      }
+    }
+
     // Validate JSON in ext field if provided
     if (ext.trim()) {
       try {
         JSON.parse(ext);
-      } catch (err) {
+      } catch {
         setError('Invalid JSON in extended properties');
         return false;
       }
@@ -76,12 +162,54 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
     setError('');
 
     try {
+      // Build ext object
+      let extObj: Record<string, unknown> | undefined;
+
+      // Parse existing ext or create new
+      if (ext.trim()) {
+        try {
+          extObj = JSON.parse(ext);
+        } catch {
+          extObj = {};
+        }
+      }
+
+      // Add MCP config to ext
+      if (type === 'mcp') {
+        const mcpConfig: MCPConfig = {
+          transport: mcpTransport,
+          timeout: parseInt(mcpTimeout) || 30000,
+        };
+
+        if (mcpTransport === 'stdio') {
+          mcpConfig.command = mcpCommand;
+          if (mcpArgs.trim()) {
+            mcpConfig.args = mcpArgs.split(' ').filter(Boolean);
+          }
+        } else {
+          mcpConfig.endpoint = mcpEndpoint;
+        }
+
+        if (mcpEnv.trim()) {
+          try {
+            mcpConfig.env = JSON.parse(mcpEnv) as Record<string, string>;
+          } catch {
+            // Skip if invalid
+          }
+        }
+
+        extObj = extObj || {};
+        extObj.mcp_config = mcpConfig;
+      }
+
       const data: ResourceCreate = {
         name: name.trim(),
         type,
         url: url.trim() || undefined,
         desc: description.trim() || undefined,
-        ext: ext.trim() ? JSON.parse(ext) : undefined,
+        view_scope: viewScope,
+        api_description: apiDescription.trim() || undefined,
+        ext: Object.keys(extObj || {}).length > 0 ? extObj : undefined,
       };
 
       await onSubmit(data);
@@ -94,10 +222,10 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
     }
   };
 
-  const resourceTypes: { value: ResourceType; label: string }[] = [
-    { value: 'build', label: 'Build' },
-    { value: 'gateway', label: 'Gateway' },
-    { value: 'third', label: 'Third Party' },
+  const resourceTypes: { value: ResourceType; label: string; icon?: React.ReactNode }[] = [
+    { value: 'gateway', label: 'Gateway Resource' },
+    { value: 'third', label: 'Third-party API' },
+    { value: 'mcp', label: 'MCP Server', icon: <Server className="w-4 h-4" /> },
   ];
 
   return (
@@ -115,45 +243,177 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
           label="Name *"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Enter resource name"
+          placeholder="my-resource"
           required
         />
 
         {/* Type Field */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-mono text-gray-400 uppercase tracking-wider">
-            Type *
-          </label>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as ResourceType)}
-            className="px-4 py-2.5 font-mono text-sm rounded-lg bg-void-900/50 border border-void-700 text-gray-100 focus:outline-none focus:border-cyber-primary transition-all duration-200"
-          >
-            {resourceTypes.map(({ value, label }) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <Label>Type *</Label>
+          <Select value={type} onValueChange={(v) => setType(v as ResourceType)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select resource type" />
+            </SelectTrigger>
+            <SelectContent>
+              {resourceTypes.map(({ value, label, icon }) => (
+                <SelectItem key={value} value={value}>
+                  <div className="flex items-center gap-2">
+                    {icon}
+                    <span>{label}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* URL Field */}
-        <Input
-          label="URL"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://example.com"
-          type="url"
-        />
+        {/* URL Field (for gateway/third) */}
+        {(type === 'gateway' || type === 'third') && (
+          <Input
+            label="URL *"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://api.example.com"
+            type="url"
+            required
+          />
+        )}
 
         {/* Description Field */}
         <Textarea
           label="Description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Enter resource description"
-          rows={3}
+          placeholder="Resource description"
+          rows={2}
         />
+
+        {/* View Scope Selection */}
+        <div className="flex flex-col gap-1.5">
+          <Label>Visibility *</Label>
+          <Select value={viewScope} onValueChange={(v) => setViewScope(v as ViewScope)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select visibility" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="public">
+                <div className="flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  <span>Public - Visible to all users</span>
+                </div>
+              </SelectItem>
+              <SelectItem value="private">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4" />
+                  <span>Private - Only you and ACL-allowed users</span>
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* API Description (for gateway/third) */}
+        {(type === 'gateway' || type === 'third') && (
+          <Textarea
+            label="API Documentation (Markdown)"
+            value={apiDescription}
+            onChange={(e) => setApiDescription(e.target.value)}
+            placeholder={`# API Description
+
+Describe what this API does and its use case.
+
+## Example Usage
+
+\`\`\`bash
+curl -X POST https://api.example.com/endpoint \\
+  -H "Authorization: Bearer {token}" \\
+  -d '{"param": "value"}'
+\`\`\`
+
+## Parameters
+- \`param\`: Description of parameter
+
+## Response Format
+\`\`\`json
+{"result": "success"}
+\`\`\``}
+            rows={10}
+            className="font-mono text-sm"
+          />
+        )}
+
+        {/* MCP Configuration (for mcp type) */}
+        {type === 'mcp' && (
+          <div className="space-y-4 border border-void-700 rounded-lg p-4">
+            <h3 className="font-semibold text-gray-100">MCP Server Configuration</h3>
+
+            {/* Transport Type */}
+            <div className="flex flex-col gap-1.5">
+              <Label>Transport Type *</Label>
+              <Select value={mcpTransport} onValueChange={(v) => setMcpTransport(v as MCPTransportType)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select transport type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="stdio">STDIO (Command)</SelectItem>
+                  <SelectItem value="sse">Server-Sent Events</SelectItem>
+                  <SelectItem value="ws">WebSocket</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* STDIO Configuration */}
+            {mcpTransport === 'stdio' && (
+              <>
+                <Input
+                  label="Command *"
+                  value={mcpCommand}
+                  onChange={(e) => setMcpCommand(e.target.value)}
+                  placeholder="npx"
+                  required
+                />
+                <Input
+                  label="Arguments"
+                  value={mcpArgs}
+                  onChange={(e) => setMcpArgs(e.target.value)}
+                  placeholder="-y @modelcontextprotocol/server-example"
+                />
+              </>
+            )}
+
+            {/* SSE/WS Configuration */}
+            {mcpTransport !== 'stdio' && (
+              <Input
+                label="Endpoint URL *"
+                value={mcpEndpoint}
+                onChange={(e) => setMcpEndpoint(e.target.value)}
+                placeholder="http://localhost:3000/sse"
+                type="url"
+                required
+              />
+            )}
+
+            {/* Timeout */}
+            <Input
+              label="Timeout (ms)"
+              value={mcpTimeout}
+              onChange={(e) => setMcpTimeout(e.target.value)}
+              type="number"
+              min={1000}
+              max={300000}
+            />
+
+            {/* Environment Variables */}
+            <Textarea
+              label="Environment Variables (JSON)"
+              value={mcpEnv}
+              onChange={(e) => setMcpEnv(e.target.value)}
+              placeholder='{\n  "API_KEY": "your-key"\n}'
+              rows={4}
+              className="font-mono text-sm"
+            />
+          </div>
+        )}
 
         {/* Extended Properties (JSON) */}
         <JsonEditor
