@@ -1,6 +1,8 @@
 from pydantic_settings import BaseSettings
 from typing import List
 import os
+import sys
+os.chdir(os.path.dirname(os.path.abspath(sys.argv[0])))
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./data/skillhub.db"

@@ -11,7 +11,7 @@ import os
 # Add parent directory to path to import modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import SessionLocal
+from database import SessionLocal, init_db
 from models.user import User, Role, Permission
 from core.security import get_password_hash
 
@@ -182,6 +182,11 @@ def main():
     """Seed database with default data."""
     print("Seeding database with default data...")
     print("=" * 50)
+
+    # Initialize database tables first
+    print("\nInitializing database tables...")
+    init_db()
+    print("  ✓ Database tables initialized")
 
     db = SessionLocal()
 

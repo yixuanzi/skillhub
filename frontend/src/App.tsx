@@ -8,6 +8,7 @@ import { UsersPage } from './pages/users';
 import { ResourcesPage } from './pages/resources';
 import { TokensPage } from './pages/tokens';
 import { ACLPage } from './pages/acl';
+import { SettingsPage } from './pages/settings/SettingsPage';
 import { useAuthStore } from './store/authStore';
 import { ApiConfigDebug } from './components/debug/ApiConfigDebug';
 
@@ -86,7 +87,7 @@ function App() {
             <Route path="resources" element={<ResourcesPage />} />
             <Route path="tokens" element={<TokensPage />} />
             <Route path="acl" element={<ACLPage />} />
-            <Route path="settings" element={<div className="text-gray-400">Settings coming soon</div>} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
 
           {/* Fallback */}

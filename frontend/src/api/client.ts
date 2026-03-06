@@ -26,6 +26,8 @@ const ensureTrailingSlash = (url: string): string => {
     /\/permissions$/,
     /\/gateways$/,
     /\/mtokens$/,
+    /\/api-keys$/,
+    /\/audit-logs$/,
   ];
 
   for (const pattern of collectionPatterns) {
