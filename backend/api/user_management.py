@@ -85,11 +85,11 @@ class PermissionResponse(BaseModel):
 
 class AdminUserCreate(BaseModel):
     """Schema for admin user creation."""
-    username: str = Field(..., min_length=3, max_length=50)
-    email: str = Field(..., format="email")
-    password: str = Field(..., min_length=8, max_length=100)
-    role_ids: List[str] = Field(default_factory=list)
-    is_active: bool = Field(default=True)
+    username: str = Field(..., min_length=3, max_length=50, description="Username for the new account")
+    email: str = Field(..., format="email", description="Email address for the new account")
+    password: str = Field(..., min_length=8, max_length=100, description="Password for the new account (min 8 characters)")
+    role_ids: List[str] = Field(default_factory=list, description="List of role IDs to assign to the user")
+    is_active: bool = Field(default=True, description="Whether the account should be active")
 
 
 def require_admin(user: User) -> User:
