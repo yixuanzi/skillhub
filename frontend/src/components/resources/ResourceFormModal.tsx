@@ -122,8 +122,8 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
         setError('Command is required for STDIO transport');
         return false;
       }
-      if ((mcpTransport === 'sse' || mcpTransport === 'ws') && !mcpEndpoint.trim()) {
-        setError('Endpoint is required for SSE and WebSocket transports');
+      if ((mcpTransport === 'sse' || mcpTransport === 'ws' || mcpTransport === 'httpstream') && !mcpEndpoint.trim()) {
+        setError('Endpoint is required for SSE, WebSocket, and HTTP Stream transports');
         return false;
       }
 
@@ -358,6 +358,7 @@ curl -X POST https://api.example.com/endpoint \\
                   <SelectItem value="stdio">STDIO (Command)</SelectItem>
                   <SelectItem value="sse">Server-Sent Events</SelectItem>
                   <SelectItem value="ws">WebSocket</SelectItem>
+                  <SelectItem value="httpstream">HTTP Stream</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -381,13 +382,13 @@ curl -X POST https://api.example.com/endpoint \\
               </>
             )}
 
-            {/* SSE/WS Configuration */}
-            {mcpTransport !== 'stdio' && (
+            {/* SSE/WS/HTTPSTREAM Configuration */}
+            {(mcpTransport === 'sse' || mcpTransport === 'ws' || mcpTransport === 'httpstream') && (
               <Input
                 label="Endpoint URL *"
                 value={mcpEndpoint}
                 onChange={(e) => setMcpEndpoint(e.target.value)}
-                placeholder="http://localhost:3000/sse"
+                placeholder={mcpTransport === 'httpstream' ? "http://localhost:3000/stream" : "http://localhost:3000/sse"}
                 type="url"
                 required
               />

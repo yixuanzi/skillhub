@@ -112,7 +112,7 @@ export interface SkillInvokeResponse {
 // Resource Types
 export type ResourceType = 'gateway' | 'third' | 'mcp';
 export type ViewScope = 'public' | 'private';
-export type MCPTransportType = 'stdio' | 'sse' | 'ws';
+export type MCPTransportType = 'stdio' | 'sse' | 'ws' | 'httpstream';
 
 export interface MCPConfig {
   transport: MCPTransportType;

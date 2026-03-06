@@ -34,13 +34,15 @@ export const useUsers = (filters: UserFilters = {}) => {
   return useQuery({
     queryKey: ['users', filters],
     queryFn: async () => {
+      // Backend uses /admin/users/list path
       const params = new URLSearchParams();
       if (filters.page) params.append('page', String(filters.page));
       if (filters.size) params.append('size', String(filters.size));
       if (filters.search) params.append('search', filters.search);
       if (filters.role_id) params.append('role_id', filters.role_id);
 
-      const response = await apiClient.get<UserListResponse>(`/users/?${params.toString()}`);
+      const queryString = params.toString();
+      const response = await apiClient.get<UserListResponse>(`/admin/users/list${queryString ? `?${queryString}` : ''}`);
       return response.data;
     },
   });
@@ -50,7 +52,7 @@ export const useUser = (userId: string) => {
   return useQuery({
     queryKey: ['user', userId],
     queryFn: async () => {
-      const response = await apiClient.get<User>(`/users/${userId}/`);
+      const response = await apiClient.get<User>(`/admin/users/${userId}/`);
       return response.data;
     },
     enabled: !!userId,
@@ -62,7 +64,7 @@ export const useAssignRoles = () => {
 
   return useMutation({
     mutationFn: ({ userId, roleIds }: { userId: string; roleIds: string[] }) =>
-      apiClient.put<User>(`/users/${userId}/roles/`, { role_ids: roleIds }),
+      apiClient.put<User>(`/admin/users/${userId}/roles/`, { role_ids: roleIds }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
@@ -73,8 +75,8 @@ export const useDeactivateUser = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (userId: string) =>
-      apiClient.put<User>(`/users/${userId}/deactivate/`),
+    mutationFn: ({ userId, isActive }: { userId: string; isActive: boolean }) =>
+      apiClient.put<User>(`/admin/users/${userId}/`, { is_active: isActive }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
@@ -85,7 +87,8 @@ export const useRoles = () => {
   return useQuery({
     queryKey: ['roles'],
     queryFn: async () => {
-      const response = await apiClient.get<Role[]>('/users/roles/');
+      // Backend uses /admin/roles/list path
+      const response = await apiClient.get<Role[]>('/admin/roles/list/');
       return response.data;
     },
   });
