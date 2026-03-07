@@ -1,24 +1,35 @@
 """MCP (Model Context Protocol) Service for calling MCP servers.
 
-This module provides the business logic for calling MCP servers via various transports:
-- STDIO: Subprocess communication via stdin/stdout
+This module provides the business logic for calling MCP servers via langchain_mcp_adapters:
 - SSE: Server-Sent Events HTTP endpoint
-- WS: WebSocket endpoint
 - HTTPSTREAM: HTTP-based streaming protocol for MCP (bidirectional streaming)
+
+Uses MultiServerMCPClient for connection management and caching.
 """
 import asyncio
-import json
+import logging
 import re
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 from sqlalchemy.orm import Session
 
 from models.resource import Resource, ResourceType
 from schemas.resource import MCPConfig, MCPServerType
 from core.exceptions import ValidationException, ExternalServiceException
 
+logger = logging.getLogger(__name__)
+
 
 class MCPService:
-    """Service for calling MCP (Model Context Protocol) servers."""
+    """Service for calling MCP (Model Context Protocol) servers.
+
+    This service uses MultiServerMCPClient from langchain_mcp_adapters
+    to manage connections and cache MCP tools for efficient reuse.
+    """
+
+    # Class-level cache for MCP clients and tools
+    # Structure: {resource_name: {"client": MultiServerMCPClient, "tools": dict, "config": dict}}
+    _mcp_cache: Dict[str, Dict[str, Any]] = {}
+    _cache_lock = asyncio.Lock()
 
     @staticmethod
     def parse_mcp_config(ext: dict) -> MCPConfig:
@@ -35,329 +46,317 @@ class MCPService:
         """
         if not ext:
             raise ValidationException("MCP resources must have ext configuration")
-        return MCPConfig(**ext)
 
-    @staticmethod
-    async def call_mcp_resource(
-        db: Session,
-        resource_id: str,
-        method: str,
-        params: dict[str, Any]
-    ) -> dict[str, Any]:
-        """
-        Call an MCP server resource.
-
-        Args:
-            db: Database session
-            resource_id: Resource ID
-            method: JSON-RPC method name
-            params: JSON-RPC parameters
-
-        Returns:
-            JSON-RPC response result
-
-        Raises:
-            ValidationException: If resource not found or invalid
-            ExternalServiceException: If MCP server call fails
-        """
-        resource = db.query(Resource).filter(Resource.id == resource_id).first()
-        if not resource:
-            raise ValidationException("Resource not found")
-
-        if resource.type != ResourceType.MCP:
-            raise ValidationException("Resource is not an MCP resource")
-
-        config = MCPService.parse_mcp_config(resource.ext)
-
-        # Replace token placeholders in env vars
-        if config.env:
-            config.env = MCPService._replace_tokens(db, config.env)
-
-        if config.transport == MCPServerType.STDIO:
-            return await MCPService._call_stdio(config, method, params)
-        elif config.transport == MCPServerType.SSE:
-            return await MCPService._call_sse(config, method, params)
-        elif config.transport == MCPServerType.WS:
-            return await MCPService._call_ws(config, method, params)
-        elif config.transport == MCPServerType.HTTPSTREAM:
-            return await MCPService._call_httpstream(config, method, params)
+        # Handle both direct ext config and nested mcp_config
+        if 'mcp_config' in ext:
+            config_dict = ext['mcp_config']
         else:
-            raise ValidationException(f"Unsupported transport: {config.transport}")
+            config_dict = ext
+
+        return MCPConfig(**config_dict)
 
     @staticmethod
-    def _replace_tokens(db: Session, env: dict[str, str]) -> dict[str, str]:
+    def _replace_tokens(db: Session, value: Any) -> Any:
         """Replace ${token:name} placeholders with actual token values.
 
+        This supports both string values and dict values (for env vars).
+
         Args:
             db: Database session
-            env: Environment variables dict with potential token placeholders
+            value: String or dict that may contain token placeholders
 
         Returns:
-            Environment variables with tokens replaced
+            String or dict with tokens replaced
 
         Raises:
             ValidationException: If referenced token is not found
         """
         from models.mtoken import MToken
 
-        result = {}
+        # Handle dict case (for env vars)
+        if isinstance(value, dict):
+            result = {}
+            for key, val in value.items():
+                if isinstance(val, str) and "${token:" in val:
+                    # Extract token name: ${token:api_name} -> api_name
+                    match = re.search(r'\$\{token:([^}]+)\}', val)
+                    if match:
+                        key_name = match.group(1)
+                        # Look up token by key_name
+                        token = db.query(MToken).filter(
+                            MToken.key_name == key_name
+                        ).first()
+                        if token:
+                            val = val.replace(f'${{token:{key_name}}}', token.value)
+                        else:
+                            raise ValidationException(f"Token not found: {key_name}")
+                result[key] = val
+            return result
 
-        for key, value in env.items():
-            if isinstance(value, str) and "${token:" in value:
-                # Extract token name: ${token:api_name} -> api_name
-                match = re.search(r'\$\{token:([^}]+)\}', value)
-                if match:
-                    key_name = match.group(1)
-                    # Look up token by key_name
-                    token = db.query(MToken).filter(
-                        MToken.key_name == key_name
-                    ).first()
-                    if token:
-                        value = value.replace(f'${{token:{key_name}}}', token.value)
-                    else:
-                        raise ValidationException(f"Token not found: {key_name}")
-            result[key] = value
+        # Handle string case (for endpoint URLs)
+        if isinstance(value, str) and "${token:" in value:
+            # Extract token name: ${token:api_name} -> api_name
+            match = re.search(r'\$\{token:([^}]+)\}', value)
+            if match:
+                key_name = match.group(1)
+                # Look up token by key_name
+                token = db.query(MToken).filter(
+                    MToken.key_name == key_name
+                ).first()
+                if token:
+                    value = value.replace(f'${{token:{key_name}}}', token.value)
+                else:
+                    raise ValidationException(f"Token not found: {key_name}")
 
-        return result
+        return value
 
     @staticmethod
-    async def _call_stdio(config: MCPConfig, method: str, params: dict) -> dict:
-        """
-        Execute MCP server via STDIO transport.
-
-        Spawns subprocess and communicates via JSON-RPC over stdin/stdout.
+    def _convert_config_to_mcp_client_format(resource_name: str, config: MCPConfig, db: Optional[Session] = None) -> dict:
+        """Convert MCPConfig to MultiServerMCPClient format.
 
         Args:
-            config: MCP configuration
-            method: JSON-RPC method name
-            params: JSON-RPC parameters
+            resource_name: Name of the resource (used as server name)
+            config: MCPConfig object
+            db: Optional database session for token replacement
 
         Returns:
-            JSON-RPC response result
+            Config dict in format expected by MultiServerMCPClient
 
         Raises:
-            ExternalServiceException: If subprocess fails or times out
+            ValidationException: If transport is not supported
         """
-        # Build command
-        cmd = [config.command]
-        if config.args:
-            cmd.extend(config.args)
+        # config.transport is a string (Literal type)
+        if config.transport == MCPServerType.STDIO or config.transport == "stdio":
+            raise ValidationException(
+                "STDIO transport is not supported. Please use SSE or HTTPSTREAM."
+            )
+        elif config.transport == MCPServerType.WS or config.transport == "ws":
+            raise ValidationException(
+                "WebSocket transport is not supported. Please use SSE or HTTPSTREAM."
+            )
+        elif config.transport not in (MCPServerType.SSE, MCPServerType.HTTPSTREAM, "sse", "httpstream"):
+            raise ValidationException(f"Unsupported transport: {config.transport}")
 
-        # Prepare JSON-RPC request
-        request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": method,
-            "params": params
+        # Replace tokens in endpoint URL if db session provided
+        #endpoint = config.endpoint
+        #if db:
+        #    endpoint = MCPService._replace_tokens(db, endpoint)
+
+        # MultiServerMCPClient expects this format:
+        # {server_name: {"url": "...", "transport": "..."}}
+        # sse,streamable_http
+        return {
+            resource_name: {
+                "url": config.endpoint,
+                "transport": "streamable_http" if config.transport=='httpstream' else config.transport  # Already a string: "sse" or "httpstream"
+            }
         }
 
-        try:
-            # Start process
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env={**dict(config.env)} if config.env else None
+    @staticmethod
+    async def _get_or_create_client(
+        resource_name: str,
+        config: MCPConfig,
+        db: Optional[Session] = None
+    ) -> tuple[Any, dict]:
+        """Get or create MCP client for the resource.
+
+        Args:
+            resource_name: Name of the resource
+            config: MCPConfig object
+
+        Returns:
+            Tuple of (MultiServerMCPClient, tools_dict)
+
+        Raises:
+            ValidationException: If transport is not supported
+            ExternalServiceException: If connection fails
+        """
+        async with MCPService._cache_lock:
+            # Check if client exists in cache
+            if resource_name in MCPService._mcp_cache:
+                cached = MCPService._mcp_cache[resource_name]
+                logger.info(f"Using cached MCP client for resource: {resource_name}")
+                return cached["client"], cached["tools"]
+
+            # Create new client
+            try:
+                from langchain_mcp_adapters.client import MultiServerMCPClient
+
+                mcp_config = MCPService._convert_config_to_mcp_client_format(
+                    resource_name, config, db
+                )
+
+                logger.info(f"Creating MCP client for resource: {resource_name}")
+                logger.debug(f"MCP config: {mcp_config}")
+
+                client = MultiServerMCPClient(mcp_config)
+
+                # Load tools with timeout
+                try:
+                    tools = await asyncio.wait_for(
+                        client.get_tools(server_name=resource_name),
+                        timeout=config.timeout / 1000
+                    )
+
+                    # Create tools lookup dict {method_name: tool}
+                    tools_dict = {}
+                    for tool in tools:
+                        tools_dict[tool.name] = tool
+
+                    logger.info(
+                        f"Loaded {len(tools)} tools from MCP server: {resource_name}"
+                    )
+
+                    # Cache the client and tools
+                    MCPService._mcp_cache[resource_name] = {
+                        "client": client,
+                        "tools": tools_dict,
+                        "config": mcp_config
+                    }
+
+                    return client, tools_dict
+
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout loading MCP tools for: {resource_name}")
+                    raise ExternalServiceException(
+                        f"Timeout connecting to MCP server: {resource_name}"
+                    )
+
+            except ImportError:
+                raise ExternalServiceException(
+                    "langchain_mcp_adapters package is required. "
+                    "Install it with: pip install langchain-mcp-adapters"
+                )
+            except Exception as e:
+                logger.error(f"Failed to create MCP client for {resource_name}: {e}")
+                raise ExternalServiceException(
+                    f"Failed to connect to MCP server: {str(e)}"
+                )
+
+    @staticmethod
+    async def call_mcp_resource(
+        db: Session,
+        resource_name: str,
+        method: str,
+        params: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Call an MCP server resource.
+
+        Args:
+            db: Database session
+            resource_name: Resource name
+            method: JSON-RPC method name (tool name)
+            params: JSON-RPC parameters (tool arguments)
+
+        Returns:
+            Tool execution result
+
+        Raises:
+            ValidationException: If resource not found, invalid, or transport not supported
+            ExternalServiceException: If MCP server call fails
+        """
+        print(f"[MCPService] call_mcp_resource: resource_name={resource_name}, method={method}")
+
+        resource = db.query(Resource).filter(Resource.name == resource_name).first()
+        if not resource:
+            raise ValidationException(f"Resource '{resource_name}' not found")
+
+        if resource.type != ResourceType.MCP:
+            raise ValidationException("Resource is not an MCP resource")
+
+        config = MCPService.parse_mcp_config(resource.ext)
+
+        # Get or create MCP client
+        client, tools_dict = await MCPService._get_or_create_client(resource_name, config, db)
+
+        # Find the tool by method name
+        if method not in tools_dict:
+            available_tools = list(tools_dict.keys())
+            logger.error(
+                f"Method '{method}' not found in MCP server '{resource_name}'. "
+                f"Available tools: {available_tools}"
+            )
+            raise ValidationException(
+                f"Method '{method}' not found. Available tools: {available_tools}"
             )
 
-            # Send request
-            request_json = json.dumps(request) + "\n"
-            process.stdin.write(request_json.encode())
-            await process.stdin.drain()
+        tool = tools_dict[method]
 
-            # Read response (with timeout)
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=config.timeout / 1000
-                )
-            except asyncio.TimeoutError:
-                process.kill()
-                raise ExternalServiceException("MCP server timeout")
-
-            if process.returncode != 0:
-                error_msg = stderr.decode() if stderr else "Unknown error"
-                raise ExternalServiceException(f"MCP server error: {error_msg}")
-
-            # Parse response
-            response = json.loads(stdout.decode().strip())
-
-            if "error" in response:
-                raise ExternalServiceException(f"MCP error: {response['error']}")
-
-            return response.get("result", {})
-
-        except FileNotFoundError:
-            raise ExternalServiceException(f"Command not found: {config.command}")
-        except json.JSONDecodeError:
-            raise ExternalServiceException("Invalid JSON response from MCP server")
-
-    @staticmethod
-    async def _call_sse(config: MCPConfig, method: str, params: dict) -> dict:
-        """
-        Execute MCP server via Server-Sent Events transport.
-
-        Connects to SSE endpoint and sends JSON-RPC request.
-
-        Args:
-            config: MCP configuration
-            method: JSON-RPC method name
-            params: JSON-RPC parameters
-
-        Returns:
-            JSON-RPC response result
-
-        Raises:
-            ExternalServiceException: If HTTP request fails
-        """
+        # Invoke the tool
         try:
-            import httpx
-        except ImportError:
-            raise ExternalServiceException("httpx package required for SSE transport")
+            print(f"[MCPService] Invoking tool: {method} with params: {params}")
+            result = await tool.ainvoke(params)
+            #print(f"[MCPService] Tool result: {result}")
+            return result
 
-        request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": method,
-            "params": params
-        }
-
-        try:
-            async with httpx.AsyncClient(timeout=config.timeout / 1000) as client:
-                response = await client.post(
-                    config.endpoint,
-                    json=request,
-                    headers={"Content-Type": "application/json"}
-                )
-                response.raise_for_status()
-
-                result = response.json()
-
-                if "error" in result:
-                    raise ExternalServiceException(f"MCP error: {result['error']}")
-
-                return result.get("result", {})
-
-        except httpx.HTTPError as e:
-            raise ExternalServiceException(f"SSE connection error: {e}")
-
-    @staticmethod
-    async def _call_ws(config: MCPConfig, method: str, params: dict) -> dict:
-        """
-        Execute MCP server via WebSocket transport.
-
-        Connects to WebSocket endpoint and sends JSON-RPC request.
-
-        Args:
-            config: MCP configuration
-            method: JSON-RPC method name
-            params: JSON-RPC parameters
-
-        Returns:
-            JSON-RPC response result
-
-        Raises:
-            ExternalServiceException: If WebSocket connection fails
-        """
-        try:
-            import websockets
-        except ImportError:
-            raise ExternalServiceException("websockets package required for WS transport")
-
-        request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": method,
-            "params": params
-        }
-
-        try:
-            async with websockets.connect(
-                config.endpoint,
-                close_timeout=config.timeout / 1000
-            ) as ws:
-                await ws.send(json.dumps(request))
-
-                response_str = await asyncio.wait_for(
-                    ws.recv(),
-                    timeout=config.timeout / 1000
-                )
-
-                response = json.loads(response_str)
-
-                if "error" in response:
-                    raise ExternalServiceException(f"MCP error: {response['error']}")
-
-                return response.get("result", {})
-
-        except asyncio.TimeoutError:
-            raise ExternalServiceException("WebSocket timeout")
         except Exception as e:
-            raise ExternalServiceException(f"WebSocket error: {e}")
+            logger.error(f"Error invoking tool {method}: {e}")
+            raise ExternalServiceException(
+                f"Error calling MCP method '{method}': {str(e)}"
+            )
 
     @staticmethod
-    async def _call_httpstream(config: MCPConfig, method: str, params: dict) -> dict:
-        """
-        Execute MCP server via HTTP-based streaming transport.
-
-        HTTPSTREAM is similar to SSE but supports bidirectional streaming.
-        Uses HTTP POST with streaming response for server-to-client communication.
+    async def list_tools(
+        db: Session,
+        resource_name: str
+    ) -> list[dict[str, Any]]:
+        """List available tools/methods from an MCP resource.
 
         Args:
-            config: MCP configuration
-            method: JSON-RPC method name
-            params: JSON-RPC parameters
+            db: Database session
+            resource_name: Resource name
 
         Returns:
-            JSON-RPC response result
+            List of available tools with their schemas
 
         Raises:
-            ExternalServiceException: If HTTP request fails
+            ValidationException: If resource not found or invalid
+            ExternalServiceException: If connection fails
         """
-        try:
-            import httpx
-        except ImportError:
-            raise ExternalServiceException("httpx package required for HTTPSTREAM transport")
+        resource = db.query(Resource).filter(Resource.name == resource_name).first()
+        if not resource:
+            raise ValidationException(f"Resource '{resource_name}' not found")
 
-        request = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": method,
-            "params": params
-        }
+        if resource.type != ResourceType.MCP:
+            raise ValidationException("Resource is not an MCP resource")
 
-        try:
-            async with httpx.AsyncClient(timeout=config.timeout / 1000) as client:
-                # Use streaming POST request
-                async with client.stream(
-                    "POST",
-                    config.endpoint,
-                    json=request,
-                    headers={
-                        "Content-Type": "application/json",
-                        "Accept": "application/x-ndjson"
-                    }
-                ) as response:
-                    response.raise_for_status()
+        config = MCPService.parse_mcp_config(resource.ext)
 
-                    # Read streaming response (NDJSON format)
-                    result_data = None
-                    async for line in response.aiter_lines():
-                        if line.strip():
-                            try:
-                                data = json.loads(line)
-                                if "result" in data:
-                                    result_data = data["result"]
-                                if "error" in data:
-                                    raise ExternalServiceException(f"MCP error: {data['error']}")
-                                # Check for completion marker
-                                if data.get("done", False):
-                                    break
-                            except json.JSONDecodeError:
-                                continue
+        # Get or create MCP client
+        client, tools_dict = await MCPService._get_or_create_client(resource_name, config, db)
 
-                    return result_data or {}
+        # Return tool information
+        tools_info = []
+        for tool_name, tool in tools_dict.items():
+            tools_info.append({
+                "name": tool.name,
+                "description": tool.description,
+                "args_schema": str(tool.args_schema) if hasattr(tool, 'args_schema') else None
+            })
 
-        except httpx.HTTPError as e:
-            raise ExternalServiceException(f"HTTPSTREAM connection error: {e}")
+        return tools_info
+
+    @staticmethod
+    async def clear_cache(resource_name: Optional[str] = None):
+        """Clear cached MCP clients.
+
+        Args:
+            resource_name: Specific resource to clear, or None to clear all
+        """
+        async with MCPService._cache_lock:
+            if resource_name:
+                if resource_name in MCPService._mcp_cache:
+                    del MCPService._mcp_cache[resource_name]
+                    logger.info(f"Cleared MCP cache for: {resource_name}")
+            else:
+                MCPService._mcp_cache.clear()
+                logger.info("Cleared all MCP caches")
+
+    @staticmethod
+    def get_cached_resources() -> list[str]:
+        """Get list of resources with cached MCP clients.
+
+        Returns:
+            List of resource names with active caches
+        """
+        return list(MCPService._mcp_cache.keys())

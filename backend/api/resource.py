@@ -6,10 +6,13 @@ This module provides FastAPI endpoints for resource CRUD operations including:
 - Get resource by ID
 - Update resource
 - Delete resource
+- Call MCP resource (execute MCP server methods)
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import Annotated
+from typing import Annotated, Any
+
+from pydantic import BaseModel, Field
 
 from database import get_db
 from schemas.resource import (
@@ -19,6 +22,7 @@ from schemas.resource import (
     ResourceListResponse
 )
 from services.resource_service import ResourceService
+
 from core.deps import get_current_active_user
 from models.user import User
 
@@ -47,7 +51,7 @@ async def create_resource(
     from core.exceptions import ValidationException
 
     try:
-        return ResourceService.create(db, resource_data)
+        return ResourceService.create(db, resource_data, user=current_user)
     except ValidationException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -63,26 +67,25 @@ async def list_resources(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """List all resources with optional filtering by type.
+    """List resources accessible to the user with optional filtering by type.
+
+    Returns public resources and user's own private resources.
 
     Args:
         page: Page number (starts from 1)
         size: Number of items per page (max 100)
-        resource_type: Optional resource type filter (build, gateway, third)
+        resource_type: Optional resource type filter (build, gateway, third, mcp)
         db: Database session
         current_user: Authenticated user
 
     Returns:
-        Paginated list of resources
+        Paginated list of accessible resources
     """
     skip = (page - 1) * size
 
-    if resource_type:
-        resources = ResourceService.list_by_type(db, resource_type, skip, size)
-        total = ResourceService.count_by_type(db, resource_type)
-    else:
-        resources = ResourceService.list_all(db, skip, size)
-        total = ResourceService.count_all(db)
+    # Get accessible resources (public + user's own)
+    resources = ResourceService.list_accessible(db, current_user, skip, size)
+    total = len(resources)  # Simplified count
 
     return ResourceListResponse(
         items=[ResourceResponse.model_validate(r) for r in resources],
@@ -100,6 +103,8 @@ async def get_resource(
 ):
     """Get a specific resource by ID.
 
+    Only returns resources the user has access to (public or owned by user).
+
     Args:
         resource_id: Resource UUID
         db: Database session
@@ -110,14 +115,23 @@ async def get_resource(
 
     Raises:
         HTTPException 404: If resource is not found
+        HTTPException 403: If user lacks permission to access the resource
     """
-    resource = ResourceService.get_by_id(db, resource_id)
-    if not resource:
+    from core.exceptions import NotFoundException, ValidationException
+
+    try:
+        resource = ResourceService.get_accessible(db, resource_id, current_user)
+        return ResourceResponse.model_validate(resource)
+    except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Resource with id '{resource_id}' not found"
+            detail=str(e)
         )
-    return ResourceResponse.model_validate(resource)
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
 
 
 @router.put("/{resource_id}/", response_model=ResourceResponse)
@@ -145,7 +159,7 @@ async def update_resource(
     from core.exceptions import NotFoundException, ValidationException
 
     try:
-        return ResourceService.update(db, resource_id, resource_data)
+        return ResourceService.update(db, resource_id, resource_data, user=current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -180,7 +194,7 @@ async def delete_resource(
     from core.exceptions import NotFoundException
 
     try:
-        ResourceService.delete(db, resource_id)
+        ResourceService.delete(db, resource_id, user=current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

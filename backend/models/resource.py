@@ -1,7 +1,7 @@
 """Resource model for managing different types of system resources.
 
 This module defines the Resource model which represents various system resources
-including build resources, gateway resources, and third-party resources.
+including build resources, gateway resources, third-party resources, and MCP servers.
 """
 from sqlalchemy import Column, String, Text, DateTime, Enum, Index
 from sqlalchemy.orm import relationship
@@ -15,16 +15,17 @@ import json
 
 class ResourceType(str, enum.Enum):
     """Enumeration of resource types."""
-    BUILD = "build"      # 构建资源
+    #BUILD = "build"      # 构建资源
     GATEWAY = "gateway"  # 网关资源
     THIRD = "third"      # 第三方资源
+    MCP = "mcp"          # MCP (Model Context Protocol) 服务器资源
 
 
 class Resource(Base):
     """Resource model for managing different types of system resources.
 
     Resources represent various system entities such as build configurations,
-    gateway configurations, and third-party service integrations.
+    gateway configurations, third-party service integrations, and MCP servers.
     """
     __tablename__ = "resources"
 
@@ -36,6 +37,9 @@ class Resource(Base):
     desc = Column(Text, nullable=True)
     type = Column(Enum(ResourceType), nullable=False, index=True)
     url = Column(String(2048), nullable=True)
+    view_scope = Column(String(50), nullable=False, default="private", index=True)
+    owner_id = Column(String(36), nullable=True, index=True)  # Owner user ID for private resources
+    api_description = Column(Text, nullable=True)  # API documentation for gateway/third resources
     _ext = Column("ext", Text, nullable=True)  # JSON stored as TEXT
 
     # 时间戳
@@ -46,6 +50,8 @@ class Resource(Base):
     # 索引
     __table_args__ = (
         Index('ix_resource_type', 'type'),
+        Index('ix_resource_view_scope', 'view_scope'),
+        Index('ix_resource_owner_id', 'owner_id'),
     )
 
     @hybrid_property

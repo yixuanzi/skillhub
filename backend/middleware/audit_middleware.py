@@ -45,7 +45,7 @@ async def audit_middleware(request: Request, call_next):
     # Extract user_id from request.state (set by get_current_user if already executed)
     # or from Authorization header (for middleware execution)
     user_id = getattr(request.state, "user_id", None)
-
+    username = None
     # If user_id not in state, try to extract from Authorization header
     if not user_id:
         auth_header = request.headers.get("authorization")

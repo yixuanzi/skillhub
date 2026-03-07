@@ -11,6 +11,7 @@ from models.system_audit_log import SystemAuditLog
 from schemas.auth import UserCreate
 from services.auth_service import AuthService
 from main import app
+from core.security import create_access_token
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -111,3 +112,89 @@ def admin_user(db: SessionLocal):
     db.commit()
     db.refresh(user)
     return user
+
+
+@pytest.fixture(scope="function")
+def auth_headers(test_user: User):
+    """Create authentication headers for test user."""
+    access_token = create_access_token(
+        data={"sub": test_user.id, "username": test_user.username}
+    )
+    return {"Authorization": f"Bearer {access_token}"}
+
+
+@pytest.fixture(scope="function")
+def admin_headers(admin_user: User):
+    """Create authentication headers for admin user."""
+    access_token = create_access_token(
+        data={"sub": admin_user.id, "username": admin_user.username}
+    )
+    return {"Authorization": f"Bearer {access_token}"}
+
+
+@pytest.fixture(scope="function")
+def user1(db: SessionLocal):
+    """Create first test user for isolation tests."""
+    user_data = UserCreate(
+        username="user1",
+        email="user1@example.com",
+        password="password123"
+    )
+    user = AuthService.register(db, user_data)
+    db.commit()
+    return user
+
+
+@pytest.fixture(scope="function")
+def user2(db: SessionLocal):
+    """Create second test user for isolation tests."""
+    user_data = UserCreate(
+        username="user2",
+        email="user2@example.com",
+        password="password123"
+    )
+    user = AuthService.register(db, user_data)
+    db.commit()
+    return user
+
+
+@pytest.fixture(scope="function")
+def create_user(db: SessionLocal):
+    """Factory fixture to create users with custom attributes."""
+    def _create_user(username: str, email: str, password: str = "password123"):
+        # Create user directly using User model and password hashing
+        from core.security import get_password_hash
+        user = User(
+            username=username,
+            email=email,
+            hashed_password=get_password_hash(password)
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    return _create_user
+
+
+@pytest.fixture(scope="function")
+def db_session(db: SessionLocal):
+    """Alias for db fixture for consistency with test naming."""
+    return db
+
+
+@pytest.fixture(scope="function")
+def auth_headers_user1(user1: User):
+    """Create authentication headers for user1."""
+    access_token = create_access_token(
+        data={"sub": user1.id, "username": user1.username}
+    )
+    return {"Authorization": f"Bearer {access_token}"}
+
+
+@pytest.fixture(scope="function")
+def auth_headers_user2(user2: User):
+    """Create authentication headers for user2."""
+    access_token = create_access_token(
+        data={"sub": user2.id, "username": user2.username}
+    )
+    return {"Authorization": f"Bearer {access_token}"}

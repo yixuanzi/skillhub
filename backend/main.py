@@ -1,4 +1,7 @@
 from fastapi import FastAPI
+import sys
+import os
+os.chdir(os.path.dirname(os.path.abspath(sys.argv[0])))
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from config import settings
@@ -69,7 +72,7 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-
+    print("Starting SkillHub MVP API...")
     # Run the application
     uvicorn.run(
         "main:app",

@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.user import User
 from core.security import verify_token
-from core.tmpkey_manager import get_user_id_by_tmpkey
+# from core.tmpkey_manager import get_user_id_by_tmpkey  # REMOVE THIS LINE
+from services.api_key_service import APIKeyService  # ADD THIS LINE
 
 security = HTTPBearer()
 
@@ -14,64 +15,74 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> User:
-    """Get current authenticated user from JWT token or tmpkey.
+    """Get current authenticated user from API key or JWT token.
 
     支持两种认证方式:
-    1. JWT token (标准Bearer token)
-    2. tmpkey (32字符的临时密钥)
+    1. API Key (以 sk_ 开头)
+    2. JWT token (标准Bearer token)
 
     Args:
-        credentials: HTTP Bearer credentials (JWT token or tmpkey)
+        credentials: HTTP Bearer credentials (API key or JWT token)
         db: Database session
 
     Returns:
-        Authenticated user object
+        Authenticated user object with auth_type attribute
 
     Raises:
-        HTTPException 401: If token/tmpkey is invalid or user not found
+        HTTPException 401: If token/api_key is invalid or user not found
     """
     token = credentials.credentials
-    user_id = None
+    user = None
     auth_type = "unknown"
 
-    # 先尝试作为 tmpkey 验证
-    if len(token)==32:
-        user_id = get_user_id_by_tmpkey(token)
-        if user_id is not None:
-            auth_type = "tmpkey"
+    # 首先尝试 API Key 认证 (sk_ 开头)
+    if token.startswith("sk_"):
+        api_key = APIKeyService.authenticate(db, token)
+        if api_key:
+            user = db.query(User).filter(User.id == api_key.user_id).first()
+            if user:
+                auth_type = "api_key"
+                # 设置 API key 相关属性
+                setattr(user, "auth_type", auth_type)
+                setattr(user, "api_key_id", api_key.id)
+                setattr(user, "api_key_scopes", api_key.scopes)
+                setattr(user, "access_token", token)
 
-    # 尝试作为 JWT token 验证
-    if user_id is None:
+                # 检查用户是否激活
+                if not user.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Inactive user",
+                    )
+                return user
+
+    # 然后尝试 JWT token 认证
+    if user is None:
         payload = verify_token(token)
         if payload is not None:
             user_id = payload.get("sub")
-            auth_type = "jwt"
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                auth_type = "jwt"
+                setattr(user, "auth_type", auth_type)
+                setattr(user, "access_token", token)
 
-    # 如果两种验证都失败
-    if user_id is None:
+                # 检查用户是否激活
+                if not user.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Inactive user",
+                    )
+                return user
+
+    # 两种验证都失败
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 查询用户
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
-        )
-
-    # 设置认证类型和token
-    setattr(user, "auth_type", auth_type)
-    setattr(user, "access_token", token)
     return user
 
 
