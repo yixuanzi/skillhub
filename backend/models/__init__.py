@@ -4,3 +4,5 @@ from models.acl import ACLRule, ACLRuleRole, AuditLog, AccessMode, AuditResult
 from models.resource import Resource, ResourceType
 from models.skill_list import SkillList
 from models.mtoken import MToken
+from models.api_key import APIKey
+from models.system_audit_log import SystemAuditLog

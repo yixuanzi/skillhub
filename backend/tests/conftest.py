@@ -1,9 +1,13 @@
 import pytest
 from fastapi.testclient import TestClient
 from database import Base, engine, SessionLocal
+# Import all models to ensure they're registered with Base
 from models.user import User, RefreshToken, Role, Permission
 from models.resource import Resource
 from models.skill_list import SkillList
+from models.api_key import APIKey
+from models.mtoken import MToken
+from models.system_audit_log import SystemAuditLog
 from schemas.auth import UserCreate
 from services.auth_service import AuthService
 from main import app
@@ -12,6 +16,8 @@ from main import app
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
     """Create all tables before running tests"""
+    # Drop all tables first to ensure clean state
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
     # Clean up after all tests
@@ -33,6 +39,7 @@ def db():
         # Clean up all data after each test using a fresh session
         cleanup_session = SessionLocal()
         try:
+            cleanup_session.query(SystemAuditLog).delete()
             cleanup_session.query(SkillList).delete()
             cleanup_session.query(Resource).delete()
             cleanup_session.query(RefreshToken).delete()
@@ -97,7 +104,9 @@ def admin_user(db: SessionLocal):
         email="admin@example.com",
         password="adminpassword123"
     )
-    user = AuthService.register(db, user_data)
+    AuthService.register(db, user_data)
+    # Query the actual User model
+    user = db.query(User).filter(User.username == "admin").first()
     user.roles.append(admin_role)
     db.commit()
     db.refresh(user)

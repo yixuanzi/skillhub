@@ -11,6 +11,7 @@ import os
 from database import get_db
 from services.system_audit_log_service import SystemAuditLogService
 from core.security import verify_token
+from core.deps import get_current_user
 
 # Environment configuration
 AUDIT_LOG_ENABLED = os.getenv("AUDIT_LOG_ENABLED", "true").lower() == "true"
@@ -54,6 +55,7 @@ async def audit_middleware(request: Request, call_next):
             payload = verify_token(token)
             if payload:
                 user_id = payload.get("sub")
+                username=payload.get("username")
 
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
@@ -68,7 +70,8 @@ async def audit_middleware(request: Request, call_next):
     action = f"{request.method.lower()} {request.url.path}"
 
     # Get database session
-    db: Session = next(get_db())
+    db_gen = get_db()
+    db: Session = next(db_gen)
 
     # Determine status based on response code
     status = "success" if response.status_code < 400 else "failure"
@@ -77,7 +80,7 @@ async def audit_middleware(request: Request, call_next):
         # Log the request
         SystemAuditLogService.log_action(
             db=db,
-            user_id=user_id,
+            user_id=username,
             action=action,
             resource_type="http_request",
             details={
@@ -97,5 +100,11 @@ async def audit_middleware(request: Request, call_next):
         # Don't fail the request if logging fails
         # Just log the error (in production, use proper logging)
         print(f"Audit logging failed: {e}")
+    finally:
+        # Always close the database session
+        try:
+            db_gen.close()
+        except Exception:
+            pass
 
     return response

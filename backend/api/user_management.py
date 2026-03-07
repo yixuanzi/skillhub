@@ -23,6 +23,17 @@ router = APIRouter(prefix="/admin/users", tags=["Admin - User Management"])
 
 
 # Schemas for user management
+class RoleResponse(BaseModel):
+    """Role response schema."""
+    id: str
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class UserResponse(BaseModel):
     """User response schema."""
     id: str
@@ -48,17 +59,6 @@ class UserListResponse(BaseModel):
 class UserUpdate(BaseModel):
     """User update schema (admin)."""
     is_active: Optional[bool] = None
-
-
-class RoleResponse(BaseModel):
-    """Role response schema."""
-    id: str
-    name: str
-    description: Optional[str] = None
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class RoleCreate(BaseModel):
@@ -93,8 +93,8 @@ class AdminUserCreate(BaseModel):
 
 
 def require_admin(user: User) -> User:
-    """Dependency to check if user is admin or superadmin."""
-    admin_roles = {"admin", "superadmin"}
+    """Dependency to check if user is admin or super_admin."""
+    admin_roles = {"admin", "super_admin"}
     if not any(role.name in admin_roles for role in user.roles):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -103,7 +103,73 @@ def require_admin(user: User) -> User:
     return user
 
 
-@router.get("/list", response_model=UserListResponse)
+@router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    user_data: AdminUserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Create a new user (admin-only).
+
+    Args:
+        user_data: User creation data
+        db: Database session
+        current_user: Authenticated user (must be admin)
+
+    Returns:
+        Created user
+
+    Raises:
+        HTTPException 403: If user is not admin
+        HTTPException 400: If username or email already exists
+    """
+    from core.security import get_password_hash
+
+    require_admin(current_user)
+
+    # Check if username already exists
+    existing = db.query(User).filter(User.username == user_data.username).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Username '{user_data.username}' already exists"
+        )
+
+    # Check if email already exists
+    existing = db.query(User).filter(User.email == user_data.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Email '{user_data.email}' already exists"
+        )
+
+    # Verify all roles exist
+    if user_data.role_ids:
+        roles = db.query(Role).filter(Role.id.in_(user_data.role_ids)).all()
+        if len(roles) != len(user_data.role_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="One or more roles not found"
+            )
+    else:
+        roles = []
+
+    # Create user
+    new_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        hashed_password=get_password_hash(user_data.password),
+        is_active=user_data.is_active
+    )
+    new_user.roles = roles
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return UserResponse.model_validate(new_user)
+
+
+@router.get("/list/", response_model=UserListResponse)
 async def list_users(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
@@ -144,7 +210,6 @@ async def list_users(
     # Apply role filter
     if role_id:
         # Join with roles table
-        from models.role import Role
         query = query.join(User.roles).filter(Role.id == role_id)
 
     # Get total count
@@ -162,7 +227,7 @@ async def list_users(
     )
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}/", response_model=UserResponse)
 async def get_user(
     user_id: str,
     db: Session = Depends(get_db),
@@ -195,7 +260,7 @@ async def get_user(
     return UserResponse.model_validate(user)
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}/", response_model=UserResponse)
 async def update_user(
     user_id: str,
     user_data: UserUpdate,
@@ -236,7 +301,7 @@ async def update_user(
     return UserResponse.model_validate(user)
 
 
-@router.put("/{user_id}/roles", response_model=UserResponse)
+@router.put("/{user_id}/roles/", response_model=UserResponse)
 async def assign_user_roles(
     user_id: str,
     assignment: RoleAssignment,
@@ -289,7 +354,7 @@ async def assign_user_roles(
 role_router = APIRouter(prefix="/admin/roles", tags=["Admin - Role Management"])
 
 
-@role_router.get("/list", response_model=List[RoleResponse])
+@role_router.get("/list/", response_model=List[RoleResponse])
 async def list_roles(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -353,7 +418,7 @@ async def create_role(
     return RoleResponse.model_validate(role)
 
 
-@role_router.get("/{role_id}", response_model=RoleResponse)
+@role_router.get("/{role_id}/", response_model=RoleResponse)
 async def get_role(
     role_id: str,
     db: Session = Depends(get_db),
@@ -385,7 +450,7 @@ async def get_role(
     return RoleResponse.model_validate(role)
 
 
-@role_router.get("/{role_id}/permissions", response_model=List[PermissionResponse])
+@role_router.get("/{role_id}/permissions/", response_model=List[PermissionResponse])
 async def get_role_permissions(
     role_id: str,
     db: Session = Depends(get_db),
@@ -421,7 +486,7 @@ async def get_role_permissions(
 permission_router = APIRouter(prefix="/admin/permissions", tags=["Admin - Permission Management"])
 
 
-@permission_router.get("/list", response_model=List[PermissionResponse])
+@permission_router.get("/list/", response_model=List[PermissionResponse])
 async def list_permissions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)

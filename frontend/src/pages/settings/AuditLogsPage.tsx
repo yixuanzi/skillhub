@@ -4,7 +4,9 @@ import { Card } from '@/components/ui/Card';
 import { useAuditLogs } from '@/hooks/use-audit-logs';
 import { AuditLogTable } from './components/AuditLogTable';
 import { AuditLogFilters } from './components/AuditLogFilters';
+import { AuditLogDetailModal } from './components/AuditLogDetailModal';
 import { cn } from '@/utils/cn';
+import { AuditLog } from '@/api/audit-logs';
 
 interface Filters {
   page: number;
@@ -48,6 +50,8 @@ export const AuditLogsPage = () => {
     action: '',
     resource_type: '',
   });
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const { data: logsData, isLoading, error, refetch } = useAuditLogs(filters);
 
@@ -66,6 +70,16 @@ export const AuditLogsPage = () => {
   const handleExport = () => {
     // Export functionality - can be implemented later
     console.log('Exporting audit logs...');
+  };
+
+  const handleDetailClick = (log: AuditLog) => {
+    setSelectedLog(log);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedLog(null);
   };
 
   return (
@@ -174,9 +188,16 @@ export const AuditLogsPage = () => {
             </p>
           </div>
         ) : (
-          <AuditLogTable logs={logs} />
+          <AuditLogTable logs={logs} onDetailClick={handleDetailClick} />
         )}
       </Card>
+
+      {/* Detail Modal */}
+      <AuditLogDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={handleCloseDetailModal}
+        log={selectedLog}
+      />
 
       {/* Pagination */}
       {totalPages > 1 && (

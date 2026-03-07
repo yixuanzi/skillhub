@@ -28,7 +28,7 @@ class MToken(Base):
     desc = Column(Text, nullable=True)  # 描述信息
 
     # User Reference
-    created_by = Column(String(36), ForeignKey('users.id'), nullable=False, index=True)
+    created_by = Column(String(36), ForeignKey('users.id'), nullable=False)
 
     # Timestamps
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

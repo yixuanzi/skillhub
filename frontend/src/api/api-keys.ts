@@ -32,32 +32,32 @@ export interface APIKeyUpdate {
 
 export const apiKeysApi = {
   list: async (params?: { skip?: number; limit?: number }): Promise<APIKey[]> => {
-    const response = await apiClient.get<APIKey[]>('/api-keys', { params });
+    const response = await apiClient.get<APIKey[]>('/api-keys/', { params });
     return response.data;
   },
 
   getById: async (id: string): Promise<APIKey> => {
-    const response = await apiClient.get<APIKey>(`/api-keys/${id}`);
+    const response = await apiClient.get<APIKey>(`/api-keys/${id}/`);
     return response.data;
   },
 
   create: async (data: APIKeyCreate): Promise<APIKeyCreateResponse> => {
-    const response = await apiClient.post<APIKeyCreateResponse>('/api-keys', data);
+    const response = await apiClient.post<APIKeyCreateResponse>('/api-keys/', data);
     return response.data;
   },
 
   update: async (id: string, data: APIKeyUpdate): Promise<APIKey> => {
-    const response = await apiClient.put<APIKey>(`/api-keys/${id}`, data);
+    const response = await apiClient.put<APIKey>(`/api-keys/${id}/`, data);
     return response.data;
   },
 
   revoke: async (id: string): Promise<APIKey> => {
-    const response = await apiClient.delete<APIKey>(`/api-keys/${id}`);
+    const response = await apiClient.delete<APIKey>(`/api-keys/${id}/`);
     return response.data;
   },
 
   rotate: async (id: string): Promise<APIKeyCreateResponse> => {
-    const response = await apiClient.post<APIKeyCreateResponse>(`/api-keys/${id}/rotate`);
+    const response = await apiClient.post<APIKeyCreateResponse>(`/api-keys/${id}/rotate/`);
     return response.data;
   },
 };

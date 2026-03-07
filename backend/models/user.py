@@ -33,6 +33,7 @@ class User(Base):
 
     roles = relationship("Role", secondary=user_roles, back_populates="users")
     refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
+    api_keys = relationship("APIKey", back_populates="user", cascade="all, delete-orphan")
 
 class Role(Base):
     """Role model representing user roles with associated permissions."""

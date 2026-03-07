@@ -11,6 +11,8 @@ from api.skill_list import router as skill_list_router
 from api.mtoken import router as mtoken_router
 from api.api_key import router as api_key_router
 from api.audit_log import router as audit_log_router
+from api.user_management import router as user_management_router, role_router, permission_router
+from middleware.audit_middleware import audit_middleware
 
 
 @asynccontextmanager
@@ -38,6 +40,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add audit logging middleware
+app.middleware("http")(audit_middleware)
+
 # Include routers
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(resource_router, prefix="/api/v1")
@@ -47,6 +52,9 @@ app.include_router(skill_list_router, prefix="/api/v1")
 app.include_router(mtoken_router, prefix="/api/v1")
 app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(audit_log_router, prefix="/api/v1")
+app.include_router(user_management_router, prefix="/api/v1")
+app.include_router(role_router, prefix="/api/v1")
+app.include_router(permission_router, prefix="/api/v1")
 
 
 @app.get("/")

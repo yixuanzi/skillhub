@@ -93,7 +93,7 @@ async def list_mtokens(
     )
 
 
-@router.get("/{token_id}", response_model=MTokenResponse)
+@router.get("/{token_id}/", response_model=MTokenResponse)
 async def get_mtoken(
     token_id: str,
     db: Session = Depends(get_db),
@@ -121,7 +121,7 @@ async def get_mtoken(
     return MTokenResponse.model_validate(mtoken)
 
 
-@router.put("/{token_id}", response_model=MTokenResponse)
+@router.put("/{token_id}/", response_model=MTokenResponse)
 async def update_mtoken(
     token_id: str,
     token_data: MTokenUpdate,
@@ -153,7 +153,7 @@ async def update_mtoken(
         )
 
 
-@router.delete("/{token_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{token_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_mtoken(
     token_id: str,
     db: Session = Depends(get_db),

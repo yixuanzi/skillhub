@@ -4,18 +4,15 @@ import { useResources } from '@/hooks/useResources';
 import { ACLResourceTable, ACLResourceFormModal } from '@/components/acl';
 import { Card, Input, Alert } from '@/components/ui';
 import { Button } from '@/components/ui/Button';
-import { Search, Plus, Filter, Shield, Database, FileKey, CheckCircle } from 'lucide-react';
+import { Search, Plus, Filter, Shield, CheckCircle } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { ACLRule, Resource } from '@/types';
-
-type TabType = 'rules' | 'resource-acl' | 'logs';
 
 export const ACLPage = () => {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [searchQuery, setSearchQuery] = useState('');
   const [accessModeFilter, setAccessModeFilter] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<TabType>('resource-acl');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<ACLRule | null>(null);
@@ -121,60 +118,14 @@ export const ACLPage = () => {
             Manage ACL rules and resource access permissions
           </p>
         </div>
-        {activeTab === 'resource-acl' && (
-          <Button
-            variant="primary"
-            onClick={() => setIsCreateModalOpen(true)}
-            className="group"
-          >
-            <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
-            New Rule
-          </Button>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-void-700 overflow-x-auto" style={{ pointerEvents: 'auto' }}>
-        <button
-          onClick={() => setActiveTab('resource-acl')}
-          className={cn(
-            'px-4 py-2.5 font-mono text-sm transition-all border-b-2 -mb-px whitespace-nowrap flex items-center gap-2',
-            activeTab === 'resource-acl'
-              ? 'text-cyber-primary border-cyber-primary bg-cyber-primary/5'
-              : 'text-gray-500 border-transparent hover:text-gray-300'
-          )}
+        <Button
+          variant="primary"
+          onClick={() => setIsCreateModalOpen(true)}
+          className="group"
         >
-          <Database className="w-4 h-4" />
-          Resource ACL
-          {rules.length > 0 && (
-            <span className="px-1.5 py-0.5 text-xs rounded bg-cyber-primary/20 text-cyber-primary">
-              {rules.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('rules')}
-          className={cn(
-            'px-4 py-2.5 font-mono text-sm transition-all border-b-2 -mb-px whitespace-nowrap flex items-center gap-2',
-            activeTab === 'rules'
-              ? 'text-cyber-primary border-cyber-primary bg-cyber-primary/5'
-              : 'text-gray-500 border-transparent hover:text-gray-300'
-          )}
-        >
-          <FileKey className="w-4 h-4" />
-          API Keys
-        </button>
-        <button
-          onClick={() => setActiveTab('logs')}
-          className={cn(
-            'px-4 py-2.5 font-mono text-sm transition-all border-b-2 -mb-px whitespace-nowrap flex items-center gap-2',
-            activeTab === 'logs'
-              ? 'text-cyber-primary border-cyber-primary bg-cyber-primary/5'
-              : 'text-gray-500 border-transparent hover:text-gray-300'
-          )}
-        >
-          Audit Logs
-        </button>
+          <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
+          New Rule
+        </Button>
       </div>
 
       {/* Success and Error Messages */}
@@ -197,11 +148,8 @@ export const ACLPage = () => {
         </div>
       )}
 
-      {/* Resource ACL Tab */}
-      {activeTab === 'resource-acl' && (
-        <>
-          {/* Filters */}
-          <Card className="p-4">
+      {/* Filters */}
+      <Card className="p-4">
             <div className="flex flex-col sm:flex-row gap-4">
               {/* Search */}
               <div className="relative flex-1">
@@ -284,30 +232,6 @@ export const ACLPage = () => {
               </div>
             </div>
           )}
-        </>
-      )}
-
-      {/* API Keys Tab */}
-      {activeTab === 'rules' && (
-        <Card>
-          <div className="text-center py-12">
-            <FileKey className="w-12 h-12 text-gray-700 mx-auto mb-4" />
-            <p className="text-gray-500 font-mono mb-2">API Key Management</p>
-            <p className="text-xs text-gray-600">Create and manage API keys for programmatic access</p>
-          </div>
-        </Card>
-      )}
-
-      {/* Audit Logs Tab */}
-      {activeTab === 'logs' && (
-        <Card>
-          <div className="text-center py-12">
-            <Shield className="w-12 h-12 text-gray-700 mx-auto mb-4" />
-            <p className="text-gray-500 font-mono mb-2">Audit logs coming soon</p>
-            <p className="text-xs text-gray-600">View all access attempts and security events</p>
-          </div>
-        </Card>
-      )}
 
       {/* Create Modal */}
       <ACLResourceFormModal

@@ -38,7 +38,7 @@ def _check_admin_access(user: User) -> None:
         )
 
 
-@router.get("", response_model=SystemAuditLogListResponse)
+@router.get("/", response_model=SystemAuditLogListResponse)
 async def list_audit_logs(
     page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     size: int = Query(20, ge=1, le=100, description="Page size (max 100)"),
@@ -96,7 +96,7 @@ async def list_audit_logs(
     )
 
 
-@router.get("/{log_id}", response_model=SystemAuditLogResponse)
+@router.get("/{log_id}/", response_model=SystemAuditLogResponse)
 async def get_audit_log(
     log_id: str,
     db: Session = Depends(get_db),

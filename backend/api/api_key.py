@@ -28,7 +28,7 @@ from core.exceptions import ValidationException, NotFoundException
 router = APIRouter(prefix="/api-keys", tags=["API Keys"])
 
 
-@router.post("", response_model=APIKeyCreateResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=APIKeyCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_api_key(
     data: APIKeyCreate,
     db: Session = Depends(get_db),
@@ -63,7 +63,7 @@ async def create_api_key(
         )
 
 
-@router.get("", response_model=List[APIKeyResponse])
+@router.get("/", response_model=List[APIKeyResponse])
 async def list_api_keys(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=100, description="Maximum number of records to return"),
@@ -85,7 +85,7 @@ async def list_api_keys(
     return [APIKeyResponse.model_validate(key) for key in api_keys]
 
 
-@router.get("/{key_id}", response_model=APIKeyResponse)
+@router.get("/{key_id}/", response_model=APIKeyResponse)
 async def get_api_key(
     key_id: str,
     db: Session = Depends(get_db),
@@ -116,7 +116,7 @@ async def get_api_key(
         )
 
 
-@router.put("/{key_id}", response_model=APIKeyResponse)
+@router.put("/{key_id}/", response_model=APIKeyResponse)
 async def update_api_key(
     key_id: str,
     data: APIKeyUpdate,
@@ -155,7 +155,7 @@ async def update_api_key(
         )
 
 
-@router.delete("/{key_id}", response_model=APIKeyResponse)
+@router.delete("/{key_id}/", response_model=APIKeyResponse)
 async def revoke_api_key(
     key_id: str,
     db: Session = Depends(get_db),
@@ -186,7 +186,7 @@ async def revoke_api_key(
         )
 
 
-@router.post("/{key_id}/rotate", response_model=APIKeyCreateResponse)
+@router.post("/{key_id}/rotate/", response_model=APIKeyCreateResponse)
 async def rotate_api_key(
     key_id: str,
     db: Session = Depends(get_db),

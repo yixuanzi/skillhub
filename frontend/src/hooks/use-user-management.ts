@@ -42,7 +42,7 @@ export const useUsers = (filters: UserFilters = {}) => {
       if (filters.role_id) params.append('role_id', filters.role_id);
 
       const queryString = params.toString();
-      const response = await apiClient.get<UserListResponse>(`/admin/users/list${queryString ? `?${queryString}` : ''}`);
+      const response = await apiClient.get<UserListResponse>(`/admin/users/list/${queryString ? `?${queryString}` : ''}`);
       return response.data;
     },
   });

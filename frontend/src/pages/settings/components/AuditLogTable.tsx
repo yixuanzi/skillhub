@@ -1,13 +1,15 @@
-import { CheckCircle, XCircle, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
 import { AuditLog } from '@/api/audit-logs';
 
 interface AuditLogTableProps {
   logs: AuditLog[];
+  onDetailClick?: (log: AuditLog) => void;
 }
 
-export const AuditLogTable = ({ logs }: AuditLogTableProps) => {
+export const AuditLogTable = ({ logs, onDetailClick }: AuditLogTableProps) => {
   const getActionLabel = (action: string) => {
     return action.replace(/\./g, ' ').replace(/_/g, ' ');
   };
@@ -59,9 +61,6 @@ export const AuditLogTable = ({ logs }: AuditLogTableProps) => {
               Action
             </th>
             <th className="text-left py-3 px-4 font-mono text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Resource
-            </th>
-            <th className="text-left py-3 px-4 font-mono text-xs font-semibold text-gray-500 uppercase tracking-wider">
               User
             </th>
             <th className="text-left py-3 px-4 font-mono text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -69,6 +68,9 @@ export const AuditLogTable = ({ logs }: AuditLogTableProps) => {
             </th>
             <th className="text-left py-3 px-4 font-mono text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Status
+            </th>
+            <th className="text-right py-3 px-4 font-mono text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Actions
             </th>
           </tr>
         </thead>
@@ -99,18 +101,6 @@ export const AuditLogTable = ({ logs }: AuditLogTableProps) => {
                 </span>
               </td>
               <td className="py-3 px-4">
-                <div className="flex flex-col">
-                  <span className="text-sm text-gray-300">
-                    {log.resource_type || '-'}
-                  </span>
-                  {log.resource_id && (
-                    <span className="text-xs text-gray-500 font-mono">
-                      {log.resource_id.slice(0, 8)}...
-                    </span>
-                  )}
-                </div>
-              </td>
-              <td className="py-3 px-4">
                 <span className="text-sm text-gray-300">
                   {log.user_id ? (
                     <span className="font-mono text-xs">
@@ -138,6 +128,17 @@ export const AuditLogTable = ({ logs }: AuditLogTableProps) => {
                     {log.status}
                   </Badge>
                 )}
+              </td>
+              <td className="py-3 px-4 text-right">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onDetailClick?.(log)}
+                  className="text-cyber-primary hover:text-cyber-primary/80 hover:bg-cyber-primary/10"
+                >
+                  <Eye className="w-4 h-4 mr-1" />
+                  Details
+                </Button>
               </td>
             </tr>
           ))}
