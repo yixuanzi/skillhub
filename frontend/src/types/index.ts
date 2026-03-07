@@ -118,7 +118,7 @@ export interface MCPConfig {
   transport: MCPTransportType;
   command?: string;
   args?: string[];
-  env?: Record<string, string>;
+  headers?: Record<string, string>;
   timeout?: number;
   endpoint?: string;
 }

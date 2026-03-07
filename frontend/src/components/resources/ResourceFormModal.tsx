@@ -55,7 +55,7 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
   const [mcpArgs, setMcpArgs] = useState('');
   const [mcpEndpoint, setMcpEndpoint] = useState('');
   const [mcpTimeout, setMcpTimeout] = useState('30000');
-  const [mcpEnv, setMcpEnv] = useState('');
+  const [mcpHeaders, setMcpHeaders] = useState('');
 
   // UI state
   const [ext, setExt] = useState('');
@@ -81,7 +81,7 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
           setMcpArgs(mcpArgs => mcpConfig.args ? mcpConfig.args.join(' ') : '');
           setMcpEndpoint(mcpConfig.endpoint || '');
           setMcpTimeout(String(mcpConfig.timeout || 30000));
-          setMcpEnv(mcpConfig.env ? JSON.stringify(mcpConfig.env, null, 2) : '');
+          setMcpHeaders(mcpConfig.headers ? JSON.stringify(mcpConfig.headers, null, 2) : '');
         }
 
         setExt(resource.ext ? JSON.stringify(resource.ext, null, 2) : '');
@@ -97,7 +97,7 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
         setMcpArgs('');
         setMcpEndpoint('');
         setMcpTimeout('30000');
-        setMcpEnv('');
+        setMcpHeaders('');
         setExt('');
       }
       setError('');
@@ -127,12 +127,12 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
         return false;
       }
 
-      // Validate env JSON if provided
-      if (mcpEnv.trim()) {
+      // Validate headers JSON if provided
+      if (mcpHeaders.trim()) {
         try {
-          JSON.parse(mcpEnv);
+          JSON.parse(mcpHeaders);
         } catch {
-          setError('Invalid JSON in environment variables');
+          setError('Invalid JSON in header variables');
           return false;
         }
       }
@@ -190,9 +190,9 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
           mcpConfig.endpoint = mcpEndpoint;
         }
 
-        if (mcpEnv.trim()) {
+        if (mcpHeaders.trim()) {
           try {
-            mcpConfig.env = JSON.parse(mcpEnv) as Record<string, string>;
+            mcpConfig.headers = JSON.parse(mcpHeaders) as Record<string, string>;
           } catch {
             // Skip if invalid
           }
@@ -404,12 +404,12 @@ curl -X POST https://api.example.com/endpoint \\
               max={300000}
             />
 
-            {/* Environment Variables */}
+            {/* Header Variables */}
             <Textarea
-              label="Environment Variables (JSON)"
-              value={mcpEnv}
-              onChange={(e) => setMcpEnv(e.target.value)}
-              placeholder='{\n  "API_KEY": "your-key"\n}'
+              label="Header Variables (JSON)"
+              value={mcpHeaders}
+              onChange={(e) => setMcpHeaders(e.target.value)}
+              placeholder='{\n  "Authorization": "Bearer your-token"\n}'
               rows={4}
               className="font-mono text-sm"
             />

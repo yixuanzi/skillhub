@@ -48,6 +48,7 @@ class MCPConfig(BaseModel):
 
     # Network transport fields (SSE, WS, HTTPSTREAM)
     endpoint: Optional[str] = Field(None, description="Endpoint URL for network transports")
+    headers: Optional[dict[str, str]] = Field(default=None, description="HTTP headers for network transports (SSE, HTTPSTREAM)")
 
     @model_validator(mode='after')
     def validate_transport_config(self):

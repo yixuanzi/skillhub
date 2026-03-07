@@ -137,19 +137,23 @@ class MCPService:
         elif config.transport not in (MCPServerType.SSE, MCPServerType.HTTPSTREAM, "sse", "httpstream"):
             raise ValidationException(f"Unsupported transport: {config.transport}")
 
-        # Replace tokens in endpoint URL if db session provided
-        #endpoint = config.endpoint
-        #if db:
-        #    endpoint = MCPService._replace_tokens(db, endpoint)
+        # Build base configuration
+        mcp_config = {
+            "url": config.endpoint,
+            "transport": "streamable_http" if config.transport == 'httpstream' else config.transport
+        }
 
-        # MultiServerMCPClient expects this format:
-        # {server_name: {"url": "...", "transport": "..."}}
-        # sse,streamable_http
+        # Add headers if provided
+        if config.headers:
+            # Replace tokens in header values if db session provided
+            if db:
+                headers = MCPService._replace_tokens(db, config.headers)
+            else:
+                headers = config.headers
+            mcp_config["headers"] = headers
+
         return {
-            resource_name: {
-                "url": config.endpoint,
-                "transport": "streamable_http" if config.transport=='httpstream' else config.transport  # Already a string: "sse" or "httpstream"
-            }
+            resource_name: mcp_config
         }
 
     @staticmethod
