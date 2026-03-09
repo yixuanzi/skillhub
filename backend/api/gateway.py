@@ -10,11 +10,11 @@ from typing import Dict, Any
 from database import get_db
 from schemas.gateway import GatewayResponse, GatewayCallRequest
 from services.gateway_service import GatewayService
+from services.mcp_service import MCPService
 from core.deps import get_current_active_user
 from models.user import User
 
 router = APIRouter(prefix="/gateway", tags=["Gateway"])
-
 
 @router.post("/{resource_name}", response_model=GatewayResponse)
 async def call_resource(
@@ -95,7 +95,7 @@ async def call_resource(
     return GatewayResponse(**result)
 
 
-@router.get("/{resource_name}", response_model=GatewayResponse)
+@router.get("/{resource_name}/get", response_model=GatewayResponse)
 async def call_resource_get(
     resource_name: str,
     request: Request,
@@ -212,6 +212,108 @@ async def call_resource_post(
             )
 
     return GatewayResponse(**result)
+
+
+from pydantic import BaseModel, Field
+
+class MCPCallRequest(BaseModel):
+    """Request schema for MCP resource call."""
+    method: str = Field(..., description="JSON-RPC method name (e.g., 'tools/call', 'resources/list')")
+    params: dict[str, Any] = Field(default_factory=dict, description="JSON-RPC parameters")
+
+
+@router.post("/{resource_name}/mcp")
+async def call_mcp_resource(
+    resource_name: str,
+    request: MCPCallRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Call an MCP server resource.
+
+    Executes a JSON-RPC method call on the MCP server configured in the resource.
+
+    Args:
+        resource_name: Resource name (must be of type MCP)
+        request: MCP call request with method and params
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        MCP server response result
+
+    Raises:
+        HTTPException 400: If resource is not MCP or config is invalid
+        HTTPException 404: If resource is not found
+        HTTPException 502: If MCP server call fails
+    """
+    from core.exceptions import ValidationException, ExternalServiceException
+
+    try:
+        result = await MCPService.call_mcp_resource(
+            db=db,
+            resource_name=resource_name,
+            method=request.method,
+            params=request.params
+        )
+        return result
+
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except ExternalServiceException as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"MCP server error: {str(e)}"
+        )
+
+
+class MCPToolsResponse(BaseModel):
+    """Response schema for MCP tools list."""
+    tools: list[dict[str, Any]] = Field(description="List of available tools/methods")
+
+
+@router.get("/{resource_name}/mcp/tools", response_model=MCPToolsResponse)
+async def list_mcp_tools(
+    resource_name: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """List available tools from an MCP server resource.
+
+    Returns the list of available methods/tools that can be called on the MCP server.
+
+    Args:
+        resource_name: Resource name (must be of type MCP)
+        db: Database session
+        current_user: Authenticated user
+
+    Returns:
+        List of available tools with their names and descriptions
+
+    Raises:
+        HTTPException 400: If resource is not MCP or config is invalid
+        HTTPException 404: If resource is not found
+        HTTPException 502: If MCP server connection fails
+    """
+    from core.exceptions import ValidationException, ExternalServiceException
+
+    try:
+        tools = await MCPService.list_tools(db=db, resource_name=resource_name)
+        return MCPToolsResponse(tools=tools)
+
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except ExternalServiceException as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"MCP server error: {str(e)}"
+        )
 
 
 # New routes with path support for gateway-type resources

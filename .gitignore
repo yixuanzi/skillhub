@@ -45,3 +45,6 @@ backend/data/
 # Temporary
 tmp/
 temp/
+
+# Git Worktrees
+.worktrees/

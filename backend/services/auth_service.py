@@ -17,7 +17,7 @@ from core.security import (
     create_refresh_token,
     get_token_last32
 )
-from core.tmpkey_manager import generate_tmpkey, store_tmpkey
+#from core.tmpkey_manager import generate_tmpkey, store_tmpkey
 from core.exceptions import AuthException, ValidationException, NotFoundException
 from config import settings
 
@@ -150,14 +150,14 @@ class AuthService:
             db.commit()
 
             # Generate and store tmpkey
-            tmpkey = generate_tmpkey()
-            store_tmpkey(tmpkey, str(user.id))
+            # tmpkey = generate_tmpkey()
+            # store_tmpkey(tmpkey, str(user.id))
 
             # Return full tokens (standard JWT practice)
             return TokenResponse(
                 access_token=access_token,
                 refresh_token=refresh_token,
-                tmpkey=tmpkey,
+                #tmpkey=tmpkey,
                 token_type="bearer",
                 expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
             )

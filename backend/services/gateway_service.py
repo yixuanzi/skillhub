@@ -25,7 +25,7 @@ class GatewayService:
     """Service class for gateway operations."""
 
     @staticmethod
-    def _replace_token_placeholders(db: Session, user_id: str, config: Any) -> Any:
+    def _replace_token_placeholders(db: Session, user_id: str, config: Any,mtokens:list=None) -> Any:
         """Replace token placeholders in config with actual token values from mtoken.
 
         This function recursively traverses the config dictionary and replaces
@@ -54,11 +54,11 @@ class GatewayService:
                 for placeholder in matches:
                     token_key = placeholder
                     # Find token from user's mtoken storage
-                    mtokens = MTokenService.list_all(db, user_id, limit=1000)
+                    mtokens = mtokens or MTokenService.list_all(db, user_id, limit=100)
                     found = False
 
                     for mtoken in mtokens:
-                        if mtoken.app_name == token_key:
+                        if mtoken.key_name == token_key:
                             new_value = new_value.replace(f"{{{placeholder}}}", mtoken.value)
                             found = True
                             logger.info(f"Replaced token placeholder: {{{placeholder}}} -> ***")
@@ -75,7 +75,7 @@ class GatewayService:
             new_list = []
             for item in config:
                 if isinstance(item, (dict, list, str)):
-                    new_list.append(GatewayService._replace_token_placeholders(db, user_id, item))
+                    new_list.append(GatewayService._replace_token_placeholders(db, user_id, item,mtokens))
                 else:
                     new_list.append(item)
             return new_list
@@ -85,7 +85,7 @@ class GatewayService:
             new_config = {}
             for key, value in config.items():
                 if isinstance(value, (dict, list, str)):
-                    new_config[key] = GatewayService._replace_token_placeholders(db, user_id, value)
+                    new_config[key] = GatewayService._replace_token_placeholders(db, user_id, value,mtokens)
                 else:
                     new_config[key] = value
             return new_config
@@ -259,11 +259,7 @@ class GatewayService:
         """
         resource_type = resource.type
 
-        if resource_type == ResourceType.BUILD:
-            return await GatewayService._invoke_build_resource(
-                user, resource, method, headers, params, body
-            )
-        elif resource_type == ResourceType.GATEWAY:
+        if resource_type == ResourceType.GATEWAY:
             return await GatewayService._invoke_gateway_resource(
                 user,resource, method, headers, params, body, path
             )
@@ -275,7 +271,7 @@ class GatewayService:
             raise Exception(f"Unsupported resource type: {resource_type}")
 
     @staticmethod
-    async def _invoke_build_resource(
+    async def _invoke_third_party_resource(
         user:User,
         resource: Resource,
         method: str,
@@ -289,7 +285,7 @@ class GatewayService:
         The ext field may contain additional configuration.
         """
         if not resource.url:
-            raise Exception("Build resource has no URL configured")
+            raise Exception("third resource has no URL configured")
 
         # Parse ext for additional configuration
         ext_config = resource.ext or {}
@@ -298,8 +294,10 @@ class GatewayService:
         from database import get_db
         db = next(get_db())
         try:
+
+            mtokens = MTokenService.list_all(db, user.id, limit=1000)
             ext_config = GatewayService._replace_token_placeholders(
-                db, str(user.id), ext_config
+                db, str(user.id), ext_config,mtokens
             )
         finally:
             db.close()
@@ -314,7 +312,7 @@ class GatewayService:
         if auth_headers:
             merged_headers.update(auth_headers)
         # get access token from user and add to headers
-        merged_headers["Authorization"] = f"Bearer {user.access_token}"
+        # merged_headers["Authorization"] = f"Bearer {user.access_token}"
 
         # Make HTTP call
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -403,8 +401,9 @@ class GatewayService:
         from database import get_db
         db = next(get_db())
         try:
+            mtokens = MTokenService.list_all(db, user.id, limit=1000)
             ext_config = GatewayService._replace_token_placeholders(
-                db, str(user.id), ext_config
+                db, str(user.id), ext_config,mtokens
             )
         finally:
             db.close()
@@ -467,21 +466,21 @@ class GatewayService:
             except httpx.HTTPError as e:
                 raise Exception(f"HTTP error: {str(e)}")
 
-    @staticmethod
-    async def _invoke_third_party_resource(
-        user:User,
-        resource: Resource,
-        method: str,
-        headers: Optional[Dict[str, str]] = None,
-        params: Optional[Dict[str, Any]] = None,
-        body: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """Invoke a third-party resource.
+    # @staticmethod
+    # async def _invoke_third_party_resource(
+    #     user:User,
+    #     resource: Resource,
+    #     method: str,
+    #     headers: Optional[Dict[str, str]] = None,
+    #     params: Optional[Dict[str, Any]] = None,
+    #     body: Optional[Dict[str, Any]] = None
+    # ) -> Dict[str, Any]:
+    #     """Invoke a third-party resource.
 
-        Third-party resources are external APIs or services.
-        """
-        # For now, similar to build resources
-        # In the future, this might have specific third-party integration logic
-        return await GatewayService._invoke_build_resource(
-            resource, method, headers, params, body
-        )
+    #     Third-party resources are external APIs or services.
+    #     """
+    #     # For now, similar to build resources
+    #     # In the future, this might have specific third-party integration logic
+    #     return await GatewayService._invoke_build_resource(
+    #         resource, method, headers, params, body
+    #     )

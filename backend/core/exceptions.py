@@ -17,3 +17,7 @@ class ValidationException(SkillHubException):
 class BusinessException(SkillHubException):
     """Business logic errors"""
     pass
+
+class ExternalServiceException(SkillHubException):
+    """External service call errors (e.g., MCP servers, APIs)"""
+    pass

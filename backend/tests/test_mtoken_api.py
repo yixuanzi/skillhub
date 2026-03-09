@@ -106,7 +106,7 @@ class TestListMTokens:
         response = client.get("/api/v1/mtokens/")
         assert response.status_code in [401, 403]
 
-    def test_list_mtokens_user_isolation(self, db: Session, auth_headers_user1: dict, auth_headers_user2: dict):
+    def test_list_mtokens_user_isolation(self, db: Session, auth_headers_user1: dict, auth_headers_user2: dict, user1, user2):
         """Test that users only see their own tokens."""
         # Create token for user 1
         data1 = {
@@ -132,11 +132,11 @@ class TestListMTokens:
         response2 = client.get("/api/v1/mtokens/", headers=auth_headers_user2)
         tokens2 = response2.json()["items"]
 
-        # User 1 should only see their token
-        assert all(token["created_by"] == "user1" for token in tokens1)
+        # User 1 should only see their token (created_by matches user1.id)
+        assert all(token["created_by"] == str(user1.id) for token in tokens1)
 
-        # User 2 should only see their token
-        assert all(token["created_by"] == "user2" for token in tokens2)
+        # User 2 should only see their token (created_by matches user2.id)
+        assert all(token["created_by"] == str(user2.id) for token in tokens2)
 
 
 class TestGetMToken:
