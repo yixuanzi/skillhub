@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from './components/layout/Layout';
 import { LoginPage, RegisterPage } from './pages/auth';
 import { DashboardPage } from './pages/dashboard';
-import { SkillsPage, SkillDetailPage, SkillCreatePage } from './pages/skills';
+import { SkillsPage, SkillDetailPage, SkillCreatePage, SkillEditPage } from './pages/skills';
 import { UsersPage } from './pages/users';
 import { ResourcesPage } from './pages/resources';
 import { TokensPage } from './pages/tokens';
@@ -82,6 +82,7 @@ function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="skills" element={<SkillsPage />} />
             <Route path="skills/new" element={<SkillCreatePage />} />
+            <Route path="skills/:id/edit" element={<SkillEditPage />} />
             <Route path="skills/:id" element={<SkillDetailPage />} />
             <Route path="users" element={<UsersPage />} />
             <Route path="resources" element={<ResourcesPage />} />

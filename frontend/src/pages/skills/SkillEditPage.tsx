@@ -1,7 +1,8 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useCreateSkill, useSkills } from '@/hooks/useSkills';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useSkill, useUpdateSkill } from '@/hooks/useSkills';
 import { useResources } from '@/hooks/useResources';
+import { useSkills } from '@/hooks/useSkills';
 import { useSkillCreator } from '@/hooks/useSkillCreator';
 import { Button, Input, Textarea, Card, Alert, Badge, Loading } from '@/components/ui';
 import { ArrowLeft, Plus, Sparkles, Check, X, Loader2 } from 'lucide-react';
@@ -11,17 +12,19 @@ import { SkillCreatorType } from '@/api/skillCreator';
 
 type AIGenerationMode = 'base' | 'sop' | null;
 
-export const SkillCreatePage = () => {
+export const SkillEditPage = () => {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const createSkill = useCreateSkill();
+  const { data: skill, isLoading } = useSkill(id!);
+  const updateSkill = useUpdateSkill();
   const generateContent = useSkillCreator();
 
-  // Fetch resources and skills for AI generation
+  // Fetch resources and skills for AI generation (excluding current skill)
   const { data: resourcesData } = useResources({ page: 1, pageSize: 100 });
   const { data: skillsData } = useSkills({ page: 1, pageSize: 100 });
 
   const resources = resourcesData?.items || [];
-  const skills = skillsData?.items || [];
+  const otherSkills = skillsData?.items.filter(s => s.id !== id) || [];
 
   // Form state
   const [formData, setFormData] = useState({
@@ -40,23 +43,47 @@ export const SkillCreatePage = () => {
   const [userInput, setUserInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Initialize form with skill data
+  useEffect(() => {
+    if (skill) {
+      setFormData({
+        name: skill.name,
+        description: skill.description || '',
+        content: skill.content || '',
+        category: skill.category || '',
+        tags: skill.tags || '',
+        version: skill.version || '1.0.0',
+      });
+    }
+  }, [skill]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage('');
+    setSuccessMessage('');
+
     try {
-      const result = await createSkill.mutateAsync({
-        name: formData.name.trim(),
-        description: formData.description.trim(),
-        content: formData.content.trim() || undefined,
-        category: formData.category.trim() || undefined,
-        tags: formData.tags.trim() || undefined,
-        version: formData.version.trim(),
+      await updateSkill.mutateAsync({
+        id: id!,
+        data: {
+          name: formData.name.trim(),
+          description: formData.description.trim(),
+          content: formData.content.trim() || undefined,
+          category: formData.category.trim() || undefined,
+          tags: formData.tags.trim() || undefined,
+          version: formData.version.trim(),
+        },
       });
-      if (result) {
-        navigate(`/skills/${result.id}`);
-      }
+      setSuccessMessage('Skill updated successfully!');
+      setTimeout(() => {
+        navigate(`/skills/${id}`);
+      }, 1000);
     } catch (err) {
-      console.error('Failed to create skill:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update skill';
+      setErrorMessage(errorMessage);
     }
   };
 
@@ -88,15 +115,15 @@ export const SkillCreatePage = () => {
     }
   };
 
-  const toggleResourceSelection = (id: string) => {
+  const toggleResourceSelection = (resourceId: string) => {
     setSelectedResourceIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(resourceId) ? prev.filter((x) => x !== resourceId) : [...prev, resourceId]
     );
   };
 
-  const toggleSkillSelection = (id: string) => {
+  const toggleSkillSelection = (skillId: string) => {
     setSelectedSkillIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(skillId) ? prev.filter((x) => x !== skillId) : [...prev, skillId]
     );
   };
 
@@ -114,24 +141,61 @@ export const SkillCreatePage = () => {
     });
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loading size="lg" />
+      </div>
+    );
+  }
+
+  if (!skill) {
+    return (
+      <div className="text-center py-16">
+        <h2 className="font-display text-xl text-gray-300 mb-2">Skill not found</h2>
+        <Link to="/skills">
+          <Button variant="secondary">Back to Skills</Button>
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link to="/skills">
+        <Link to={`/skills/${id}`}>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="w-4 h-4" />
           </Button>
         </Link>
         <div className="flex-1">
           <h1 className="font-display text-3xl font-bold text-gray-100 mb-2">
-            Create New Skill
+            Edit Skill
           </h1>
           <p className="font-mono text-sm text-gray-500">
-            Define your skill configuration or use AI to generate content
+            Modify your skill configuration or use AI to generate new content
           </p>
         </div>
       </div>
+
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <div className="animate-slide-in">
+          <div className="flex items-center gap-2 px-4 py-3 rounded-lg border border-cyber-primary/30 bg-cyber-primary/10">
+            <Check className="w-4 h-4 text-cyber-primary flex-shrink-0" />
+            <span className="text-sm font-medium text-cyber-primary">{successMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="animate-slide-in">
+          <Alert variant="danger">
+            <span className="text-sm font-medium">{errorMessage}</span>
+          </Alert>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Info Card */}
@@ -256,7 +320,7 @@ export const SkillCreatePage = () => {
                     <div className="max-h-48 overflow-auto border border-void-700 rounded-lg p-2 space-y-1">
                       {resources.length === 0 ? (
                         <p className="text-sm text-gray-500 text-center py-4">
-                          No resources available. Create resources first.
+                          No resources available.
                         </p>
                       ) : (
                         resources.map((resource) => (
@@ -311,22 +375,22 @@ export const SkillCreatePage = () => {
                   <div className="space-y-4">
                     <div>
                       <label className="text-sm font-mono text-gray-400 uppercase tracking-wider mb-2 block">
-                        Select Skills
+                        Select Skills (excluding current skill)
                       </label>
                       <div className="max-h-48 overflow-auto border border-void-700 rounded-lg p-2 space-y-1">
-                        {skills.length === 0 ? (
+                        {otherSkills.length === 0 ? (
                           <p className="text-sm text-gray-500 text-center py-4">
-                            No skills available.
+                            No other skills available.
                           </p>
                         ) : (
-                          skills.map((skill) => (
+                          otherSkills.map((skillItem) => (
                             <button
-                              key={skill.id}
+                              key={skillItem.id}
                               type="button"
-                              onClick={() => toggleSkillSelection(skill.id)}
+                              onClick={() => toggleSkillSelection(skillItem.id)}
                               className={cn(
                                 'w-full flex items-center justify-between px-3 py-2 rounded text-left transition-all',
-                                selectedSkillIds.includes(skill.id)
+                                selectedSkillIds.includes(skillItem.id)
                                   ? 'bg-cyber-primary/20 border border-cyber-primary/30'
                                   : 'hover:bg-void-800 border border-transparent'
                               )}
@@ -334,20 +398,20 @@ export const SkillCreatePage = () => {
                               <div className="flex items-center gap-2 flex-1 min-w-0">
                                 <div className={cn(
                                   'w-4 h-4 rounded border flex items-center justify-center',
-                                  selectedSkillIds.includes(skill.id)
+                                  selectedSkillIds.includes(skillItem.id)
                                     ? 'bg-cyber-primary border-cyber-primary'
                                     : 'border-void-600'
                                 )}>
-                                  {selectedSkillIds.includes(skill.id) && (
+                                  {selectedSkillIds.includes(skillItem.id) && (
                                     <Check className="w-3 h-3 text-void-950" />
                                   )}
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="text-sm font-medium text-gray-200 truncate">
-                                    {skill.name}
+                                    {skillItem.name}
                                   </p>
                                   <p className="text-xs text-gray-500 truncate">
-                                    {skill.description}
+                                    {skillItem.description}
                                   </p>
                                 </div>
                               </div>
@@ -449,7 +513,7 @@ You can write markdown content, code examples, documentation, etc."
 
         {/* Action Buttons */}
         <div className="flex gap-3 justify-end">
-          <Link to="/skills">
+          <Link to={`/skills/${id}`}>
             <Button type="button" variant="ghost">
               Cancel
             </Button>
@@ -457,9 +521,9 @@ You can write markdown content, code examples, documentation, etc."
           <Button
             type="submit"
             variant="primary"
-            disabled={createSkill.isPending}
+            disabled={updateSkill.isPending}
           >
-            {createSkill.isPending ? 'Creating...' : 'Create Skill'}
+            {updateSkill.isPending ? 'Saving...' : 'Save Changes'}
           </Button>
         </div>
       </form>

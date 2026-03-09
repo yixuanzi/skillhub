@@ -15,6 +15,8 @@ from api.mtoken import router as mtoken_router
 from api.api_key import router as api_key_router
 from api.audit_log import router as audit_log_router
 from api.user_management import router as user_management_router, role_router, permission_router
+from api.skill_creator import router as skill_creator_router
+from api.script import router as script_router
 from middleware.audit_middleware import audit_middleware
 
 
@@ -58,6 +60,8 @@ app.include_router(audit_log_router, prefix="/api/v1")
 app.include_router(user_management_router, prefix="/api/v1")
 app.include_router(role_router, prefix="/api/v1")
 app.include_router(permission_router, prefix="/api/v1")
+app.include_router(skill_creator_router, prefix="/api/v1")
+app.include_router(script_router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -72,12 +76,11 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
-    print("Starting SkillHub MVP API...")
     # Run the application
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=8000,
+        host=settings.SKILL_HOST,
+        port=settings.SKILL_PORT,
         #reload=True,  # Enable auto-reload for development
         log_level="info"
     )

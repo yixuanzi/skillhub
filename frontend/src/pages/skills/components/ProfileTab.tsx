@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useSkills, useCreateSkill, useUpdateSkill, useDeleteSkill } from '@/hooks/useSkills';
+import { useSkills, useDeleteSkill } from '@/hooks/useSkills';
 import { Button, Card, Badge, Loading } from '@/components/ui';
-import { SkillFormModal } from '@/components/skills/SkillFormModal';
 import { Plus, Search, Edit, Trash2, Upload, ExternalLink, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/utils/cn';
@@ -15,13 +14,9 @@ interface ProfileTabProps {
 export const ProfileTab = ({ userId, username }: ProfileTabProps) => {
   // Get skills filtered by current user (author filter by username)
   const { data, isLoading, error } = useSkills({ author: username });
-  const createMutation = useCreateSkill();
-  const updateMutation = useUpdateSkill();
   const deleteMutation = useDeleteSkill();
 
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,40 +31,6 @@ export const ProfileTab = ({ userId, username }: ProfileTabProps) => {
       skill.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
-
-  const handleCreate = async (data: any) => {
-    try {
-      setErrorMessage('');
-      await createMutation.mutateAsync(data);
-      setSuccessMessage('Skill created successfully!');
-      setIsCreateModalOpen(false);
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error: any) {
-      setErrorMessage(error.message || 'Failed to create skill');
-    }
-  };
-
-  const handleOpenCreateModal = () => {
-    setIsCreateModalOpen(true);
-  };
-
-  const handleEdit = (skill: Skill) => {
-    setEditingSkill(skill);
-    setErrorMessage('');
-    setSuccessMessage('');
-  };
-
-  const handleUpdate = async (data: any) => {
-    try {
-      setErrorMessage('');
-      await updateMutation.mutateAsync({ id: editingSkill!.id, data });
-      setSuccessMessage('Skill updated successfully!');
-      setEditingSkill(null);
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (error: any) {
-      setErrorMessage(error.message || 'Failed to update skill');
-    }
-  };
 
   const handleDelete = async (skill: Skill) => {
     try {
@@ -115,15 +76,15 @@ export const ProfileTab = ({ userId, username }: ProfileTabProps) => {
             {skills.length} total • {filteredSkills.length} shown
           </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={handleOpenCreateModal}
-          className="group"
-          type="button"
-        >
-          <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
-          New Skill
-        </Button>
+        <Link to="/skills/new">
+          <Button
+            variant="primary"
+            className="group"
+          >
+            <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" />
+            New Skill
+          </Button>
+        </Link>
       </div>
 
       {/* Success and Error Messages */}
@@ -171,14 +132,14 @@ export const ProfileTab = ({ userId, username }: ProfileTabProps) => {
               : 'Try adjusting your search'}
           </p>
           {skills.length === 0 && (
-            <Button
-              variant="primary"
-              onClick={handleOpenCreateModal}
-              type="button"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Your First Skill
-            </Button>
+            <Link to="/skills/new">
+              <Button
+                variant="primary"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Your First Skill
+              </Button>
+            </Link>
           )}
         </Card>
       ) : (
@@ -235,14 +196,11 @@ export const ProfileTab = ({ userId, username }: ProfileTabProps) => {
                         <ExternalLink className="w-4 h-4" />
                       </Button>
                     </Link>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(skill)}
-                      className="p-1.5"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
+                    <Link to={`/skills/${skill.id}/edit`}>
+                      <Button variant="ghost" size="sm" className="p-1.5">
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                    </Link>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -262,25 +220,6 @@ export const ProfileTab = ({ userId, username }: ProfileTabProps) => {
             </Card>
           ))}
         </div>
-      )}
-
-      {/* Create Modal */}
-      <SkillFormModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSubmit={handleCreate}
-        mode="create"
-      />
-
-      {/* Edit Modal */}
-      {editingSkill && (
-        <SkillFormModal
-          isOpen={!!editingSkill}
-          onClose={() => setEditingSkill(null)}
-          onSubmit={handleUpdate}
-          skill={editingSkill}
-          mode="edit"
-        />
       )}
     </div>
   );

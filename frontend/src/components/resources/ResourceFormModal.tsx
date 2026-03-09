@@ -48,6 +48,7 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
   const [description, setDescription] = useState('');
   const [viewScope, setViewScope] = useState<ViewScope>('public');
   const [apiDescription, setApiDescription] = useState('');
+  const [httpMethod, setHttpMethod] = useState<'GET' | 'POST' | 'PUT' | 'DELETE'>('GET');
 
   // MCP config state
   const [mcpTransport, setMcpTransport] = useState<MCPTransportType>('stdio');
@@ -73,10 +74,21 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
         setViewScope(resource.view_scope || 'public');
         setApiDescription(resource.api_description || '');
 
+        // Parse HTTP method from ext for third type
+        const methodFromExt = resource.ext?.method as string | undefined;
+        if (methodFromExt && ['GET', 'POST', 'PUT', 'DELETE'].includes(methodFromExt)) {
+          setHttpMethod(methodFromExt as 'GET' | 'POST' | 'PUT' | 'DELETE');
+        } else {
+          setHttpMethod('GET');
+        }
+
         // Parse MCP config from ext
         const mcpConfig = parseMcpConfig(resource.ext);
         if (mcpConfig) {
-          setMcpTransport(mcpConfig.transport || 'stdio');
+          // Use 'sse' as default if transport is 'stdio' or 'ws' (not supported)
+          const transport = mcpConfig.transport || 'sse';
+          const supportedTransport = (transport === 'stdio' || transport === 'ws') ? 'sse' : transport;
+          setMcpTransport(supportedTransport as MCPTransportType);
           setMcpCommand(mcpConfig.command || '');
           setMcpArgs(mcpArgs => mcpConfig.args ? mcpConfig.args.join(' ') : '');
           setMcpEndpoint(mcpConfig.endpoint || '');
@@ -92,7 +104,8 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
         setDescription('');
         setViewScope('public');
         setApiDescription('');
-        setMcpTransport('stdio');
+        setHttpMethod('GET');
+        setMcpTransport('sse'); // Default to SSE (supported) instead of stdio
         setMcpCommand('');
         setMcpArgs('');
         setMcpEndpoint('');
@@ -172,6 +185,12 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
         } catch {
           extObj = {};
         }
+      }
+
+      // Add HTTP method to ext for third type
+      if (type === 'third') {
+        extObj = extObj || {};
+        extObj.method = httpMethod;
       }
 
       // Add MCP config to ext
@@ -279,6 +298,24 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
           />
         )}
 
+        {/* HTTP Method Field (for third type only) */}
+        {type === 'third' && (
+          <div className="flex flex-col gap-1.5">
+            <Label>HTTP Method *</Label>
+            <Select value={httpMethod} onValueChange={(v) => setHttpMethod(v as 'GET' | 'POST' | 'PUT' | 'DELETE')}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select HTTP method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="GET">GET</SelectItem>
+                <SelectItem value="POST">POST</SelectItem>
+                <SelectItem value="PUT">PUT</SelectItem>
+                <SelectItem value="DELETE">DELETE</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {/* Description Field */}
         <Textarea
           label="Description"
@@ -355,12 +392,15 @@ curl -X POST https://api.example.com/endpoint \\
                   <SelectValue placeholder="Select transport type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="stdio">STDIO (Command)</SelectItem>
+                  <SelectItem value="stdio" disabled>STDIO (Command) - Not Supported</SelectItem>
                   <SelectItem value="sse">Server-Sent Events</SelectItem>
-                  <SelectItem value="ws">WebSocket</SelectItem>
+                  <SelectItem value="ws" disabled>WebSocket - Not Supported</SelectItem>
                   <SelectItem value="httpstream">HTTP Stream</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-gray-500 mt-1">
+                Note: STDIO and WebSocket transports are currently not supported
+              </p>
             </div>
 
             {/* STDIO Configuration */}
