@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
@@ -13,6 +15,7 @@ class UserResponse(UserBase):
     id: str  # UUID stored as string in SQLite
     is_active: bool
     created_at: datetime
+    roles: List['RoleWithPermissions'] = []
 
     class Config:
         from_attributes = True

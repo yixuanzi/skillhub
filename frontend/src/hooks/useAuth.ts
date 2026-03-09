@@ -65,12 +65,22 @@ export const useCurrentUser = () => {
     queryKey: ['currentUser'],
     queryFn: async () => {
       const response = await authApi.getCurrentUser();
-      // Backend returns: { id, username, email, is_active, created_at }
+      // Backend returns: { id, username, email, is_active, created_at, roles[] }
       const user: User = {
         id: response.id,
         username: response.username,
         email: response.email,
-        roles: [], // Will be populated when we implement roles
+        roles: response.roles.map(role => ({
+          id: role.id,
+          name: role.name,
+          permissions: role.permissions.map(perm => ({
+            id: perm.id,
+            resource: perm.resource,
+            action: perm.action,
+            conditions: perm.description ? { description: perm.description } : undefined,
+          })),
+          createdAt: role.created_at,
+        })),
         createdAt: response.created_at,
         updatedAt: response.created_at,
       };

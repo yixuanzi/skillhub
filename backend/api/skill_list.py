@@ -61,18 +61,26 @@ async def list_skills(
     size: int = Query(20, ge=1, le=100, description="Page size (max 100)"),
     category: str | None = Query(None, description="Filter by category"),
     tags: str | None = Query(None, description="Filter by tags (comma-separated)"),
-    author: str | None = Query(None, description="Filter by creator user ID"),
+    author: str | None = Query(None, description="Filter by creator username"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """List all skills with optional filtering.
+
+    Multiple filters are combined using AND logic:
+    - category: Exact match
+    - author: Exact match on created_by field
+    - tags: Matches ANY tag within the comma-separated list
+
+    Example: ?category=data&tags=python,ai returns skills in 'data' category
+    that have either 'python' OR 'ai' tags.
 
     Args:
         page: Page number (starts from 1)
         size: Number of items per page (max 100)
         category: Optional category filter
         tags: Optional comma-separated tags filter (matches ANY tag)
-        author: Optional creator user ID filter (maps to created_by)
+        author: Optional creator username filter (maps to created_by)
         db: Database session
         current_user: Authenticated user
 
@@ -81,20 +89,10 @@ async def list_skills(
     """
     skip = (page - 1) * size
 
-    # Apply filters based on query parameters
-    # Priority: author > category > tags > no filter
-    if author:
-        skills = SkillListService.list_by_author(db, author, skip, size)
-        total = SkillListService.count_by_author(db, author)
-    elif category:
-        skills = SkillListService.list_by_category(db, category, skip, size)
-        total = SkillListService.count_by_category(db, category)
-    elif tags:
-        skills = SkillListService.list_by_tags(db, tags, skip, size)
-        total = SkillListService.count_by_tags(db, tags)
-    else:
-        skills = SkillListService.list_all(db, skip, size)
-        total = SkillListService.count_all(db)
+    # Use combined filters (AND logic between filters, OR within tags)
+    skills, total = SkillListService.list_with_filters(
+        db, skip, size, category, tags, author
+    )
 
     return SkillListListResponse(
         items=[SkillListResponse.model_validate(s) for s in skills],
@@ -141,6 +139,8 @@ async def update_skill(
 ):
     """Update a skill.
 
+    Only the skill creator or admin users can update skills.
+
     Args:
         skill_id: Skill UUID
         skill_data: Skill update data
@@ -151,19 +151,26 @@ async def update_skill(
         Updated skill response
 
     Raises:
+        HTTPException 403: If user lacks permission
         HTTPException 404: If skill is not found
         HTTPException 400: If validation fails (e.g., duplicate name)
     """
     from core.exceptions import NotFoundException, ValidationException
 
     try:
-        return SkillListService.update(db, skill_id, skill_data)
+        return SkillListService.update(db, skill_id, skill_data, user=current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e)
         )
     except ValidationException as e:
+        # Check if it's a permission error
+        if "permission" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=str(e)
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -178,6 +185,8 @@ async def delete_skill(
 ):
     """Delete a skill.
 
+    Only the skill creator or admin users can delete skills.
+
     Args:
         skill_id: Skill UUID
         db: Database session
@@ -187,15 +196,27 @@ async def delete_skill(
         None (204 No Content)
 
     Raises:
+        HTTPException 403: If user lacks permission
         HTTPException 404: If skill is not found
     """
-    from core.exceptions import NotFoundException
+    from core.exceptions import NotFoundException, ValidationException
 
     try:
-        SkillListService.delete(db, skill_id)
+        SkillListService.delete(db, skill_id, user=current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ValidationException as e:
+        # Check if it's a permission error
+        if "permission" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=str(e)
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     return None
