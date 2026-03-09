@@ -100,7 +100,7 @@ async def audit_middleware(request: Request, call_next):
 
     # Extract user info
     user_id = getattr(request.state, "user_id", None)
-    username = None
+    #username = None
     if not user_id:
         auth_header = request.headers.get("authorization")
         if auth_header and auth_header.startswith("Bearer "):
@@ -108,7 +108,7 @@ async def audit_middleware(request: Request, call_next):
             payload = verify_token(token)
             if payload:
                 user_id = payload.get("sub")
-                username = payload.get("username")
+                #username = payload.get("username")
 
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
@@ -195,7 +195,7 @@ async def audit_middleware(request: Request, call_next):
         # Log the request
         SystemAuditLogService.log_action(
             db=db,
-            user_id=username,
+            user_id=user_id,
             action=action,
             resource_type="http_request",
             details=details,

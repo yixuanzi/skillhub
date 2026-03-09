@@ -7,10 +7,21 @@ This module provides FastAPI endpoints for resource CRUD operations including:
 - Update resource
 - Delete resource
 - Call MCP resource (execute MCP server methods)
+
+Security Policy:
+- All resources (public and private) have an owner_id set to the creating user
+- Read operations (GET):
+    * view_scope='public': Accessible to all authenticated users
+    * view_scope='private': Only accessible to:
+        - Resource owner
+        - Users with 'admin' or 'super_admin' role
+        - Users granted access via ACL rules
+- Write operations (POST/PUT/DELETE):
+    * Only the resource owner can modify the resource
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -27,6 +38,24 @@ from core.deps import get_current_active_user
 from models.user import User
 
 router = APIRouter(prefix="/resources", tags=["Resources"])
+
+# Admin role names
+ADMIN_ROLES = {"admin", "super_admin"}
+
+
+def _is_admin_user(user: Optional[User]) -> bool:
+    """Check if user has admin or super_admin role.
+
+    Args:
+        user: User object with roles relationship
+
+    Returns:
+        True if user has admin or super_admin role
+    """
+    if not user or not user.roles:
+        return False
+    user_role_names = {role.name for role in user.roles}
+    return bool(user_role_names & ADMIN_ROLES)
 
 
 @router.post("/", response_model=ResourceResponse, status_code=status.HTTP_201_CREATED)
@@ -69,7 +98,9 @@ async def list_resources(
 ):
     """List resources accessible to the user with optional filtering by type.
 
-    Returns public resources and user's own private resources.
+    Returns:
+    - For admin users: all resources
+    - For regular users: public resources, own resources, and ACL-granted resources
 
     Args:
         page: Page number (starts from 1)
@@ -83,9 +114,8 @@ async def list_resources(
     """
     skip = (page - 1) * size
 
-    # Get accessible resources (public + user's own)
-    resources = ResourceService.list_accessible(db, current_user, skip, size)
-    total = len(resources)  # Simplified count
+    # Get accessible resources and total count
+    resources, total = ResourceService.list_accessible_with_count(db, current_user, skip, size)
 
     return ResourceListResponse(
         items=[ResourceResponse.model_validate(r) for r in resources],
@@ -143,6 +173,8 @@ async def update_resource(
 ):
     """Update a resource.
 
+    Only the resource owner can update a resource.
+
     Args:
         resource_id: Resource UUID
         resource_data: Resource update data
@@ -154,12 +186,14 @@ async def update_resource(
 
     Raises:
         HTTPException 404: If resource is not found
+        HTTPException 403: If user is not the resource owner
         HTTPException 400: If validation fails (e.g., duplicate name)
     """
     from core.exceptions import NotFoundException, ValidationException
 
     try:
-        return ResourceService.update(db, resource_id, resource_data, user=current_user)
+        # Only owner can update, not even admin users
+        return ResourceService.update_owner_only(db, resource_id, resource_data, user=current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -167,7 +201,7 @@ async def update_resource(
         )
     except ValidationException as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
 
@@ -180,6 +214,8 @@ async def delete_resource(
 ):
     """Delete a resource.
 
+    Only the resource owner can delete a resource.
+
     Args:
         resource_id: Resource UUID
         db: Database session
@@ -190,14 +226,21 @@ async def delete_resource(
 
     Raises:
         HTTPException 404: If resource is not found
+        HTTPException 403: If user is not the resource owner
     """
-    from core.exceptions import NotFoundException
+    from core.exceptions import NotFoundException, ValidationException
 
     try:
-        ResourceService.delete(db, resource_id, user=current_user)
+        # Only owner can delete, not even admin users
+        ResourceService.delete_owner_only(db, resource_id, user=current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
     return None

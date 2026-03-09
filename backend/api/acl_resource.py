@@ -8,6 +8,12 @@ This module provides FastAPI endpoints for resource ACL operations including:
 - Delete ACL rule
 - Add/Remove/Update role bindings
 - Check user permissions
+
+Security Policy:
+- ACL write operations (create/update/delete) are restricted to:
+    * Resource owner
+    * Users with 'admin' or 'super_admin' role
+- ACL read operations follow the same restrictions
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -41,6 +47,8 @@ async def create_acl_rule(
 ):
     """Create a new ACL rule for a resource.
 
+    Only the resource owner or admin users can create ACL rules.
+
     Args:
         acl_data: ACL rule creation data
         db: Database session
@@ -51,10 +59,11 @@ async def create_acl_rule(
 
     Raises:
         HTTPException 400: If validation fails
+        HTTPException 403: If user lacks permission
         HTTPException 404: If resource or role not found
     """
     try:
-        return ACLResourceService.create(db, acl_data)
+        return ACLResourceService.create(db, acl_data, user=current_user)
     except (ValidationException, NotFoundException) as e:
         status_code = status.HTTP_400_BAD_REQUEST if isinstance(e, ValidationException) else status.HTTP_404_NOT_FOUND
         raise HTTPException(
@@ -71,7 +80,10 @@ async def list_acl_rules(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """List all ACL rules with optional filtering by access mode.
+    """List ACL rules with optional filtering by access mode.
+
+    - Admin users can view all ACL rules
+    - Regular users can only view ACL rules for resources they own
 
     Args:
         page: Page number (starts from 1)
@@ -82,13 +94,15 @@ async def list_acl_rules(
 
     Returns:
         Paginated list of ACL rules
+
+    Raises:
+        HTTPException 403: If user lacks permission (should not occur with proper filtering)
     """
-    if access_mode:
-        acl_rules = ACLResourceService.list_by_mode(db, access_mode, (page - 1) * size, size)
-        total = ACLResourceService.count_by_mode(db, access_mode)
-    else:
-        acl_rules = ACLResourceService.list_all(db, (page - 1) * size, size)
-        total = ACLResourceService.count_all(db)
+    skip = (page - 1) * size
+
+    acl_rules, total = ACLResourceService.list_accessible(
+        db, current_user, skip, size, access_mode
+    )
 
     return ACLRuleListResponse(
         items=acl_rules,
@@ -106,6 +120,9 @@ async def get_acl_rule(
 ):
     """Get a specific ACL rule by ID.
 
+    - Admin users can view any ACL rule
+    - Regular users can only view ACL rules for resources they own
+
     Args:
         acl_rule_id: ACL rule UUID
         db: Database session
@@ -115,14 +132,22 @@ async def get_acl_rule(
         ACL rule response
 
     Raises:
+        HTTPException 403: If user lacks permission
         HTTPException 404: If ACL rule not found
     """
-    acl_rule = ACLResourceService.get_by_id(db, acl_rule_id)
-    if not acl_rule:
+    try:
+        acl_rule = ACLResourceService.get_by_id_for_user(db, acl_rule_id, current_user)
+    except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"ACL rule with id '{acl_rule_id}' not found"
+            detail=str(e)
         )
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+
     return acl_rule
 
 
@@ -134,6 +159,9 @@ async def get_acl_rule_by_resource(
 ):
     """Get ACL rule by resource ID.
 
+    - Admin users can view any ACL rule
+    - Regular users can only view ACL rules for resources they own
+
     Args:
         resource_id: Resource UUID
         db: Database session
@@ -143,14 +171,22 @@ async def get_acl_rule_by_resource(
         ACL rule response
 
     Raises:
+        HTTPException 403: If user lacks permission
         HTTPException 404: If ACL rule not found
     """
-    acl_rule = ACLResourceService.get_by_resource_id(db, resource_id)
-    if not acl_rule:
+    try:
+        acl_rule = ACLResourceService.get_by_resource_id_for_user(db, resource_id, current_user)
+    except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"ACL rule for resource '{resource_id}' not found"
+            detail=str(e)
         )
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+
     return acl_rule
 
 
@@ -163,6 +199,8 @@ async def update_acl_rule(
 ):
     """Update an ACL rule.
 
+    Only the resource owner or admin users can update ACL rules.
+
     Args:
         acl_rule_id: ACL rule UUID
         acl_data: ACL rule update data
@@ -173,13 +211,19 @@ async def update_acl_rule(
         Updated ACL rule response
 
     Raises:
+        HTTPException 403: If user lacks permission
         HTTPException 404: If ACL rule not found
     """
     try:
-        return ACLResourceService.update(db, acl_rule_id, acl_data)
+        return ACLResourceService.update(db, acl_rule_id, acl_data, user=current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
 
@@ -192,6 +236,8 @@ async def delete_acl_rule(
 ):
     """Delete an ACL rule.
 
+    Only the resource owner or admin users can delete ACL rules.
+
     Args:
         acl_rule_id: ACL rule UUID
         db: Database session
@@ -201,13 +247,19 @@ async def delete_acl_rule(
         None (204 No Content)
 
     Raises:
+        HTTPException 403: If user lacks permission
         HTTPException 404: If ACL rule not found
     """
     try:
-        ACLResourceService.delete(db, acl_rule_id)
+        ACLResourceService.delete(db, acl_rule_id, user=current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
     return None
@@ -223,6 +275,8 @@ async def add_role_binding(
 ):
     """Add a role binding to an ACL rule.
 
+    Only the resource owner or admin users can add role bindings.
+
     Args:
         acl_rule_id: ACL rule UUID
         binding_data: Role binding data
@@ -234,10 +288,11 @@ async def add_role_binding(
 
     Raises:
         HTTPException 400: If validation fails
+        HTTPException 403: If user lacks permission
         HTTPException 404: If ACL rule or role not found
     """
     try:
-        return ACLResourceService.add_role_binding(db, acl_rule_id, binding_data)
+        return ACLResourceService.add_role_binding(db, acl_rule_id, binding_data, user=current_user)
     except (ValidationException, NotFoundException) as e:
         status_code = status.HTTP_400_BAD_REQUEST if isinstance(e, ValidationException) else status.HTTP_404_NOT_FOUND
         raise HTTPException(
@@ -255,6 +310,8 @@ async def remove_role_binding(
 ):
     """Remove a role binding from an ACL rule.
 
+    Only the resource owner or admin users can remove role bindings.
+
     Args:
         acl_rule_id: ACL rule UUID
         role_id: Role UUID
@@ -265,13 +322,19 @@ async def remove_role_binding(
         None (204 No Content)
 
     Raises:
+        HTTPException 403: If user lacks permission
         HTTPException 404: If role binding not found
     """
     try:
-        ACLResourceService.remove_role_binding(db, acl_rule_id, role_id)
+        ACLResourceService.remove_role_binding(db, acl_rule_id, role_id, user=current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
     return None
@@ -287,6 +350,8 @@ async def update_role_binding(
 ):
     """Update permissions for a role binding.
 
+    Only the resource owner or admin users can update role bindings.
+
     Args:
         acl_rule_id: ACL rule UUID
         role_id: Role UUID
@@ -298,13 +363,19 @@ async def update_role_binding(
         Updated role binding response
 
     Raises:
+        HTTPException 403: If user lacks permission
         HTTPException 404: If role binding not found
     """
     try:
-        return ACLResourceService.update_role_binding(db, acl_rule_id, role_id, permissions)
+        return ACLResourceService.update_role_binding(db, acl_rule_id, role_id, permissions, user=current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ValidationException as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=str(e)
         )
 

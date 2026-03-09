@@ -57,6 +57,7 @@ class SystemAuditLogResponse(BaseModel):
     """Schema for system audit log response."""
     id: str
     user_id: Optional[str]
+    username: Optional[str]  # Username of the user who performed the action
     action: str
     resource_type: Optional[str]
     resource_id: Optional[str]

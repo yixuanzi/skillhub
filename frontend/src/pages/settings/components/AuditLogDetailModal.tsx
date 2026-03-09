@@ -84,9 +84,9 @@ export const AuditLogDetailModal = ({ isOpen, onClose, log }: AuditLogDetailModa
             <span className="text-xs font-mono text-gray-500 uppercase tracking-wider">User</span>
           </div>
           <p className="text-gray-300">
-            {log.user_id ? (
+            {log.username ? (
               <span className="font-mono text-sm bg-void-800 px-2 py-1 rounded">
-                {log.user_id}
+                {log.username}
               </span>
             ) : (
               <span className="text-gray-500">System</span>

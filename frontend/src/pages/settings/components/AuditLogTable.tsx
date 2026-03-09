@@ -102,9 +102,9 @@ export const AuditLogTable = ({ logs, onDetailClick }: AuditLogTableProps) => {
               </td>
               <td className="py-3 px-4">
                 <span className="text-sm text-gray-300">
-                  {log.user_id ? (
+                  {log.username ? (
                     <span className="font-mono text-xs">
-                      {log.user_id.slice(0, 8)}...
+                      {log.username}
                     </span>
                   ) : (
                     <span className="text-gray-500">System</span>

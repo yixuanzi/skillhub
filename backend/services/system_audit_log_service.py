@@ -3,7 +3,7 @@
 This module provides the business logic layer for system audit logging,
 including creating logs and querying with filters.
 """
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import Optional, Any, List
 from datetime import datetime
 
@@ -86,9 +86,10 @@ class SystemAuditLogService:
             end_date: Filter by end date
 
         Returns:
-            Tuple of (list of logs, total count)
+            Tuple of (list of logs with username, total count)
         """
-        query = db.query(SystemAuditLog)
+        # Eager load user relationship to avoid N+1 queries
+        query = db.query(SystemAuditLog).options(joinedload(SystemAuditLog.user))
 
         if action:
             query = query.filter(SystemAuditLog.action == action)
@@ -112,7 +113,7 @@ class SystemAuditLogService:
 
     @staticmethod
     def get_by_id(db: Session, log_id: str) -> Optional[SystemAuditLog]:
-        """Get audit log by ID.
+        """Get audit log by ID (no permission check - use get_by_id_for_user for access control).
 
         Args:
             db: Database session
@@ -121,6 +122,34 @@ class SystemAuditLogService:
         Returns:
             SystemAuditLog object or None
         """
-        return db.query(SystemAuditLog).filter(
+        return db.query(SystemAuditLog).options(
+            joinedload(SystemAuditLog.user)
+        ).filter(
             SystemAuditLog.id == log_id
         ).first()
+
+    @staticmethod
+    def get_by_id_for_user(db: Session, log_id: str, user_id: Optional[str] = None) -> Optional[SystemAuditLog]:
+        """Get audit log by ID with permission check.
+
+        Args:
+            db: Database session
+            log_id: Log UUID
+            user_id: User ID to check ownership (None = admin, can view all logs)
+
+        Returns:
+            SystemAuditLog object or None
+
+        Note:
+            - If user_id is None (admin), returns any log
+            - If user_id is provided (regular user), only returns logs owned by that user
+        """
+        query = db.query(SystemAuditLog).options(
+            joinedload(SystemAuditLog.user)
+        ).filter(SystemAuditLog.id == log_id)
+
+        # If user_id is provided, only return logs owned by that user
+        if user_id is not None:
+            query = query.filter(SystemAuditLog.user_id == user_id)
+
+        return query.first()
