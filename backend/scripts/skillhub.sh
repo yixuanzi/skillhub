@@ -44,9 +44,18 @@ show_help() {
     printf "    A command-line interface for interacting with SkillHub gateway resources.\n"
     printf "    Supports three resource types: third-party APIs, gateway resources, and MCP servers.\n\n"
     printf "${BLUE}USAGE${NC}\n"
-    printf "    skillhub.sh [res_type] [res_name] [options]\n"
+    printf "    skillhub.sh list [search_term]              List all skills or search by name\n"
+    printf "    skillhub.sh install [skill_name]           Install a skill to local directory\n"
+    printf "    skillhub.sh [res_type] [res_name] [options] Invoke a resource\n"
     printf "    skillhub.sh -h\n"
     printf "    skillhub.sh\n\n"
+    printf "${BLUE}LIST COMMAND${NC}\n"
+    printf "    skillhub.sh list [search_term]\n\n"
+    printf "    Lists all available skills or searches by skill name.\n"
+    printf "    Outputs: JSON with skill summary (id, name, description, category, tags, etc.)\n\n"
+    printf "${BLUE}INSTALL COMMAND${NC}\n"
+    printf "    skillhub.sh install [skill_name]\n\n"
+    printf "    Downloads a skill from SkillHub and saves it to ./[skill_name]/SKILL.md\n\n"
     printf "${BLUE}ARGUMENTS${NC}\n"
     printf "    res_type        Resource type (required): third, gateway, mcp\n"
     printf "    res_name        Resource name (required): name of the resource to call\n\n"
@@ -59,6 +68,14 @@ show_help() {
     printf "    -timeout <seconds>  Request timeout in seconds (optional, default: 30)\n"
     printf "    -v                  Verbose mode: show curl command being executed (optional)\n\n"
     printf "${BLUE}EXAMPLES${NC}\n\n"
+    printf "    ${YELLOW}# List all skills${NC}\n"
+    printf "    skillhub.sh list\n\n"
+    printf "    ${YELLOW}# Search skills by name${NC}\n"
+    printf "    skillhub.sh list weather\n"
+    printf "    skillhub.sh list ai -token your-api-token\n\n"
+    printf "    ${YELLOW}# Install a skill${NC}\n"
+    printf "    skillhub.sh install weather-skill\n"
+    printf "    skillhub.sh install customer-support -token your-api-token\n\n"
     printf "    ${YELLOW}# Third-party API call${NC}\n"
     printf "    skillhub.sh third weather-api -method GET -inputs '{\"city\":\"Beijing\"}'\n"
     printf "    skillhub.sh third user-service -method POST -inputs '{\"name\":\"John\",\"email\":\"john@example.com\"}'\n\n"
@@ -86,11 +103,104 @@ show_help() {
     printf "    3. Error if neither is available\n"
 }
 
+# Install a skill from SkillHub to local directory
+install_skill() {
+    local skill_name="$1"
+
+    if [ -z "$skill_name" ]; then
+        error "install command requires a skill name"
+    fi
+
+    # Get token: use provided token, fallback to env var
+    if [ -z "$TOKEN" ]; then
+        TOKEN="$SKILLHUB_API_KEY"
+    fi
+
+    # if [ -z "$TOKEN" ]; then
+    #     error "No authentication token found. Please provide via -token option or set SKILLHUB_API_KEY environment variable"
+    # fi
+
+    info "Installing skill: $skill_name"
+
+    # Create skill directory
+    local skill_dir="./skills/$skill_name"
+    if [ -d "$skill_dir" ]; then
+        warning "Directory $skill_dir already exists. Overwriting SKILL.md"
+    else
+        mkdir -p "$skill_dir" || error "Failed to create directory: $skill_dir"
+    fi
+
+    # Fetch skill content from API (install=true returns plain text)
+    local api_url="$SKILLHUB_URL/api/v1/skills/$skill_name/?install=true"
+    info "Fetching skill from: $api_url"
+
+    local content
+    content=$(/usr/bin/curl --max-time $TIMEOUT -s -X GET "$api_url" \
+        -H "accept: text/plain" \
+        -H "Authorization: Bearer $TOKEN")
+
+    if [ $? -ne 0 ]; then
+        error "Failed to fetch skill from API"
+    fi
+
+    # Check if content is empty or contains error
+    if [ -z "$content" ]; then
+        error "Failed to get skill content. Check if skill exists and you have access."
+    fi
+
+    # Check for JSON error response (install=true returns plain text on success)
+    if echo "$content" | /usr/bin/grep -q '"detail"'; then
+        error "API Error: $content"
+    fi
+
+    # Write to SKILL.md
+    echo "$content" > "$skill_dir/SKILL.md" || error "Failed to write to $skill_dir/SKILL.md"
+
+    success "Skill installed successfully: $skill_dir"
+}
+
+# List skills from SkillHub
+list_skills() {
+    local search_term="$1"
+
+    # Get token: use provided token, fallback to env var
+    if [ -z "$TOKEN" ]; then
+        TOKEN="$SKILLHUB_API_KEY"
+    fi
+
+    # Build API URL with search parameter if provided
+    local api_url="$SKILLHUB_URL/api/v1/skills/"
+    if [ -n "$search_term" ]; then
+        api_url="$api_url?search=$search_term"
+        info "Searching for skills matching: $search_term"
+    else
+        info "Listing all skills"
+    fi
+
+    # Fetch skills from API
+    local response
+    response=$(/usr/bin/curl --max-time $TIMEOUT -s -X GET "$api_url" \
+        -H "accept: application/json" \
+        -H "Authorization: Bearer $TOKEN"})
+
+    if [ $? -ne 0 ]; then
+        error "Failed to fetch skills from API"
+    fi
+
+    # Check for error response
+    if echo "$response" | /usr/bin/grep -q '"detail"'; then
+        error "API Error: $response"
+    fi
+
+    # Pretty print JSON response
+    echo "$response" | /usr/bin/python3 -m json.tool 2>/dev/null || echo "$response"
+}
+
 # Parse command line arguments
 RES_TYPE=""
 RES_NAME=""
 METHOD=""
-PATH=""
+RPATH=""
 MCPTOOL=""
 INPUTS=""
 TOKEN=""
@@ -100,6 +210,69 @@ VERBOSE=0   # Verbose mode: 0=quiet, 1=show curl command
 # Check if no arguments or -h flag
 if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     show_help
+    exit 0
+fi
+
+# Check for install command
+if [ "$1" = "install" ]; then
+    shift
+    # Parse token option for install command
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -token)
+                if [ $# -lt 2 ]; then
+                    error "Option -token requires a value"
+                fi
+                TOKEN="$2"
+                shift 2
+                ;;
+            -timeout)
+                if [ $# -lt 2 ]; then
+                    error "Option -timeout requires a value"
+                fi
+                TIMEOUT="$2"
+                shift 2
+                ;;
+            *)
+                # First non-option argument is the skill name
+                install_skill "$1"
+                exit 0
+                ;;
+        esac
+    done
+    error "install command requires a skill name"
+fi
+
+# Check for list command
+if [ "$1" = "list" ]; then
+    shift
+    # Parse token option for list command
+    local search_term=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -token)
+                if [ $# -lt 2 ]; then
+                    error "Option -token requires a value"
+                fi
+                TOKEN="$2"
+                shift 2
+                ;;
+            -timeout)
+                if [ $# -lt 2 ]; then
+                    error "Option -timeout requires a value"
+                fi
+                TIMEOUT="$2"
+                shift 2
+                ;;
+            *)
+                # First non-option argument is the search term
+                list_skills "$1"
+                exit 0
+                ;;
+        esac
+    done
+    # No search term provided, list all skills
+    list_skills ""
     exit 0
 fi
 
@@ -133,7 +306,7 @@ while [ $# -gt 0 ]; do
             if [ $# -lt 2 ]; then
                 error "Option -path requires a value"
             fi
-            PATH="$2"
+            RPATH="$2"
             shift 2
             ;;
         -mcptool)
@@ -207,7 +380,7 @@ case "$RES_TYPE" in
         if [ -z "$METHOD" ]; then
             error "res_type 'gateway' requires -method option (GET, POST, PUT, DELETE)"
         fi
-        if [ -z "$PATH" ]; then
+        if [ -z "$RPATH" ]; then
             error "res_type 'gateway' requires -path option"
         fi
         # Validate method and convert to uppercase (portable way)
@@ -382,7 +555,9 @@ case "$RES_TYPE" in
         ;;
 
     gateway)
-        URL="$SKILLHUB_URL/api/v1/gateway/$RES_NAME/$PATH"
+        # Remove leading slash from RPATH if present to avoid double slashes
+        CLEAN_PATH="${RPATH#/}"
+        URL="$SKILLHUB_URL/api/v1/gateway/$RES_NAME/$CLEAN_PATH"
         #info "Calling: $METHOD $URL"
         # Build curl command with timeout
         CURL_CMD="/usr/bin/curl --max-time $TIMEOUT -L -X '$METHOD' '$URL'"

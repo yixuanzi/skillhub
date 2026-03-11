@@ -12,11 +12,15 @@ export interface SkillCreatorRequest {
 
 export interface SkillCreatorResponse {
   content: string;
+  context_conf?: string;
 }
 
 export const skillCreatorApi = {
   generate: async (request: SkillCreatorRequest): Promise<SkillCreatorResponse> => {
-    const response = await apiClient.post<SkillCreatorResponse>('/skill-creator/', request);
+    // AI skill generation may take longer (up to 5 minutes)
+    const response = await apiClient.post<SkillCreatorResponse>('/skill-creator/', request, {
+      timeout: 300000, // 5 minutes for AI generation
+    });
     return response.data;
   },
 };

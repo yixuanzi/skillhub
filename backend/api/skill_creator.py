@@ -67,8 +67,8 @@ async def generate_skill_content(
         HTTPException 404: If referenced resources/skills not found
     """
     try:
-        content = await SkillCreatorService.generate_content(db, request, user=current_user)
-        return SkillCreatorResponse(content=content)
+        content,context_conf  = await SkillCreatorService.generate_content(db, request, user=current_user)
+        return SkillCreatorResponse(content=content,context_conf=context_conf)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

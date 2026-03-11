@@ -63,3 +63,4 @@ class SkillCreatorResponse(BaseModel):
     """Schema for skill creator response."""
 
     content: str = Field(..., description="Generated skill content in markdown format")
+    context_conf: Optional[str] = Field(None, description="Contextual configuration for skill generation")

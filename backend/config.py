@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from typing import List
 import os
 import sys
+import dotenv
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./data/skillhub.db"
@@ -12,8 +13,11 @@ class Settings(BaseSettings):
     SKILLHUB_URL: str ="http://localhost:8000"
     SKILL_HOST: str = "0.0.0.0"
     SKILL_PORT: int = 8000
+    ANTHROPIC_BASE_URL:str=""
+    ANTHROPIC_AUTH_TOKEN:str=""
 
     class Config:
         env_file = ".env"
 
 settings = Settings()
+dotenv.load_dotenv()

@@ -122,7 +122,8 @@ class SkillListService:
         limit: int = 100,
         category: Optional[str] = None,
         tags: Optional[str] = None,
-        author: Optional[str] = None
+        author: Optional[str] = None,
+        search: Optional[str] = None
     ) -> tuple[List[SkillList], int]:
         """List skills with multiple combined filters (AND logic).
 
@@ -135,11 +136,12 @@ class SkillListService:
             category: Optional category filter
             tags: Optional comma-separated tags filter (matches ANY tag within the tag list, AND with other filters)
             author: Optional creator username filter
+            search: Optional search term for fuzzy matching skill name
 
         Returns:
             Tuple of (list of filtered skills ordered by created_at DESC, total count)
         """
-        from sqlalchemy import or_, and_
+        from sqlalchemy import or_
 
         query = db.query(SkillList)
 
@@ -150,6 +152,10 @@ class SkillListService:
 
         if author:
             query = query.filter(SkillList.created_by == author)
+
+        if search:
+            # Fuzzy search on skill name (case-insensitive)
+            query = query.filter(SkillList.name.ilike(f'%{search}%'))
 
         if tags:
             # Tags use OR within the tag list (match ANY), but AND with other filters
