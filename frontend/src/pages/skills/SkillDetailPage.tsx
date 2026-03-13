@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useSkill, useInvokeSkill } from '@/hooks/useSkills';
 import { Button, Card, Badge, Loading, Modal } from '@/components/ui';
 import { ArrowLeft, Play, Edit } from 'lucide-react';
@@ -9,12 +9,16 @@ import { formatRelativeTime } from '@/utils/date';
 
 export const SkillDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const { data: skill, isLoading } = useSkill(id!);
   const invokeSkill = useInvokeSkill();
 
   const [testModal, setTestModal] = useState(false);
   const [testParams, setTestParams] = useState('{}');
   const [testResult, setTestResult] = useState<unknown>(null);
+
+  // Get the return URL with tab state preserved
+  const returnUrl = `/skills${searchParams.get('tab') ? `?tab=${searchParams.get('tab')}` : ''}`;
 
   if (isLoading) {
     return (
@@ -28,7 +32,7 @@ export const SkillDetailPage = () => {
     return (
       <div className="text-center py-16">
         <h2 className="font-display text-xl text-gray-300 mb-2">Skill not found</h2>
-        <Link to="/skills">
+        <Link to={returnUrl}>
           <Button variant="secondary">Back to Skills</Button>
         </Link>
       </div>
@@ -52,7 +56,7 @@ export const SkillDetailPage = () => {
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link to="/skills">
+        <Link to={returnUrl}>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="w-4 h-4" />
           </Button>
@@ -70,7 +74,7 @@ export const SkillDetailPage = () => {
             <Play className="w-4 h-4" />
             Test
           </Button>
-          <Link to={`/skills/${skill.id}/edit`}>
+          <Link to={`/skills/${skill.id}/edit${searchParams.get('tab') ? `?tab=${searchParams.get('tab')}` : ''}`}>
             <Button variant="primary">
               <Edit className="w-4 h-4" />
               Edit

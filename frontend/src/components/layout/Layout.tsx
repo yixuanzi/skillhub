@@ -17,8 +17,10 @@ export const Layout = () => {
         )}
       >
         <Header />
-        <main className="p-6">
-          <Outlet />
+        <main className="p-6" style={{ transform: 'scale(0.9)', transformOrigin: 'top left' }}>
+          <div style={{ width: '111.11%' }}>
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

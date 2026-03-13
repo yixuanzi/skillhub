@@ -16,13 +16,28 @@ const useTabsContext = () => {
   return context;
 };
 
-interface TabsProps extends HTMLAttributes<HTMLDivElement> {
-  defaultValue: string;
+interface TabsProps extends Omit<HTMLAttributes<HTMLDivElement>, 'value' | 'onValueChange'> {
+  defaultValue?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
   children: ReactNode;
 }
 
-export const Tabs = ({ defaultValue, children, className, ...props }: TabsProps) => {
-  const [activeTab, setActiveTab] = useState(defaultValue);
+export const Tabs = ({ defaultValue, value, onValueChange, children, className, ...props }: TabsProps) => {
+  // Use controlled mode if value is provided, otherwise use uncontrolled mode
+  const [internalActiveTab, setInternalActiveTab] = useState(defaultValue || '');
+  const activeTab = value !== undefined ? value : internalActiveTab;
+  const setActiveTab = (newValue: string) => {
+    if (value !== undefined && onValueChange) {
+      onValueChange(newValue);
+    }
+    setInternalActiveTab(newValue);
+  };
+
+  // Initialize internal state with value if provided
+  if (value !== undefined && internalActiveTab !== value) {
+    setInternalActiveTab(value);
+  }
 
   return (
     <TabsContext.Provider value={{ activeTab, setActiveTab }}>

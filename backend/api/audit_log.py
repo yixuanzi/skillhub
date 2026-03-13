@@ -2,7 +2,10 @@
 
 This module provides FastAPI endpoints for retrieving system audit logs,
 including filtering by action, resource type, user, and date range.
-Access to audit logs is restricted to admin users.
+
+Security Policy:
+- Admin users (admin, super_admin) can view all audit logs
+- Regular users can only view their own audit logs
 """
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
@@ -17,25 +20,23 @@ from models.user import User
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit Logs"])
 
+# Admin role names
+ADMIN_ROLES = {"admin", "super_admin"}
 
-def _check_admin_access(user: User) -> None:
-    """Check if user has admin access.
+
+def _is_admin_user(user: User) -> bool:
+    """Check if user has admin or super_admin role.
 
     Args:
-        user: Current user
+        user: User object with roles relationship
 
-    Raises:
-        HTTPException 403: If user is not an admin
+    Returns:
+        True if user has admin or super_admin role
     """
-    # Check if user has admin role
-    admin_roles = {"admin", "superadmin", "super_admin"}
-    is_admin = any(role.name in admin_roles for role in user.roles) if user.roles else False
-
-    if not is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required to view audit logs"
-        )
+    if not user or not user.roles:
+        return False
+    user_role_names = {role.name for role in user.roles}
+    return bool(user_role_names & ADMIN_ROLES)
 
 
 @router.get("/", response_model=SystemAuditLogListResponse)
@@ -51,16 +52,17 @@ async def list_audit_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """List audit logs with filters (admin only).
+    """List audit logs with filters.
 
-    Requires admin role to access.
+    - Admin users can view all audit logs with optional filters
+    - Regular users can only view their own audit logs
 
     Args:
         page: Page number (starts from 1)
         size: Number of items per page (max 100)
-        action: Filter by action type
-        resource_type: Filter by resource type
-        user_id: Filter by user ID
+        action: Filter by action type (admin only)
+        resource_type: Filter by resource type (admin only)
+        user_id: Filter by user ID (admin only)
         status_filter: Filter by status (success/failure)
         start_date: Filter by start date
         end_date: Filter by end date
@@ -71,9 +73,20 @@ async def list_audit_logs(
         Paginated list of audit logs
 
     Raises:
-        HTTPException 403: If user is not an admin
+        HTTPException 400: If regular user tries to use admin-only filters
     """
-    _check_admin_access(current_user)
+    is_admin = _is_admin_user(current_user)
+
+    # Non-admin users can only view their own logs
+    if not is_admin:
+        # Non-admin users cannot use filters that would let them see other users' logs
+        if user_id and user_id != str(current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You can only view your own audit logs"
+            )
+        # Force filter to current user's logs
+        user_id = str(current_user.id)
 
     skip = (page - 1) * size
     logs, total = SystemAuditLogService.list_logs(
@@ -102,7 +115,10 @@ async def get_audit_log(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Get audit log details by ID (admin only).
+    """Get audit log details by ID.
+
+    - Admin users can view any audit log
+    - Regular users can only view their own audit logs
 
     Args:
         log_id: Audit log UUID
@@ -113,12 +129,12 @@ async def get_audit_log(
         Audit log details
 
     Raises:
-        HTTPException 403: If user is not an admin
+        HTTPException 403: If user is not the owner and not an admin
         HTTPException 404: If log not found
     """
-    _check_admin_access(current_user)
+    is_admin = _is_admin_user(current_user)
 
-    log = SystemAuditLogService.get_by_id(db, log_id)
+    log = SystemAuditLogService.get_by_id_for_user(db, log_id, str(current_user.id) if not is_admin else None)
     if not log:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -96,7 +96,7 @@ apiClient.interceptors.response.use(
         const refreshToken = localStorage.getItem('refresh_token');
         if (refreshToken) {
           // Use refreshClient instead of axios to ensure proxy is used
-          const response = await refreshClient.post('/auth/refresh', {
+          const response = await refreshClient.post('/auth/refresh/', {
             refresh_token: refreshToken,
           });
 

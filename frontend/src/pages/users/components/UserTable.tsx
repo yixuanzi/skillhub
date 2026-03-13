@@ -102,7 +102,7 @@ export const UserTable: React.FC<Props> = ({
                 <TableCell>
                   <div className="flex gap-1 flex-wrap">
                     {user.roles.map((role) => (
-                      <Badge key={role.id} variant="outline" className="text-xs">
+                      <Badge key={role.id} variant="secondary" className="text-xs">
                         {role.name}
                       </Badge>
                     ))}

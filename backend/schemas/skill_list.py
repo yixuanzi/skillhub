@@ -66,12 +66,41 @@ class SkillListResponse(SkillListBase):
         from_attributes = True
 
 
+class SkillListSummary(BaseModel):
+    """Schema for skill list summary without content field (used in list responses)."""
+
+    id: str = Field(..., description="Unique identifier for the skill list")
+    name: str = Field(..., description="Skill list name")
+    description: Optional[str] = Field(None, description="Detailed description of the skill list")
+    created_by: Optional[str] = None
+    category: Optional[str] = Field(None, description="Category of the skill list")
+    tags: Optional[str] = Field(None, description="Comma-separated tags")
+    version: str = Field(default="1.0.0", description="Version of the skill list")
+    created_at: datetime = Field(..., description="Timestamp when the skill list was created")
+    updated_at: datetime = Field(..., description="Timestamp when the skill list was last updated")
+
+    class Config:
+        """Enable ORM mode for compatibility with SQLAlchemy models."""
+
+        from_attributes = True
+
+
 class SkillListListResponse(BaseModel):
     """Schema for paginated list of skill lists."""
 
-    items: list[SkillListResponse] = Field(
-        ..., description="List of skill lists for the current page"
+    items: list[SkillListSummary] = Field(
+        ..., description="List of skill list summaries for the current page (without content)"
     )
     total: int = Field(..., description="Total number of skill lists")
     page: int = Field(..., description="Current page number (1-based)")
     size: int = Field(..., description="Number of items per page")
+
+
+class SkillStatisticsResponse(BaseModel):
+    """Schema for skill statistics response."""
+
+    total_skills: int = Field(..., description="Total number of skills")
+    published_skills: int = Field(..., description="Number of published skills (with 'published' tag)")
+    draft_skills: int = Field(..., description="Number of draft skills (total - published)")
+    new_skills_last_7days: int = Field(..., description="Number of skills created in the last 7 days")
+    active_users: int = Field(..., description="Number of active users (is_active=True)")

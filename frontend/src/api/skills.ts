@@ -16,6 +16,14 @@ interface SkillListResponse {
   size: number;
 }
 
+export interface SkillStatisticsResponse {
+  total_skills: number;
+  published_skills: number;
+  draft_skills: number;
+  new_skills_last_7days: number;
+  active_users: number;
+}
+
 export const skillsApi = {
   list: async (params?: { page?: number; pageSize?: number; category?: string; tags?: string; author?: string }): Promise<SkillListResponse> => {
     const response = await apiClient.get<SkillListResponse>('/skills/', { params });
@@ -48,6 +56,11 @@ export const skillsApi = {
 
   invoke: async (data: SkillInvokeRequest): Promise<SkillInvokeResponse> => {
     const response = await apiClient.post<SkillInvokeResponse>('/gateway/call/', data);
+    return response.data;
+  },
+
+  getStatistics: async (): Promise<SkillStatisticsResponse> => {
+    const response = await apiClient.get<SkillStatisticsResponse>('/skills/stats/');
     return response.data;
   },
 };

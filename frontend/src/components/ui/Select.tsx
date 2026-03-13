@@ -30,7 +30,6 @@ export const Select: React.FC<SelectProps> = ({
   value: controlledValue,
   onValueChange,
   defaultValue = '',
-  disabled = false,
   children,
 }) => {
   const [internalValue, setInternalValue] = useState(defaultValue);
@@ -62,7 +61,7 @@ export interface SelectTriggerProps extends React.ButtonHTMLAttributes<HTMLButto
 
 export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
   ({ className, children, disabled, ...props }, ref) => {
-    const { value, onChange, open, setOpen } = useSelectContext();
+    const { open, setOpen } = useSelectContext();
 
     return (
       <>
@@ -147,7 +146,8 @@ export const SelectItem: React.FC<SelectItemProps> = ({ value, children, disable
         'px-4 py-2 font-mono text-sm cursor-pointer transition-colors duration-150',
         'hover:bg-void-800',
         selectedValue === value && 'bg-cyber-primary/10 text-cyber-primary',
-        disabled && 'opacity-50 cursor-not-allowed'
+        disabled && 'opacity-50 cursor-not-allowed hover:bg-transparent',
+        disabled && 'text-gray-600'
       )}
       onClick={() => !disabled && onChange(value)}
     >

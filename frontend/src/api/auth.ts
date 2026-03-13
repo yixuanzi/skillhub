@@ -17,12 +17,28 @@ interface BackendRefreshResponse {
 }
 
 // Backend user response format
+interface BackendPermissionResponse {
+  id: string;
+  resource: string;
+  action: string;
+  description?: string;
+}
+
+interface BackendRoleResponse {
+  id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  permissions: BackendPermissionResponse[];
+}
+
 interface BackendUserResponse {
   id: string;
   username: string;
   email: string;
   is_active: boolean;
   created_at: string;
+  roles: BackendRoleResponse[];
 }
 
 export const authApi = {

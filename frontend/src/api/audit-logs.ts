@@ -5,6 +5,7 @@ import { ApiResponse } from '@/types';
 export interface AuditLog {
   id: string;
   user_id: string | null;
+  username: string | null;
   action: string;
   resource_type: string | null;
   resource_id: string | null;

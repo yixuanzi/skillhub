@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
-import { Users, Shield, Search, Filter } from 'lucide-react';
+import { useState } from 'react';
+import { Users, Shield, Search, Filter, CheckCircle } from 'lucide-react';
 import { Card, Input, Alert } from '@/components/ui';
-import { Button } from '@/components/ui/Button';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/Select';
 import { useUsers, useRoles } from '@/hooks/use-user-management';
 import { UserTable, RoleManagerModal } from './components';
-import { CheckCircle } from 'lucide-react';
 
 export const UsersPage = () => {
   const [filters, setFilters] = useState({
@@ -20,7 +18,7 @@ export const UsersPage = () => {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const { data, isLoading, error } = useUsers(filters);
+  const { data } = useUsers(filters);
   const { data: roles } = useRoles();
 
   const users = data?.items || [];
@@ -39,16 +37,6 @@ export const UsersPage = () => {
     setIsRoleModalOpen(true);
     setErrorMessage('');
     setSuccessMessage('');
-  };
-
-  const handleRoleAssignSuccess = () => {
-    setSuccessMessage('Roles updated successfully!');
-    setIsRoleModalOpen(false);
-    setTimeout(() => setSuccessMessage(''), 3000);
-  };
-
-  const handleRoleAssignError = (error: any) => {
-    setErrorMessage(error.message || 'Failed to assign roles');
   };
 
   return (

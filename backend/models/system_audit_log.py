@@ -6,9 +6,11 @@ Note: This is separate from ACL-specific audit logs in models.acl.
 """
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey, JSON, Index
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 from database import Base
 import uuid
 from datetime import timezone, datetime
+from typing import Optional
 
 
 class SystemAuditLog(Base):
@@ -39,6 +41,20 @@ class SystemAuditLog(Base):
 
     # Relationships
     user = relationship("User")
+
+    @hybrid_property
+    def username(self) -> Optional[str]:
+        """Get the username of the user who performed the action.
+
+        Returns:
+            Username if user exists, None otherwise
+        """
+        # Access the username through the relationship
+        # Note: This requires the user relationship to be loaded
+        # For better performance, use joinedload when querying
+        if self.user:
+            return self.user.username
+        return None
 
     def __repr__(self):
         return f"<SystemAuditLog(id={self.id}, action={self.action}, status={self.status})>"
