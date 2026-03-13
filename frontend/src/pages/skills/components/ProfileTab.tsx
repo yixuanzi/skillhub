@@ -11,7 +11,7 @@ interface ProfileTabProps {
   username: string;
 }
 
-export const ProfileTab = ({ userId, username }: ProfileTabProps) => {
+export const ProfileTab = ({ userId: _userId, username }: ProfileTabProps) => {
   // Get skills filtered by current user (author filter by username)
   const { data, isLoading, error } = useSkills({ author: username });
   const deleteMutation = useDeleteSkill();

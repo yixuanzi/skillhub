@@ -14,6 +14,69 @@ from models.user import User
 from schemas.skill_list import SkillListCreate, SkillListUpdate, SkillListResponse
 from core.exceptions import ValidationException, NotFoundException
 from typing import Optional, List
+import re
+
+
+def _validate_and_extract_skill_name(content: str) -> str:
+    """Validate skill content frontmatter and extract the skill name.
+
+    The content must start with valid YAML frontmatter in this exact format:
+    ---
+    name: [skill-name]
+    description: [skill-description]
+    ---
+
+    Args:
+        content: The skill content to validate
+
+    Returns:
+        The extracted skill name from the frontmatter
+
+    Raises:
+        ValidationException: If content format is invalid or name is missing
+    """
+    if not content:
+        raise ValidationException("Skill content cannot be empty")
+
+    # Check if content starts with frontmatter delimiter
+    if not content.startswith("---"):
+        raise ValidationException(
+            "Skill content must start with YAML frontmatter. "
+            "Expected format:\\n---\\nname: [skill-name]\\ndescription: [skill-description]\\n---"
+        )
+
+    # Extract frontmatter section (between first and second ---)
+    frontmatter_match = re.match(r'^---\s*\n(.*?)\n---', content, re.DOTALL)
+    if not frontmatter_match:
+        raise ValidationException(
+            "Invalid frontmatter format. Expected:\\n---\\nname: [skill-name]\\ndescription: [skill-description]\\n---"
+        )
+
+    frontmatter = frontmatter_match.group(1)
+
+    # Extract name from frontmatter
+    name_match = re.search(r'^name:\s*(.+)$', frontmatter, re.MULTILINE)
+    if not name_match:
+        raise ValidationException(
+            "Missing 'name' field in frontmatter. "
+            "Expected format:\\n---\\nname: [skill-name]\\ndescription: [skill-description]\\n---"
+        )
+
+    skill_name = name_match.group(1).strip()
+
+    # Validate name is not empty
+    if not skill_name:
+        raise ValidationException("Skill name in frontmatter cannot be empty")
+
+    # Check for description field (optional but recommended)
+    desc_match = re.search(r'^description:\s*(.+)$', frontmatter, re.MULTILINE)
+    if not desc_match:
+        raise ValidationException(
+            "Missing 'description' field in frontmatter. "
+            "Expected format:\\n---\\nname: [skill-name]\\ndescription: [skill-description]\\n---"
+        )
+
+    return skill_name
 
 # Admin role names
 ADMIN_ROLES = {"admin", "super_admin"}
@@ -38,27 +101,34 @@ class SkillListService:
     """Service class for skill market management operations."""
 
     @staticmethod
-    def create(db: Session, skill_data: SkillListCreate,current_user) -> SkillListResponse:
+    def create(db: Session, skill_data: SkillListCreate, current_user) -> SkillListResponse:
         """Create a new skill.
+
+        The skill name in the database will be overridden by the name extracted
+        from the content frontmatter to ensure consistency.
 
         Args:
             db: Database session
             skill_data: Skill creation data
+            current_user: Current authenticated user
 
         Returns:
             Created skill response
 
         Raises:
-            ValidationException: If skill with the same name already exists
+            ValidationException: If content format is invalid or skill name already exists
         """
-        # Check name uniqueness
-        existing = db.query(SkillList).filter(SkillList.name == skill_data.name).first()
-        if existing:
-            raise ValidationException(f"Skill with name '{skill_data.name}' already exists")
+        # Validate content and extract skill name from frontmatter
+        content_name = _validate_and_extract_skill_name(skill_data.content)
 
-        # Create skill
+        # Check name uniqueness using the extracted name
+        existing = db.query(SkillList).filter(SkillList.name == content_name).first()
+        if existing:
+            raise ValidationException(f"Skill with name '{content_name}' already exists")
+
+        # Create skill with name from content frontmatter
         new_skill = SkillList(
-            name=skill_data.name,
+            name=content_name,  # Use extracted name from content
             description=skill_data.description,
             content=skill_data.content,
             created_by=current_user.username,
@@ -243,6 +313,9 @@ class SkillListService:
     def update(db: Session, skill_id: str, skill_data: SkillListUpdate, user: Optional[User] = None) -> SkillListResponse:
         """Update an existing skill.
 
+        When content is updated, the skill name will be overridden by the name
+        extracted from the new content frontmatter to ensure consistency.
+
         Only the skill creator or admin users can update skills.
 
         Args:
@@ -256,7 +329,7 @@ class SkillListService:
 
         Raises:
             NotFoundException: If skill is not found
-            ValidationException: If new name conflicts with existing skill or user lacks permission
+            ValidationException: If content format is invalid, name conflicts, or user lacks permission
         """
         skill = db.query(SkillList).filter(SkillList.id == skill_id).first()
         if not skill:
@@ -267,20 +340,26 @@ class SkillListService:
             if not user or skill.created_by != user.username:
                 raise ValidationException("You do not have permission to update this skill")
 
-        # Check name uniqueness (if changing name)
-        if skill_data.name and skill_data.name != skill.name:
-            existing = db.query(SkillList).filter(
-                SkillList.name == skill_data.name
-            ).first()
-            if existing:
-                raise ValidationException(f"Skill with name '{skill_data.name}' already exists")
-            skill.name = skill_data.name
+        # If content is being updated, validate and extract name from new content
+        if skill_data.content is not None:
+            content_name = _validate_and_extract_skill_name(skill_data.content)
 
-        # Update fields
+            # Check if the extracted name conflicts with another skill (excluding current skill)
+            if content_name != skill.name:
+                existing = db.query(SkillList).filter(
+                    SkillList.name == content_name,
+                    SkillList.id != skill_id
+                ).first()
+                if existing:
+                    raise ValidationException(f"Skill with name '{content_name}' already exists")
+
+            # Override name with the name from content frontmatter
+            skill.name = content_name
+            skill.content = skill_data.content
+
+        # Update other fields (name from skill_data is ignored, always use content name)
         if skill_data.description is not None:
             skill.description = skill_data.description
-        if skill_data.content is not None:
-            skill.content = skill_data.content
         if skill_data.category is not None:
             skill.category = skill_data.category
         if skill_data.tags is not None:

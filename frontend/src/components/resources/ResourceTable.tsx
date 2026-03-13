@@ -38,7 +38,7 @@ const getTypeBadgeVariant = (type: Resource['type']): 'info' | 'warning' | 'succ
 const ViewScopeBadge: React.FC<{ scope: 'public' | 'private' }> = ({ scope }) => {
   if (scope === 'public') {
     return (
-      <Badge variant="outline" className="border-cyber-primary/30 text-cyber-primary">
+      <Badge variant="secondary" className="border-cyber-primary/30 text-cyber-primary">
         <Globe className="w-3 h-3 mr-1" />
         Public
       </Badge>

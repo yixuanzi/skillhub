@@ -30,7 +30,7 @@ export const TokensPage = () => {
   // Fetch tokens
   const { data: tokensData, isLoading: tokensLoading } = useMTokens({
     page,
-    pageSize,
+    size: pageSize,
     app_name: appNameFilter || undefined,
   });
 

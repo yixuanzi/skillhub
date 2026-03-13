@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  skillhub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: skillhub-all-in-one
+    ports:
+      # Port 80 serves frontend (nginx) and proxies API to backend
+      - "80:80"
+      # Port 8000 for direct backend access (optional)
+      - "8000:8000"
+    environment:
+      # Server Configuration
+      - SKILL_HOST=0.0.0.0
+      - SKILL_PORT=8000
+      - SKILLHUB_URL=http://localhost:80
+
+      # Database Configuration
+      - DATABASE_URL=sqlite:///./data/skillhub.db
+
+      # Security (CHANGE IN PRODUCTION!)
+      - SECRET_KEY=your-secret-key-change-in-production
+
+      # CORS Origins
+      - CORS_ORIGINS=["http://localhost","http://localhost:80"]
+
+      # Python settings
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+
+    volumes:
+      # Persist SQLite database and logs
+      - ./backend:/app
+      #- ./backend/data:/app/data
+      - skillhub-logs:/var/log/supervisor
+
+      # Optional: Mount for development (comment out in production)
+      # - ./backend:/app/backend:ro
+      # - ./frontend:/frontend:ro
+
+    restart: unless-stopped
+
+    networks:
+      - skillhub-network
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  skillhub-data:
+    driver: local
+  skillhub-logs:
+    driver: local
+
+networks:
+  skillhub-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
+          gateway: 172.29.0.1

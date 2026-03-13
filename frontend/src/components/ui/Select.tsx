@@ -30,7 +30,6 @@ export const Select: React.FC<SelectProps> = ({
   value: controlledValue,
   onValueChange,
   defaultValue = '',
-  disabled = false,
   children,
 }) => {
   const [internalValue, setInternalValue] = useState(defaultValue);
@@ -62,7 +61,7 @@ export interface SelectTriggerProps extends React.ButtonHTMLAttributes<HTMLButto
 
 export const SelectTrigger = forwardRef<HTMLButtonElement, SelectTriggerProps>(
   ({ className, children, disabled, ...props }, ref) => {
-    const { value, onChange, open, setOpen } = useSelectContext();
+    const { open, setOpen } = useSelectContext();
 
     return (
       <>

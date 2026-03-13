@@ -126,12 +126,21 @@ install_skill() {
 
     info "Installing skill: $skill_name"
 
-    # Create skill directory
-    local skill_dir="./skills/$skill_name"
-    if [ -d "$skill_dir" ]; then
-        warning "Directory $skill_dir already exists. Overwriting SKILL.md"
+    # Define storage locations
+    local skillhub_home="$HOME/skillhub"
+    local actual_dir="$skillhub_home/$skill_name"
+    local link_dir="./skills/$skill_name"
+
+    # Create skillhub home directory if not exists
+    if [ ! -d "$skillhub_home" ]; then
+        mkdir -p "$skillhub_home" || error "Failed to create directory: $skillhub_home"
+    fi
+
+    # Create actual skill directory in ~/skillhub
+    if [ -d "$actual_dir" ]; then
+        warning "Directory $actual_dir already exists. Overwriting SKILL.md"
     else
-        mkdir -p "$skill_dir" || error "Failed to create directory: $skill_dir"
+        mkdir -p "$actual_dir" || error "Failed to create directory: $actual_dir"
     fi
 
     # Fetch skill content from API (install=true returns plain text)
@@ -157,10 +166,30 @@ install_skill() {
         error "API Error: $content"
     fi
 
-    # Write to SKILL.md
-    echo "$content" > "$skill_dir/SKILL.md" || error "Failed to write to $skill_dir/SKILL.md"
+    # Write to actual location
+    echo "$content" > "$actual_dir/SKILL.md" || error "Failed to write to $actual_dir/SKILL.md"
 
-    success "Skill installed successfully: $skill_dir"
+    # Create local ./skills directory if not exists
+    mkdir -p "./skills" 2>/dev/null || true
+
+    # Create or update symbolic link
+    if [ -L "$link_dir" ]; then
+        # Link exists, remove it first
+        rm "$link_dir" || warning "Failed to remove existing symlink: $link_dir"
+    elif [ -e "$link_dir" ]; then
+        # A file/directory exists (not a symlink), back it up
+        warning "Backing up existing $link_dir to $link_dir.backup"
+        mv "$link_dir" "$link_dir.backup" || error "Failed to backup existing directory: $link_dir"
+    fi
+
+    # Create symbolic link
+    ln -s "$actual_dir" "$link_dir" || warning "Failed to create symlink: $link_dir -> $actual_dir"
+
+    success "Skill installed successfully:"
+    echo "  Actual: $actual_dir"
+    if [ -L "$link_dir" ]; then
+        echo "  Link:   $link_dir -> $actual_dir"
+    fi
 }
 
 # List skills from SkillHub

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 import sys
 import os
-os.chdir(os.path.dirname(os.path.abspath(sys.argv[0])))
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from config import settings

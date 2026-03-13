@@ -1,8 +1,7 @@
-import { User, Mail, Calendar, Shield, Key, LogOut, ChevronRight } from 'lucide-react';
+import { Mail, Calendar, Shield, Key, LogOut, ChevronRight } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { cn } from '@/utils/cn';
 import { User as UserType } from '@/types';
 
 interface UserProfileModalProps {
@@ -97,7 +96,7 @@ export const UserProfileModal = ({ isOpen, onClose, user, onLogout }: UserProfil
         {/* Actions */}
         <div className="flex gap-3 pt-4 border-t border-void-700">
           <Button
-            variant="outline"
+            variant="secondary"
             className="flex-1"
             onClick={() => {
               onClose();

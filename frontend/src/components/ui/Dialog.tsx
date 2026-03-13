@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode, HTMLAttributes, MouseEvent } from 'react';
+import { createContext, useContext, ReactNode, HTMLAttributes, MouseEvent } from 'react';
 import { cn } from '@/utils/cn';
 import { X } from 'lucide-react';
 

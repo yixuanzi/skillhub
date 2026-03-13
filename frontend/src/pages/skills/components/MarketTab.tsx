@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { useSkills } from '@/hooks/useSkills';
 import { Button, Card, Badge, Loading } from '@/components/ui';
-import { Plus, Search, ExternalLink, CheckCircle, Package } from 'lucide-react';
+import { Search, ExternalLink, Package } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/utils/cn';
-import { Skill } from '@/types';
 
 export const MarketTab = () => {
   const { data, isLoading, error } = useSkills({ tags: 'published' });
@@ -27,7 +26,7 @@ export const MarketTab = () => {
   });
 
   // Get unique categories
-  const categories = Array.from(new Set(skills.map((s) => s.category).filter(Boolean)));
+  const categories = Array.from(new Set(skills.map((s) => s.category).filter((c): c is string => Boolean(c))));
 
   if (isLoading) {
     return (

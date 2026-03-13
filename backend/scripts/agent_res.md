@@ -19,12 +19,16 @@ Transform structured resource data (name, desc, type, method, tools, document) i
 You will receive resource information in the following structured format:
 
 ```
+<resource_list>
 name: [resource-name]
 desc: [resource-description]
 type: [third | gateway | mcp]
 method: [GET|POST|PUT|DELETE]  # for third-party resources only
 tools: [json-array-of-tools]   # for mcp resources only
 document: [api-description]    # additional documentation
+#-----------
+...
+</resource_list>
 ```
 
 Multiple resources are separated by `#-----------` delimiter.
@@ -39,23 +43,19 @@ yaml
 </format>
 Contains `name` and `description` fields. These are the only fields that agent reads to determine when the skill gets used, thus it is very important to be clear and comprehensive in describing what the skill is, and when it should be used.like:
 ---
-name: [skill-name]
-description: [skill-description]
+name: [skill-name] (can't contain spaces,you can use underscores instead)
+description: [One-line description of what this skill provides]
 --- 
 </Frontmatter>
 
 <body>
 <format>markdown</format>
+
 # [Resource Name or Combined Skill Name]
 
-[One-line description of what this skill provides]
+## Overview
 
-## Resources Table
-
-| Resource Name | Type | Description |
-|---------------|------|-------------|
-| [name-1] | [third/gateway/mcp] | [brief description] |
-| [name-2] | [third/gateway/mcp] | [brief description] |
+[Brief paragraph explaining what this skill offers and which resources it includes]
 
 ## Usage
 
@@ -81,7 +81,17 @@ skillhub.sh [res_type] [res_name] [options]
 
 ### Resource-Specific Commands
 
-#### For [resource-name-1] ([type])
+list all of specific resources like:
+
+```table
+| Resource Name | Type | Description |
+|---------------|------|-------------|
+| [name-1] | [third] | [brief description] |
+| [name-2] | [gateway.[path]] | [brief description] | (list all paths)
+| [name-2] | [mcp.[tool]] | [brief description] | (list all tools)
+```
+
+#### [resource-name-1] 
 
 > [Brief description of what this resource does]
 
@@ -104,7 +114,7 @@ skillhub.sh [command]
 [Expected response format]
 ```
 
-#### For [resource-name-2] ([type])
+#### [resource-name-2] 
 
 [Repeat the above structure for each resource]
 
@@ -179,6 +189,8 @@ Before outputting, verify:
 - [ ] Output is pure markdown (no explanations outside the skill content)
 
 ## Output Mode
+
+**CRITICAL: Output the SKILL.md content directly WITHOUT any code block markers.**
 
 **Generate ONLY the SKILL.md content.** Do not include:
 - Explanations of what you did

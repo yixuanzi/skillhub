@@ -108,6 +108,11 @@ else
 fi
 ```
 
+### Step 7: Install skillhub skill
+```bash
+"$INSTALL_PATH" install skillhub
+```
+
 ## Complete Installation Script
 
 Here's a complete script that combines all steps:
@@ -178,6 +183,9 @@ if "$INSTALL_PATH" -h > /dev/null 2>&1; then
     echo "3. Verify:"
     echo "   skillhub.sh -h"
     echo ""
+
+    # Step 7: Install skillhub skill if installed successfully
+    "$INSTALL_PATH" install skillhub
 else
     echo "✗ Error: Installation verification failed"
     exit 1

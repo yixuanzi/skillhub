@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useCreateSkill, useSkills } from '@/hooks/useSkills';
 import { useResources } from '@/hooks/useResources';
 import { useSkillCreator } from '@/hooks/useSkillCreator';
-import { Button, Input, Textarea, Card, Alert, Badge, Loading } from '@/components/ui';
-import { ArrowLeft, Plus, Sparkles, Check, X, Loader2 } from 'lucide-react';
+import { Button, Input, Textarea, Card, Alert, Badge, Modal } from '@/components/ui';
+import { ArrowLeft, Plus, Sparkles, Check, X, Loader2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/utils/cn';
-import { SkillCreatorType } from '@/api/skillCreator';
 
 type AIGenerationMode = 'base' | 'sop' | null;
 
@@ -25,7 +24,7 @@ export const SkillCreatePage = () => {
 
   // Form state
   const [formData, setFormData] = useState({
-    name: '',
+    name: 'Should not input',
     description: '',
     content: '',
     category: '',
@@ -41,11 +40,17 @@ export const SkillCreatePage = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState('');
 
+  // Error modal state
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({ isOpen: false, message: '' });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const result = await createSkill.mutateAsync({
-        name: formData.name.trim(),
+        name: 'blank', // Send empty string to use auto-generated name
         description: formData.description.trim(),
         content: formData.content.trim() || undefined,
         category: formData.category.trim() || undefined,
@@ -56,7 +61,19 @@ export const SkillCreatePage = () => {
         navigate(`/skills/${result.id}`);
       }
     } catch (err) {
-      console.error('Failed to create skill:', err);
+      // Extract error message from API response
+      let errorMessage = 'Failed to create skill';
+      if (err && typeof err === 'object') {
+        if ('response' in err && err.response && typeof err.response === 'object' && 'data' in err.response) {
+          const data = err.response.data as { detail?: string };
+          if (data.detail) {
+            errorMessage = data.detail;
+          }
+        } else if ('message' in err && typeof err.message === 'string') {
+          errorMessage = err.message;
+        }
+      }
+      setErrorModal({ isOpen: true, message: errorMessage });
     }
   };
 
@@ -138,12 +155,14 @@ export const SkillCreatePage = () => {
         <Card>
           <div className="space-y-5">
             <Input
-              label="Skill Name *"
-              placeholder="e.g., Data Processor"
+              label="Skill Name"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
+              disabled
+              className="bg-void-800/50 text-gray-500"
             />
+            <p className="text-xs text-gray-500 font-mono">
+              Skill name will be auto-generated from the skill content
+            </p>
 
             <Textarea
               label="Description *"
@@ -463,6 +482,29 @@ You can write markdown content, code examples, documentation, etc."
           </Button>
         </div>
       </form>
+
+      {/* Error Modal */}
+      <Modal
+        isOpen={errorModal.isOpen}
+        onClose={() => setErrorModal({ isOpen: false, message: '' })}
+        title="Error"
+        size="sm"
+      >
+        <div className="flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-cyber-accent flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-mono text-sm text-gray-200">{errorModal.message}</p>
+          </div>
+        </div>
+        <div className="flex justify-end mt-6">
+          <Button
+            variant="primary"
+            onClick={() => setErrorModal({ isOpen: false, message: '' })}
+          >
+            OK
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 };

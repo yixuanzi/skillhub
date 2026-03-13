@@ -34,12 +34,13 @@ def display_message(message) -> None:
                 #print(block.text)
             elif isinstance(block, ToolUseBlock):
                 # 显示工具调用（可选，用于调试）
-                print(f"[工具调用: {block.name}]")
+                # print(f"[工具调用: {block.name}]")
+                pass
 
     # 处理最终结果消息
     elif isinstance(message, ResultMessage):
         if message.result:
-            print(f"\n{message.result}")
+            #print(f"\n{message.result}")
             return message.result
         # 可选：显示成本信息
         if message.total_cost_usd and message.total_cost_usd > 0:
@@ -48,20 +49,10 @@ def display_message(message) -> None:
 
 class SkillCreatorService:
     """Service class for skill generation operations."""
-    agent_prompt_path = Path(__file__).parent.parent / "scripts" / "agent.md"
-    try:
-        system_prompt = agent_prompt_path.read_text(encoding="utf-8")
-    except Exception as e:
-        raise Exception(f"Failed to read agent prompt from {agent_prompt_path}: {e}")
+    agent_cache={} # cache for agents
 
-    # Configure Agent options
-    options = ClaudeAgentOptions(
-            cwd=os.getcwd(),
-            allowed_tools=["Read"],
-            system_prompt=system_prompt
-        )
     @staticmethod
-    async def _generate_skill_documentation(content: str) -> str:
+    async def _generate_skill_documentation(content: str,agentname:str) -> str:
         """Generate standardized SKILL.md documentation using Claude Agent SDK.
 
         Args:
@@ -74,27 +65,35 @@ class SkillCreatorService:
             Exception: If Agent SDK call fails
         """
         # Read the agent system prompt
-        agent_prompt_path = Path(__file__).parent.parent / "scripts" / "agent.md"
         try:
-            system_prompt = agent_prompt_path.read_text(encoding="utf-8")
+            if not SkillCreatorService.agent_cache.get(agentname,None):
+                agent_prompt_path = Path(__file__).parent.parent / "scripts" / f"{agentname}.md"
+                system_prompt = agent_prompt_path.read_text(encoding="utf-8")
+                # Configure Agent options
+                agent = ClaudeAgentOptions(
+                        cwd=os.getcwd(),
+                        allowed_tools=["Read"],
+                        system_prompt=system_prompt
+                    )
+            else:
+                agent = SkillCreatorService.agent_cache.get(agentname)
         except Exception as e:
             raise Exception(f"Failed to read agent prompt from {agent_prompt_path}: {e}")
 
         # Build user prompt with content context
-        user_prompt = f"""Please generate a standardized SKILL.md documentation content based on the following resource information:
-
+        user_prompt = f"""
 ```
 {content}
 ```
 
-Generate the SKILL.md content following the format specified in your instructions.(do not write the content to file)"""
+Generate the SKILL.md content following the format specified in your instructions and user require.(do not write the content to file)"""
 
         try:
             skill_doc = ""
             # Call Claude Agent SDK
             async for message in query(
                 prompt=user_prompt,
-                options=SkillCreatorService.options,
+                options=agent,
             ):
                 if isinstance(message, (AssistantMessage, ResultMessage)):
                     finalrs=display_message(message)
@@ -131,10 +130,10 @@ Generate the SKILL.md content following the format specified in your instruction
         try:
             if request.type == SkillCreatorType.BASE:
                 context_conf = await SkillCreatorService._generate_from_resources(db, request, user)
-                skill = await SkillCreatorService._generate_skill_documentation(context_conf)
+                skill = await SkillCreatorService._generate_skill_documentation(f"<resource_list>{context_conf}</resource_list>","agent_res")
             else:
                 context_conf = SkillCreatorService._generate_from_skills(db, request, user)
-                skill = context_conf
+                skill = await SkillCreatorService._generate_skill_documentation(f"<skill_list>{context_conf}</skill_list><user_requirement>{request.userinput}</user_requirement>","agent_skill")
 
         except Exception as e:
             # If skill generation fails, return empty skill instead of failing
@@ -245,10 +244,6 @@ Generate the SKILL.md content following the format specified in your instruction
             raise ValidationException("skill_id_list is required for sop mode")
 
         content_parts = []
-
-        # Add user requirements section
-        if request.userinput:
-            content_parts.append(request.userinput)
 
         # Add referenced skills
         for skill_id in request.skill_id_list:

@@ -90,7 +90,7 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
           const supportedTransport = (transport === 'stdio' || transport === 'ws') ? 'sse' : transport;
           setMcpTransport(supportedTransport as MCPTransportType);
           setMcpCommand(mcpConfig.command || '');
-          setMcpArgs(mcpArgs => mcpConfig.args ? mcpConfig.args.join(' ') : '');
+          setMcpArgs(mcpConfig.args ? mcpConfig.args.join(' ') : '');
           setMcpEndpoint(mcpConfig.endpoint || '');
           setMcpTimeout(String(mcpConfig.timeout || 30000));
           setMcpHeaders(mcpConfig.headers ? JSON.stringify(mcpConfig.headers, null, 2) : '');
