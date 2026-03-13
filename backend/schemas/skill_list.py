@@ -94,3 +94,13 @@ class SkillListListResponse(BaseModel):
     total: int = Field(..., description="Total number of skill lists")
     page: int = Field(..., description="Current page number (1-based)")
     size: int = Field(..., description="Number of items per page")
+
+
+class SkillStatisticsResponse(BaseModel):
+    """Schema for skill statistics response."""
+
+    total_skills: int = Field(..., description="Total number of skills")
+    published_skills: int = Field(..., description="Number of published skills (with 'published' tag)")
+    draft_skills: int = Field(..., description="Number of draft skills (total - published)")
+    new_skills_last_7days: int = Field(..., description="Number of skills created in the last 7 days")
+    active_users: int = Field(..., description="Number of active users (is_active=True)")

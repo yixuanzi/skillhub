@@ -18,10 +18,11 @@ from schemas.skill_list import (
     SkillListUpdate,
     SkillListResponse,
     SkillListSummary,
-    SkillListListResponse
+    SkillListListResponse,
+    SkillStatisticsResponse
 )
 from services.skill_list_service import SkillListService
-from core.deps import get_current_active_user
+from core.deps import get_current_active_user, get_optional_user
 from models.user import User
 
 router = APIRouter(prefix="/skills", tags=["Skills"])
@@ -66,7 +67,7 @@ async def list_skills(
     author: str | None = Query(None, description="Filter by creator username"),
     search: str | None = Query(None, description="Fuzzy search by skill name"),
     db: Session = Depends(get_db),
-    #current_user: User = Depends(get_current_active_user)
+    current_user: User | None = Depends(get_optional_user)
 ):
     """List all skills with optional filtering.
 
@@ -87,12 +88,20 @@ async def list_skills(
         author: Optional creator username filter (maps to created_by)
         search: Optional fuzzy search term for skill name
         db: Database session
-        current_user: Authenticated user
+        current_user: Authenticated user (optional)
 
     Returns:
         Paginated list of skill summaries (without content field)
     """
     skip = (page - 1) * size
+
+    # For unauthenticated users, only show public skills
+    if current_user is None:
+        if tags:
+            # Append "public" to existing tags filter
+            tags = f"{tags},public"
+        else:
+            tags = "public"
 
     # Use combined filters (AND logic between filters, OR within tags)
     skills, total = SkillListService.list_with_filters(
@@ -107,12 +116,35 @@ async def list_skills(
     )
 
 
+@router.get("/stats/", response_model=SkillStatisticsResponse)
+async def get_skill_statistics(
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user)
+):
+    """Get skill statistics including totals, published, drafts, and active user count.
+
+    Args:
+        db: Database session
+        current_user: Authenticated user (optional, for logging/audit purposes)
+
+    Returns:
+        Skill statistics including:
+        - total_skills: Total number of skills
+        - published_skills: Skills with 'published' tag
+        - draft_skills: Skills without 'published' tag (total - published)
+        - new_skills_last_7days: Skills created in the last 7 days
+        - active_users: Number of active users (is_active=True)
+    """
+    stats = SkillListService.get_statistics(db)
+    return SkillStatisticsResponse(**stats)
+
+
 @router.get("/{skill_id}/", response_model=SkillListResponse)
 async def get_skill(
     skill_id: str,
     install: bool = Query(False, description="If true, return only skill.content as plain text for installation"),
     db: Session = Depends(get_db),
-    #current_user: User = Depends(get_current_active_user)
+    current_user: User | None = Depends(get_optional_user)
 ):
     """Get a specific skill by ID.
 
@@ -120,24 +152,34 @@ async def get_skill(
         skill_id: Skill UUID or name
         install: If true, returns only skill.content as plain text
         db: Database session
-        current_user: Authenticated user
+        current_user: Authenticated user (optional)
 
     Returns:
         Skill response (JSON) or skill.content as plain text
 
     Raises:
-        HTTPException 404: If skill is not found
+        HTTPException 404: If skill is not found or access is denied
     """
-    if len(skill_id)==36:
+    # Get skill by ID or name
+    if len(skill_id) == 36:
         skill = SkillListService.get_by_id(db, skill_id)
     else:
         skill = SkillListService.get_by_name(db, skill_id)
 
+    # Check if skill exists
     if not skill:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Skill with id/name '{skill_id}' not found"
         )
+
+    # For unauthenticated users, only allow access to public skills
+    if current_user is None:
+        if not skill.tags or "public" not in skill.tags:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Skill not found or access denied. Public skills only for unauthenticated users."
+            )
 
     # If install=true, return only content as plain text
     if install:

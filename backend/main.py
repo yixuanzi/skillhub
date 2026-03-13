@@ -69,11 +69,6 @@ async def root():
     return {"message": "SkillHub MVP API", "version": "1.0.0"}
 
 
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}
-
-
 if __name__ == "__main__":
     import uvicorn
     # Run the application

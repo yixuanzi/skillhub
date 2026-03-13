@@ -9,6 +9,14 @@ export const useSkills = (params?: { page?: number; pageSize?: number; category?
   });
 };
 
+export const useSkillStatistics = () => {
+  return useQuery({
+    queryKey: ['skillStatistics'],
+    queryFn: () => skillsApi.getStatistics(),
+    refetchInterval: 60000, // Refetch every minute
+  });
+};
+
 export const useSkill = (id: string) => {
   return useQuery({
     queryKey: ['skill', id],

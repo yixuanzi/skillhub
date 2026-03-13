@@ -76,7 +76,7 @@ export const ProfileTab = ({ userId, username }: ProfileTabProps) => {
             {skills.length} total • {filteredSkills.length} shown
           </p>
         </div>
-        <Link to="/skills/new">
+        <Link to="/skills/new?tab=profile">
           <Button
             variant="primary"
             className="group"
@@ -132,7 +132,7 @@ export const ProfileTab = ({ userId, username }: ProfileTabProps) => {
               : 'Try adjusting your search'}
           </p>
           {skills.length === 0 && (
-            <Link to="/skills/new">
+            <Link to="/skills/new?tab=profile">
               <Button
                 variant="primary"
               >
@@ -191,12 +191,12 @@ export const ProfileTab = ({ userId, username }: ProfileTabProps) => {
                     Created by you
                   </div>
                   <div className="flex items-center gap-2">
-                    <Link to={`/skills/${skill.id}`}>
+                    <Link to={`/skills/${skill.id}?tab=profile`}>
                       <Button variant="ghost" size="sm" className="p-1.5">
                         <ExternalLink className="w-4 h-4" />
                       </Button>
                     </Link>
-                    <Link to={`/skills/${skill.id}/edit`}>
+                    <Link to={`/skills/${skill.id}/edit?tab=profile`}>
                       <Button variant="ghost" size="sm" className="p-1.5">
                         <Edit className="w-4 h-4" />
                       </Button>

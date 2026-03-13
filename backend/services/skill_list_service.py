@@ -324,3 +324,49 @@ class SkillListService:
         db.commit()
 
         return True
+
+    @staticmethod
+    def get_statistics(db: Session) -> dict:
+        """Get skill statistics including total, published, drafts, and active user count.
+
+        Args:
+            db: Database session
+
+        Returns:
+            Dictionary with statistics:
+            - total_skills: Total number of skills
+            - published_skills: Skills with 'published' tag
+            - draft_skills: Skills without 'published' tag (total - published)
+            - new_skills_last_7days: Skills created in the last 7 days
+            - active_users: Number of active users (is_active=True)
+        """
+        from models.user import User
+        from datetime import datetime, timedelta
+
+        # Get total skills count
+        total_skills = db.query(SkillList).count()
+
+        # Get published skills count (skills with 'published' in tags)
+        published_skills = db.query(SkillList).filter(
+            SkillList.tags.like('%published%')
+        ).count()
+
+        # Calculate draft skills
+        draft_skills = total_skills - published_skills
+
+        # Get skills created in the last 7 days
+        seven_days_ago = datetime.now() - timedelta(days=7)
+        new_skills_last_7days = db.query(SkillList).filter(
+            SkillList.created_at >= seven_days_ago
+        ).count()
+
+        # Get active users count
+        active_users = db.query(User).filter(User.is_active == True).count()
+
+        return {
+            "total_skills": total_skills,
+            "published_skills": published_skills,
+            "draft_skills": draft_skills,
+            "new_skills_last_7days": new_skills_last_7days,
+            "active_users": active_users
+        }

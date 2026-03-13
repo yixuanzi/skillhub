@@ -7,8 +7,12 @@
 export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:$PATH"
 
 # SkillHub API URL (configure this to your SkillHub instance)
-SKILLHUB_URL="http://localhost:8000"
+SKILLHUB_URL="{SKILLHUB_URL}"
 
+# if SKILLHUB_URL=={SKILLHUB_URL} ,then SKILLHUB_URL=http://localhost:8000
+if [ "$SKILLHUB_URL" = "{SKILLHUB_URL}" ]; then
+    SKILLHUB_URL="http://localhost:5173"
+fi
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -181,7 +185,7 @@ list_skills() {
     local response
     response=$(/usr/bin/curl --max-time $TIMEOUT -s -X GET "$api_url" \
         -H "accept: application/json" \
-        -H "Authorization: Bearer $TOKEN"})
+        -H "Authorization: Bearer $TOKEN")
 
     if [ $? -ne 0 ]; then
         error "Failed to fetch skills from API"
@@ -357,9 +361,9 @@ if [ -z "$TOKEN" ]; then
 fi
 
 # Override SKILLHUB_URL from environment if set
-if [ -n "$SKILLHUB_URL" ] && [ "$SKILLHUB_URL" != "http://localhost:8000" ]; then
-    info "Using custom SKILLHUB_URL: $SKILLHUB_URL"
-fi
+# if [ -n "$SKILLHUB_URL" ] && [ "$SKILLHUB_URL" != "http://localhost:8000" ]; then
+#     info "Using custom SKILLHUB_URL: $SKILLHUB_URL"
+# fi
 
 # Validate required parameters based on res_type
 case "$RES_TYPE" in

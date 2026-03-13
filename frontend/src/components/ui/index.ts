@@ -12,3 +12,4 @@ export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 export { Label } from './Label';
 export { Checkbox } from './Checkbox';
 export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from './Select';
+export { InstallGuideCard } from '../install-guide/InstallGuideCard';

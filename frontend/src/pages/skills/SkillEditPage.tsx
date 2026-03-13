@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useSkill, useUpdateSkill } from '@/hooks/useSkills';
 import { useResources } from '@/hooks/useResources';
 import { useSkills } from '@/hooks/useSkills';
@@ -15,9 +15,14 @@ type AIGenerationMode = 'base' | 'sop' | null;
 export const SkillEditPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: skill, isLoading } = useSkill(id!);
   const updateSkill = useUpdateSkill();
   const generateContent = useSkillCreator();
+
+  // Get the return URL with tab state preserved
+  const returnUrl = `/skills${searchParams.get('tab') ? `?tab=${searchParams.get('tab')}` : ''}`;
+  const returnDetailUrl = `/skills/${id}${searchParams.get('tab') ? `?tab=${searchParams.get('tab')}` : ''}`;
 
   // Fetch resources and skills for AI generation (excluding current skill)
   const { data: resourcesData } = useResources({ page: 1, pageSize: 100 });
@@ -79,7 +84,7 @@ export const SkillEditPage = () => {
       });
       setSuccessMessage('Skill updated successfully!');
       setTimeout(() => {
-        navigate(`/skills/${id}`);
+        navigate(returnDetailUrl);
       }, 1000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update skill';
@@ -153,7 +158,7 @@ export const SkillEditPage = () => {
     return (
       <div className="text-center py-16">
         <h2 className="font-display text-xl text-gray-300 mb-2">Skill not found</h2>
-        <Link to="/skills">
+        <Link to={returnUrl}>
           <Button variant="secondary">Back to Skills</Button>
         </Link>
       </div>
@@ -164,7 +169,7 @@ export const SkillEditPage = () => {
     <div className="space-y-6 animate-fade-in max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link to={`/skills/${id}`}>
+        <Link to={returnDetailUrl}>
           <Button variant="ghost" size="sm">
             <ArrowLeft className="w-4 h-4" />
           </Button>
@@ -513,7 +518,7 @@ You can write markdown content, code examples, documentation, etc."
 
         {/* Action Buttons */}
         <div className="flex gap-3 justify-end">
-          <Link to={`/skills/${id}`}>
+          <Link to={returnDetailUrl}>
             <Button type="button" variant="ghost">
               Cancel
             </Button>
