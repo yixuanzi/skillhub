@@ -1,6 +1,6 @@
 # SkillHub
 
-> 企业级内部技能生态系统平台
+> Enterprise-Grade Internal Skill Ecosystem Platform
 
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104%2B-green)](https://fastapi.tiangolo.com/)
@@ -8,292 +8,292 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-SkillHub 是一个企业级内部技能生态系统平台，旨在为企业提供统一的技能构建、发布和调用管理能力。
+SkillHub is an enterprise-grade internal skill ecosystem platform designed to provide unified capabilities for skill building, publishing, and invocation management.
 
-## 目录
+## Table of Contents
 
-- [核心功能](#核心功能)
-- [技术架构](#技术架构)
-- [快速开始](#快速开始)
-- [开发指南](#开发指南)
-- [项目结构](#项目结构)
-- [API 文档](#api-文档)
-- [部署](#部署)
-- [相关文档](#相关文档)
-
----
-
-## 核心功能
-
-### 1. 技能构建与发布 (Build & Publish)
-
-- 支持多种运行时：Node.js、Python、Go
-- 完整的技能生命周期管理
-- 代码验证、依赖解析、测试验证
-- 版本控制与灰度发布
-
-### 2. 统一网关调用 (Gateway)
-
-- 所有技能调用的统一入口
-- JWT 认证 + RBAC 权限控制
-- 支持内部托管 API、内部独立 API、第三方 API
-
-### 3. 访问控制列表 (ACL)
-
-- `any` 模式：公开访问（支持速率限制、IP 白名单等条件）
-- `rbac` 模式：基于角色的访问控制（支持用户/角色白名单）
-
-### 4. 托管应用令牌 (MToken)
-
-- 自动管理第三方 API Token
-- Token 加密存储和自动刷新
-
-### 5. 技能市场 (Skill Market)
-
-- 技能发布与发现
-- 支持分类和标签管理
+- [Core Features](#core-features)
+- [Technical Architecture](#technical-architecture)
+- [Quick Start](#quick-start)
+- [Development Guide](#development-guide)
+- [Project Structure](#project-structure)
+- [API Documentation](#api-documentation)
+- [Deployment](#deployment)
+- [Related Documentation](#related-documentation)
 
 ---
 
-## 技术架构
+## Core Features
 
-### 前端
+### 1. Skill Build & Publish
+
+- Support for multiple runtimes: Node.js, Python, Go
+- Complete skill lifecycle management
+- Code validation, dependency resolution, and testing
+- Version control and canary deployment
+
+### 2. Unified Gateway Invocation
+
+- Single entry point for all skill invocations
+- JWT authentication + RBAC access control
+- Support for internal hosted APIs, internal standalone APIs, and third-party APIs
+
+### 3. Access Control List (ACL)
+
+- `any` mode: Public access (supports rate limiting, IP whitelist, etc.)
+- `rbac` mode: Role-based access control (supports user/role whitelists)
+
+### 4. Managed Application Tokens (MToken)
+
+- Automatic third-party API token management
+- Encrypted token storage and auto-refresh
+
+### 5. Skill Market
+
+- Skill publishing and discovery
+- Support for categories and tags
+
+---
+
+## Technical Architecture
+
+### Frontend
 
 ```
 React 18 + TypeScript
-├── Vite 5 - 构建工具
-├── React Router 6 - 路由
-├── React Query - 数据获取
-├── Zustand - 状态管理
-└── Tailwind CSS - 样式
+├── Vite 5 - Build tool
+├── React Router 6 - Routing
+├── React Query - Data fetching
+├── Zustand - State management
+└── Tailwind CSS - Styling
 ```
 
-### 后端
+### Backend
 
 ```
 Python 3.11+ + FastAPI
 ├── SQLAlchemy 2.0 - ORM
-├── Pydantic 2.0 - 数据验证
-├── JWT - 用户认证
-└── SQLite/PostgreSQL - 数据存储
+├── Pydantic 2.0 - Data validation
+├── JWT - User authentication
+└── SQLite/PostgreSQL - Data storage
 ```
 
-### 资源类型
+### Resource Types
 
-| 类型 | 说明 | 示例 |
-|-----|------|-----|
-| `gateway` | 网关资源，支持路径代理 | 内部 API 代理 |
-| `third` | 第三方 API 资源 | OpenAI、Salesforce |
-| `mcp` | MCP 服务器资源 | Dify、n8n |
+| Type | Description | Example |
+|-----|-------------|---------|
+| `gateway` | Gateway resources with path proxy support | Internal API proxy |
+| `third` | Third-party API resources | OpenAI, Salesforce |
+| `mcp` | MCP server resources | Dify, n8n |
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 使用 Docker Compose（推荐）
+### Using Docker Compose (Recommended)
 
 ```bash
-# 克隆项目
+# Clone the repository
 git clone https://github.com/yixuanzi/skillhub.git
 cd skillhub
 
-# 启动服务（包含前端和后端）
+# Start services (includes frontend and backend)
 docker-compose -f docker-compose-dev.yml up -d
 
-# 访问应用
-# 前端: http://localhost
-# 后端 API: http://localhost:8000
-# API 文档: http://localhost:8000/docs
+# Access the application
+# Frontend: http://localhost
+# Backend API: http://localhost:8000
+# API Docs: http://localhost:8000/docs
 ```
 
-### 手动安装
+### Manual Installation
 
-#### 1. 后端服务
+#### 1. Backend Service
 
 ```bash
 cd backend
 
-# 创建虚拟环境
+# Create virtual environment
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 
-# 初始化数据库
+# Initialize database
 python scripts/init_db.py
 python scripts/seed_db.py
 
-# 启动服务
+# Start service
 python main.py
 ```
 
-#### 2. 前端服务
+#### 2. Frontend Service
 
 ```bash
 cd frontend
 
-# 安装依赖
+# Install dependencies
 npm install
 
-# 启动开发服务器
+# Start development server
 npm run dev
 ```
 
-#### 3. 使用启动脚本
+#### 3. Using Start Script
 
 ```bash
-# 从项目根目录运行
+# Run from project root
 ./start.sh
 ```
 
 ---
 
-## 开发指南
+## Development Guide
 
-### 环境变量配置
+### Environment Variables
 
-创建 `backend/.env` 文件：
+Create `backend/.env` file:
 
 ```bash
-# 数据库配置
+# Database configuration
 DATABASE_URL=sqlite:///./data/skillhub.db
 
-# JWT 密钥（生产环境请修改）
+# JWT secret key (change in production)
 SECRET_KEY=your-secret-key-change-in-production
 
-# Token 过期时间
+# Token expiration time
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 REFRESH_TOKEN_EXPIRE_DAYS=7
 
-# CORS 配置
+# CORS configuration
 CORS_ORIGINS=http://localhost:5173,http://localhost:80
 
-# 服务器配置
+# Server configuration
 SKILL_HOST=0.0.0.0
 SKILL_PORT=8000
 SKILLHUB_URL=http://localhost:8000
 ```
 
-### 默认账户
+### Default Account
 
-初始化后可使用以下默认账户登录：
+After initialization, use the following default account to login:
 
 ```
-用户名: admin
-密码: admin123
+Username: admin
+Password: admin123
 ```
 
-### CLI 工具使用
+### CLI Tool Usage
 
 ```bash
-# 下载 CLI 工具
+# Download CLI tool
 curl http://localhost:8000/api/v1/script/bash -o skillhub.sh
 chmod +x skillhub.sh
 
-# 调用第三方 API
+# Call third-party API
 ./skillhub.sh third weather-api -method GET -inputs '{"city":"Beijing"}'
 
-# 调用网关资源
+# Call gateway resource
 ./skillhub.sh gateway backend-api -method GET -path users/123
 
-# 调用 MCP 服务器
+# Call MCP server
 ./skillhub.sh mcp my-mcp-server -mcptool tool_name
 ```
 
 ---
 
-## 项目结构
+## Project Structure
 
 ```
 skillhub/
-├── backend/                    # 后端服务
-│   ├── api/                    # API 路由层
-│   ├── services/               # 业务逻辑层
-│   ├── models/                 # 数据模型 (SQLAlchemy)
-│   ├── schemas/                # 数据验证 (Pydantic)
-│   ├── core/                   # 核心功能
-│   ├── middleware/             # 中间件
-│   ├── scripts/                # 工具脚本
-│   ├── tests/                  # 测试文件
-│   ├── main.py                 # 应用入口
-│   └── config.py               # 配置管理
+├── backend/                    # Backend service
+│   ├── api/                    # API routes
+│   ├── services/               # Business logic
+│   ├── models/                 # Data models (SQLAlchemy)
+│   ├── schemas/                # Data validation (Pydantic)
+│   ├── core/                   # Core functionality
+│   ├── middleware/             # Middleware
+│   ├── scripts/                # Utility scripts
+│   ├── tests/                  # Test files
+│   ├── main.py                 # Application entry
+│   └── config.py               # Configuration
 │
-├── frontend/                   # 前端应用
+├── frontend/                   # Frontend application
 │   ├── src/
-│   │   ├── components/         # React 组件
-│   │   ├── pages/              # 页面组件
-│   │   ├── services/           # API 服务
-│   │   ├── store/              # 状态管理
-│   │   └── utils/              # 工具函数
-│   ├── public/                 # 静态资源
+│   │   ├── components/         # React components
+│   │   ├── pages/              # Page components
+│   │   ├── services/           # API services
+│   │   ├── store/              # State management
+│   │   └── utils/              # Utility functions
+│   ├── public/                 # Static assets
 │   └── package.json
 │
-├── docs/                       # 项目文档
-│   ├── architecture.md         # 系统架构
-│   ├── api-design.md           # API 设计
-│   ├── data-model.md           # 数据模型
-│   ├── security.md             # 安全设计
-│   └── PRD.md                  # 产品需求文档
+├── docs/                       # Project documentation
+│   ├── architecture.md         # System architecture
+│   ├── api-design.md           # API design
+│   ├── data-model.md           # Data model
+│   ├── security.md             # Security design
+│   └── PRD.md                  # Product requirements
 │
-├── docker/                     # Docker 配置
-├── docker-compose-dev.yml      # 开发环境
-├── docker-compose-prod.yml     # 生产环境
-├── Dockerfile                  # 镜像构建
-├── start.sh                    # 启动脚本
-├── CLAUDE.md                   # Claude Code 指南
-└── README.md                   # 本文件
+├── docker/                     # Docker configuration
+├── docker-compose-dev.yml      # Development environment
+├── docker-compose-prod.yml     # Production environment
+├── Dockerfile                  # Image build
+├── start.sh                    # Startup script
+├── CLAUDE.md                   # Claude Code guide
+└── README.md                   # This file
 ```
 
 ---
 
-## API 文档
+## API Documentation
 
-### 认证方式
+### Authentication Methods
 
-支持两种认证方式：
+Two authentication methods are supported:
 
-1. **JWT Token** (推荐用于用户)
+1. **JWT Token** (recommended for users)
    ```bash
    curl -H "Authorization: Bearer <jwt_token>" http://localhost:8000/api/v1/resources/
    ```
 
-2. **API Key** (推荐用于应用集成)
+2. **API Key** (recommended for application integration)
    ```bash
    curl -H "X-API-Key: <api_key>" http://localhost:8000/api/v1/resources/
    ```
 
-### 主要 API 端点
+### Main API Endpoints
 
-| 端点 | 方法 | 说明 |
-|-----|------|-----|
-| `/api/v1/auth/register` | POST | 用户注册 |
-| `/api/v1/auth/login` | POST | 用户登录 |
-| `/api/v1/resources/` | GET/POST | 资源列表/创建 |
-| `/api/v1/acl/resources/` | GET/POST | ACL 规则管理 |
-| `/api/v1/gateway/{name}` | POST | 调用资源 |
-| `/api/v1/skills/` | GET/POST | 技能市场 |
-| `/api/v1/skill-creator/` | POST | 生成技能内容 |
-| `/api/v1/script/bash` | GET | 获取 CLI 工具 |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/auth/register` | POST | User registration |
+| `/api/v1/auth/login` | POST | User login |
+| `/api/v1/resources/` | GET/POST | Resource list/create |
+| `/api/v1/acl/resources/` | GET/POST | ACL rule management |
+| `/api/v1/gateway/{name}` | POST | Invoke resource |
+| `/api/v1/skills/` | GET/POST | Skill market |
+| `/api/v1/skill-creator/` | POST | Generate skill content |
+| `/api/v1/script/bash` | GET | Get CLI tool |
 
-完整 API 文档：`http://localhost:8000/docs`
+Complete API documentation: `http://localhost:8000/docs`
 
 ---
 
-## 部署
+## Deployment
 
-### 生产环境部署
+### Production Deployment
 
-#### 使用 Docker
+#### Using Docker
 
 ```bash
-# 使用生产配置
+# Use production configuration
 docker-compose -f docker-compose-prod.yml up -d
 ```
 
-#### 手动部署
+#### Manual Deployment
 
-后端使用 Gunicorn + Uvicorn Workers：
+Backend with Gunicorn + Uvicorn Workers:
 
 ```bash
 pip install gunicorn
@@ -304,59 +304,59 @@ gunicorn main:app \
   --bind 0.0.0.0:8000
 ```
 
-前端构建：
+Frontend build:
 
 ```bash
 cd frontend
 npm run build
-# 输出在 frontend/dist/
+# Output in frontend/dist/
 ```
 
-### 环境要求
+### System Requirements
 
-| 组件 | 版本要求 |
-|-----|---------|
+| Component | Version |
+|-----------|---------|
 | Python | 3.11+ |
 | Node.js | 18+ |
-| PostgreSQL | 15+ (生产环境推荐) |
+| PostgreSQL | 15+ (recommended for production) |
 
 ---
 
-## 相关文档
+## Related Documentation
 
-- [CLAUDE.md](./CLAUDE.md) - Claude Code 开发指南
-- [backend/README.md](./backend/README.md) - 后端服务详细文档
-- [frontend/README.md](./frontend/README.md) - 前端应用详细文档
-- [docs/PRD.md](./docs/PRD.md) - 产品需求文档
-- [docs/architecture.md](./docs/architecture.md) - 系统架构设计
-- [docs/api-design.md](./docs/api-design.md) - API 接口设计
-- [docs/security.md](./docs/security.md) - 安全设计
-
----
-
-## 技术栈
-
-### 后端
-- FastAPI - 现代高性能 Web 框架
-- SQLAlchemy - ORM 工具
-- Pydantic - 数据验证
-- JWT - 用户认证
-- SQLite/PostgreSQL - 数据存储
-
-### 前端
-- React 18 - UI 框架
-- TypeScript - 类型安全
-- Vite - 构建工具
-- React Query - 数据获取
-- Zustand - 状态管理
-- Tailwind CSS - 样式框架
+- [CLAUDE.md](./CLAUDE.md) - Claude Code development guide
+- [backend/README.md](./backend/README.md) - Backend service detailed documentation
+- [frontend/README.md](./frontend/README.md) - Frontend application detailed documentation
+- [docs/PRD.md](./docs/PRD.md) - Product requirements document
+- [docs/architecture.md](./docs/architecture.md) - System architecture design
+- [docs/api-design.md](./docs/api-design.md) - API interface design
+- [docs/security.md](./docs/security.md) - Security design
 
 ---
 
-## 许可证
+## Tech Stack
+
+### Backend
+- FastAPI - Modern high-performance web framework
+- SQLAlchemy - ORM toolkit
+- Pydantic - Data validation
+- JWT - User authentication
+- SQLite/PostgreSQL - Data storage
+
+### Frontend
+- React 18 - UI framework
+- TypeScript - Type safety
+- Vite - Build tool
+- React Query - Data fetching
+- Zustand - State management
+- Tailwind CSS - Styling framework
+
+---
+
+## License
 
 [MIT License](LICENSE)
 
 ---
 
-**最后更新**: 2026-03-13
+**Last Updated**: 2026-03-13
