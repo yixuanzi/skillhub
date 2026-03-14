@@ -127,7 +127,7 @@ install_skill() {
     info "Installing skill: $skill_name"
 
     # Define storage locations
-    local skillhub_home="$HOME/skillhub"
+    local skillhub_home="$HOME/.agent/skills"
     local actual_dir="$skillhub_home/$skill_name"
     local link_dir="./skills/$skill_name"
 

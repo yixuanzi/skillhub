@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/api/auth';
 import { LoginRequest, RegisterRequest, User } from '@/types';
 import { useAuthStore } from '@/store/authStore';
@@ -88,5 +88,45 @@ export const useCurrentUser = () => {
       return user;
     },
     retry: false,
+  });
+};
+
+export const useUpdateUser = () => {
+  const queryClient = useQueryClient();
+  const setUser = useAuthStore((state) => state.setUser);
+
+  return useMutation({
+    mutationFn: (data: { username?: string; email?: string }) => authApi.updateCurrentUser(data),
+    onSuccess: (response) => {
+      // Update auth store with new user data
+      const user: User = {
+        id: response.id,
+        username: response.username,
+        email: response.email,
+        roles: response.roles.map(role => ({
+          id: role.id,
+          name: role.name,
+          permissions: role.permissions.map(perm => ({
+            id: perm.id,
+            resource: perm.resource,
+            action: perm.action,
+            conditions: perm.description ? { description: perm.description } : undefined,
+          })),
+          createdAt: role.created_at,
+        })),
+        createdAt: response.created_at,
+        updatedAt: response.created_at,
+      };
+      setUser(user);
+      // Invalidate current user query
+      queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+    },
+  });
+};
+
+export const useChangePassword = () => {
+  return useMutation({
+    mutationFn: (data: { old_password: string; new_password: string }) =>
+      authApi.changePassword(data),
   });
 };

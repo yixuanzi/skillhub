@@ -67,4 +67,13 @@ export const authApi = {
     const response = await apiClient.get<BackendUserResponse>('/auth/me/');
     return response.data;
   },
+
+  updateCurrentUser: async (data: { username?: string; email?: string }): Promise<BackendUserResponse> => {
+    const response = await apiClient.put<BackendUserResponse>('/auth/me/', data);
+    return response.data;
+  },
+
+  changePassword: async (data: { old_password: string; new_password: string }): Promise<void> => {
+    await apiClient.post('/auth/change-password/', data);
+  },
 };

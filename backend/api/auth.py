@@ -16,6 +16,8 @@ from database import get_db
 from schemas.auth import (
     UserCreate,
     UserResponse,
+    UserUpdate,
+    PasswordChange,
     LoginRequest,
     TokenResponse,
     RefreshTokenRequest,
@@ -161,3 +163,96 @@ async def get_current_user(
         HTTPException 401: If token is invalid or user not found
     """
     return current_user
+
+
+@router.put("/me/", response_model=UserResponse, status_code=status.HTTP_200_OK)
+async def update_current_user(
+    user_data: UserUpdate,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db)
+):
+    """Update current authenticated user profile (username and/or email).
+
+    Args:
+        user_data: User update data (username and/or email)
+        current_user: Current authenticated user from JWT token
+        db: Database session
+
+    Returns:
+        Updated user information
+
+    Raises:
+        HTTPException 400: If new username or email already exists
+        HTTPException 401: If token is invalid or user not found
+    """
+    from sqlalchemy.orm import selectinload
+
+    # Check if username is being updated and if it already exists
+    if user_data.username is not None:
+        existing = db.query(User).filter(
+            User.username == user_data.username,
+            User.id != current_user.id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Username '{user_data.username}' already exists"
+            )
+        current_user.username = user_data.username
+
+    # Check if email is being updated and if it already exists
+    if user_data.email is not None:
+        existing = db.query(User).filter(
+            User.email == user_data.email,
+            User.id != current_user.id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Email '{user_data.email}' already exists"
+            )
+        current_user.email = user_data.email
+
+    db.commit()
+    db.refresh(current_user)
+
+    # Reload with roles
+    current_user_with_roles = db.query(User).options(
+        selectinload(User.roles)
+    ).filter(User.id == current_user.id).first()
+
+    return UserResponse.model_validate(current_user_with_roles)
+
+
+@router.post("/change-password/", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    password_data: PasswordChange,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    db: Session = Depends(get_db)
+):
+    """Change current authenticated user's password.
+
+    Args:
+        password_data: Password change data (old_password, new_password)
+        current_user: Current authenticated user from JWT token
+        db: Database session
+
+    Returns:
+        None (204 No Content)
+
+    Raises:
+        HTTPException 400: If old password is incorrect
+        HTTPException 401: If token is invalid or user not found
+    """
+    from core.security import verify_password, get_password_hash
+
+    # Verify old password
+    if not verify_password(password_data.old_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect old password"
+        )
+
+    # Update password
+    current_user.hashed_password = get_password_hash(password_data.new_password)
+    db.commit()

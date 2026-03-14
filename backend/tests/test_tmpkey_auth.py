@@ -3,7 +3,7 @@
 这个测试脚本演示了如何使用 tmpkey 进行 API 认证。
 """
 import sys
-sys.path.insert(0, '/Users/guisheng.guo/Documents/workspace/skillhub/backend')
+sys.path.insert(0, '~/Documents/workspace/skillhub/backend')
 
 from core.tmpkey_manager import (
     generate_tmpkey,

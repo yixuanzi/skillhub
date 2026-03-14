@@ -112,7 +112,7 @@ export const LoginPage = () => {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-xs text-gray-600 font-mono">
-            v0.1.0 MVP | Build 2025.02.28
+            v1.3.0 | Start with 2026.02.28 | Build 2026.03.14
           </p>
         </div>
       </div>

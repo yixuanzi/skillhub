@@ -197,7 +197,7 @@ Role: super_admin
 
 ### Quick Test
 ```bash
-cd /Users/guisheng.guo/Documents/workspace/skillhub
+cd ~/Documents/workspace/skillhub
 ./start.sh
 # Choose option 3 (Both) or 4 (Run tests)
 ```
@@ -206,13 +206,13 @@ cd /Users/guisheng.guo/Documents/workspace/skillhub
 
 **Terminal 1 - Backend:**
 ```bash
-cd /Users/guisheng.guo/Documents/workspace/skillhub
+cd ~/Documents/workspace/skillhub
 python -m uvicorn backend.main:app --reload --port 8000
 ```
 
 **Terminal 2 - Frontend:**
 ```bash
-cd /Users/guisheng.guo/Documents/workspace/skillhub/frontend
+cd ~/Documents/workspace/skillhub/frontend
 npm run dev
 ```
 

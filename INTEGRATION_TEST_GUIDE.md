@@ -12,7 +12,7 @@ This guide helps you verify that the frontend authentication is correctly integr
 
 ```bash
 # Terminal 1
-cd /Users/guisheng.guo/Documents/workspace/skillhub
+cd ~/Documents/workspace/skillhub
 
 # Initialize and seed database (first time only)
 cd backend
@@ -35,7 +35,7 @@ INFO:     Started server process
 
 ```bash
 # Terminal 2
-cd /Users/guisheng.guo/Documents/workspace/skillhub/frontend
+cd ~/Documents/workspace/skillhub/frontend
 
 # Install dependencies (first time only)
 npm install
@@ -84,7 +84,7 @@ Expected output:
 ### Option A: Automated Script
 
 ```bash
-cd /Users/guisheng.guo/Documents/workspace/skillhub
+cd ~/Documents/workspace/skillhub
 ./backend/test_api_quick.sh
 ```
 

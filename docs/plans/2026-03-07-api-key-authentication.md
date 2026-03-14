@@ -317,7 +317,7 @@ git commit -m "refactor: remove tmpkey from TokenResponse schema"
 **Step 1: Delete the file**
 
 ```bash
-rm /Users/guisheng.guo/Documents/workspace/skillhub/backend/core/tmpkey_manager.py
+rm ~/Documents/workspace/skillhub/backend/core/tmpkey_manager.py
 ```
 
 **Step 2: Check for any remaining imports**

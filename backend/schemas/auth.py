@@ -64,3 +64,13 @@ class PermissionResponse(BaseModel):
 
 class RoleWithPermissions(RoleResponse):
     permissions: List[PermissionResponse] = []
+
+class UserUpdate(BaseModel):
+    """Schema for updating user profile (username and/or email)."""
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    email: Optional[str] = None
+
+class PasswordChange(BaseModel):
+    """Schema for changing user password."""
+    old_password: str = Field(..., min_length=1, description="Current password for verification")
+    new_password: str = Field(..., min_length=8, max_length=100, description="New password (min 8 characters)")
