@@ -72,7 +72,7 @@ class SkillCreatorService:
                 # Configure Agent options
                 agent = ClaudeAgentOptions(
                         cwd=os.getcwd(),
-                        allowed_tools=["Read"],
+                        allowed_tools=[], # 不使用任何工具
                         system_prompt=system_prompt
                     )
             else:
