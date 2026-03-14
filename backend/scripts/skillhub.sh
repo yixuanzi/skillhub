@@ -54,7 +54,7 @@ show_help() {
     printf "    skillhub.sh -h\n"
     printf "    skillhub.sh\n\n"
     printf "${BLUE}LIST COMMAND${NC}\n"
-    printf "    skillhub.sh list [search_term]\n\n"
+    printf "    skillhub.sh list [search_term] [-page <number>]\n\n"
     printf "    Lists all available skills or searches by skill name.\n"
     printf "    Outputs: JSON with skill summary (id, name, description, category, tags, etc.)\n\n"
     printf "${BLUE}INSTALL COMMAND${NC}\n"
@@ -70,13 +70,15 @@ show_help() {
     printf "    -inputs <json>      JSON string of parameters (optional)\n"
     printf "    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)\n"
     printf "    -timeout <seconds>  Request timeout in seconds (optional, default: 30)\n"
+    printf "    -page <number>      Page number for list command (optional)\n"
     printf "    -v                  Verbose mode: show curl command being executed (optional)\n\n"
     printf "${BLUE}EXAMPLES${NC}\n\n"
     printf "    ${YELLOW}# List all skills${NC}\n"
     printf "    skillhub.sh list\n\n"
     printf "    ${YELLOW}# Search skills by name${NC}\n"
     printf "    skillhub.sh list weather\n"
-    printf "    skillhub.sh list ai -token your-api-token\n\n"
+    printf "    skillhub.sh list ai -token your-api-token\n"
+    printf "    skillhub.sh list ai -page 2\n\n"
     printf "    ${YELLOW}# Install a skill${NC}\n"
     printf "    skillhub.sh install weather-skill\n"
     printf "    skillhub.sh install customer-support -token your-api-token\n\n"
@@ -195,20 +197,35 @@ install_skill() {
 # List skills from SkillHub
 list_skills() {
     local search_term="$1"
+    local page="$2"
 
     # Get token: use provided token, fallback to env var
     if [ -z "$TOKEN" ]; then
         TOKEN="$SKILLHUB_API_KEY"
     fi
 
-    # Build API URL with search parameter if provided
+    # Build API URL with search and page parameters if provided
     local api_url="$SKILLHUB_URL/api/v1/skills/"
+    local query_params=""
+
     if [ -n "$search_term" ]; then
-        api_url="$api_url?search=$search_term"
+        query_params="?search=$search_term"
         info "Searching for skills matching: $search_term"
     else
         info "Listing all skills"
     fi
+
+    if [ -n "$page" ]; then
+        if [ -n "$query_params" ]; then
+            query_params="$query_params&page=$page"
+        else
+            query_params="?page=$page"
+        fi
+        info "Page: $page"
+    fi
+
+    api_url="$api_url$query_params"
+    info "Fetching skills from $api_url"
 
     # Fetch skills from API
     local response
@@ -249,7 +266,7 @@ fi
 # Check for install command
 if [ "$1" = "install" ]; then
     shift
-    # Parse token option for install command
+    # Parse options for install command
     while [ $# -gt 0 ]; do
         case "$1" in
             -token)
@@ -265,6 +282,10 @@ if [ "$1" = "install" ]; then
                 fi
                 TIMEOUT="$2"
                 shift 2
+                ;;
+            -*)
+                # Error on unexpected dash-prefixed options
+                error "Unknown option for install command: $1"
                 ;;
             *)
                 # First non-option argument is the skill name
@@ -279,8 +300,9 @@ fi
 # Check for list command
 if [ "$1" = "list" ]; then
     shift
-    # Parse token option for list command
-    local search_term=""
+    # Parse options for list command
+    search_term=""
+    page=""
     while [ $# -gt 0 ]; do
         case "$1" in
             -token)
@@ -297,15 +319,30 @@ if [ "$1" = "list" ]; then
                 TIMEOUT="$2"
                 shift 2
                 ;;
+            -page)
+                if [ $# -lt 2 ]; then
+                    error "Option -page requires a value"
+                fi
+                # Validate page is a number
+                if ! echo "$2" | /usr/bin/grep -qE '^[0-9]+$'; then
+                    error "Option -page requires a numeric value, got: $2"
+                fi
+                page="$2"
+                shift 2
+                ;;
+            -*)
+                # Error on unexpected dash-prefixed options
+                error "Unknown option for list command: $1"
+                ;;
             *)
                 # First non-option argument is the search term
-                list_skills "$1"
+                list_skills "$1" "$page"
                 exit 0
                 ;;
         esac
     done
     # No search term provided, list all skills
-    list_skills ""
+    list_skills "" "$page"
     exit 0
 fi
 

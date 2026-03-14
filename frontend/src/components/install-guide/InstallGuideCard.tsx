@@ -33,10 +33,39 @@ export const InstallGuideCard = () => {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async (text: string) => {
+    try {
+      // 优先使用现代 Clipboard API (需要安全上下文: HTTPS 或 localhost)
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // 降级到传统方法: 使用 execCommand (兼容非安全上下文)
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        textArea.style.top = '0';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        try {
+          const successful = document.execCommand('copy');
+          if (!successful) {
+            throw new Error('execCommand failed');
+          }
+        } catch (err) {
+          console.error('Copy failed:', err);
+          throw new Error('复制功能不可用，请手动选择复制');
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Copy error:', error);
+    }
   };
 
   if (isLoading) {
