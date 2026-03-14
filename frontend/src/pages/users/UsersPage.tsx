@@ -3,7 +3,7 @@ import { Users, Shield, Search, Filter, CheckCircle } from 'lucide-react';
 import { Card, Input, Alert } from '@/components/ui';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/Select';
 import { useUsers, useRoles } from '@/hooks/use-user-management';
-import { UserTable, RoleManagerModal } from './components';
+import { UserTable, RoleManagerModal, UserDetailModal } from './components';
 
 export const UsersPage = () => {
   const [filters, setFilters] = useState({
@@ -15,6 +15,7 @@ export const UsersPage = () => {
 
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -35,6 +36,13 @@ export const UsersPage = () => {
   const handleManageRoles = (user: any) => {
     setSelectedUser(user);
     setIsRoleModalOpen(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+  };
+
+  const handleViewDetails = (user: any) => {
+    setSelectedUser(user);
+    setIsDetailModalOpen(true);
     setErrorMessage('');
     setSuccessMessage('');
   };
@@ -144,6 +152,7 @@ export const UsersPage = () => {
             size={filters.size}
             onPageChange={handlePageChange}
             onManageRoles={handleManageRoles}
+            onViewDetails={handleViewDetails}
           />
         </div>
       </Card>
@@ -154,6 +163,15 @@ export const UsersPage = () => {
           user={selectedUser}
           open={isRoleModalOpen}
           onOpenChange={setIsRoleModalOpen}
+        />
+      )}
+
+      {/* User Detail Modal */}
+      {selectedUser && (
+        <UserDetailModal
+          user={selectedUser}
+          open={isDetailModalOpen}
+          onOpenChange={setIsDetailModalOpen}
         />
       )}
 

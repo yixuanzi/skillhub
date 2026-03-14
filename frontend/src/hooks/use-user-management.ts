@@ -6,8 +6,18 @@ interface User {
   username: string;
   email: string;
   is_active: boolean;
-  roles: Array<{ id: string; name: string; description?: string }>;
+  roles: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    permissions?: Array<{
+      id: string;
+      resource: string;
+      action: string;
+    }>;
+  }>;
   created_at: string;
+  updated_at?: string;
 }
 
 interface Role {
@@ -67,6 +77,20 @@ export const useAssignRoles = () => {
       apiClient.put<User>(`/admin/users/${userId}/roles/`, { role_ids: roleIds }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+};
+
+export const useUpdateUser = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ userId, data }: { userId: string; data: { username?: string; email?: string; password?: string; is_active?: boolean } }) =>
+      apiClient.put<User>(`/admin/users/${userId}/`, data),
+    onSuccess: (_, variables) => {
+      // Invalidate both the users list and the specific user query
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['user', variables.userId] });
     },
   });
 };

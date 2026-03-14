@@ -32,6 +32,25 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const token = localStorage.getItem('access_token');
+
+  if (!isAuthenticated && !token) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Check if user has admin or super_admin role
+  const isAdmin = user?.roles?.some(role => role.name === 'admin' || role.name === 'super_admin') ?? false;
+
+  if (!isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};
+
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const token = localStorage.getItem('access_token');
@@ -84,7 +103,14 @@ function App() {
             <Route path="skills/new" element={<SkillCreatePage />} />
             <Route path="skills/:id/edit" element={<SkillEditPage />} />
             <Route path="skills/:id" element={<SkillDetailPage />} />
-            <Route path="users" element={<UsersPage />} />
+            <Route
+              path="users"
+              element={
+                <AdminRoute>
+                  <UsersPage />
+                </AdminRoute>
+              }
+            />
             <Route path="resources" element={<ResourcesPage />} />
             <Route path="tokens" element={<TokensPage />} />
             <Route path="acl" element={<ACLPage />} />

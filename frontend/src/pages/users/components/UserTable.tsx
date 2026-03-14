@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Shield, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
@@ -28,6 +28,7 @@ interface Props {
   size: number;
   onPageChange: (page: number) => void;
   onManageRoles: (user: User) => void;
+  onViewDetails: (user: User) => void;
 }
 
 export const UserTable: React.FC<Props> = ({
@@ -36,7 +37,8 @@ export const UserTable: React.FC<Props> = ({
   page,
   size,
   onPageChange,
-  onManageRoles
+  onManageRoles,
+  onViewDetails
 }) => {
   const totalPages = Math.ceil(total / size);
 
@@ -130,14 +132,26 @@ export const UserTable: React.FC<Props> = ({
                 </TableCell>
 
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onManageRoles(user)}
-                    className="p-1.5"
-                  >
-                    <Shield className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onViewDetails(user)}
+                      className="p-1.5"
+                      title="View Details"
+                    >
+                      <Info className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onManageRoles(user)}
+                      className="p-1.5"
+                      title="Manage Roles"
+                    >
+                      <Shield className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

@@ -57,7 +57,10 @@ class UserListResponse(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    """User update schema (admin)."""
+    """User update schema (admin) - supports partial updates."""
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    email: Optional[str] = None
+    password: Optional[str] = Field(None, min_length=8, max_length=100)
     is_active: Optional[bool] = None
 
 
@@ -269,9 +272,15 @@ async def update_user(
 ):
     """Update a user (admin-only).
 
+    Supports partial updates for:
+    - username: Update username (must be unique)
+    - email: Update email (must be unique)
+    - password: Update password
+    - is_active: Enable/disable user account
+
     Args:
         user_id: User UUID
-        user_data: User update data
+        user_data: User update data (all fields optional)
         db: Database session
         current_user: Authenticated user (must be admin)
 
@@ -281,7 +290,10 @@ async def update_user(
     Raises:
         HTTPException 403: If user is not admin
         HTTPException 404: If user not found
+        HTTPException 400: If username or email already exists
     """
+    from core.security import get_password_hash
+
     require_admin(current_user)
 
     # Eager load roles to include them in response
@@ -292,6 +304,39 @@ async def update_user(
             detail=f"User with id '{user_id}' not found"
         )
 
+    # Update username if provided
+    if user_data.username is not None:
+        # Check if username already exists for another user
+        existing = db.query(User).filter(
+            User.username == user_data.username,
+            User.id != user_id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Username '{user_data.username}' already exists"
+            )
+        user.username = user_data.username
+
+    # Update email if provided
+    if user_data.email is not None:
+        # Check if email already exists for another user
+        existing = db.query(User).filter(
+            User.email == user_data.email,
+            User.id != user_id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Email '{user_data.email}' already exists"
+            )
+        user.email = user_data.email
+
+    # Update password if provided
+    if user_data.password is not None:
+        user.hashed_password = get_password_hash(user_data.password)
+
+    # Update active status if provided
     if user_data.is_active is not None:
         user.is_active = user_data.is_active
 

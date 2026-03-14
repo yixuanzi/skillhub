@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/utils/cn';
 import { useUIStore } from '@/store/uiStore';
+import { useAuthStore } from '@/store/authStore';
 import {
   LayoutDashboard,
   Box,
@@ -23,15 +24,22 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/skills', label: 'Skills', icon: Box },
-  { path: '/users', label: 'Users', icon: Users },
   { path: '/resources', label: 'Resources', icon: Database },
   { path: '/tokens', label: 'Tokens', icon: Key },
   { path: '/acl', label: 'ACL Rules', icon: Shield },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
 
+const adminNavItems: NavItem[] = [
+  { path: '/users', label: 'Users', icon: Users },
+];
+
 export const Sidebar = () => {
   const { sidebarOpen, setSidebarOpen } = useUIStore();
+  const { user } = useAuthStore();
+
+  // Check if user has admin or super_admin role
+  const isAdmin = user?.roles?.some(role => role.name === 'admin' || role.name === 'super_admin') ?? false;
 
   return (
     <aside
@@ -61,6 +69,30 @@ export const Sidebar = () => {
       {/* Navigation */}
       <nav className="flex flex-col gap-1 p-3">
         {navItems.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200',
+                'group hover:bg-void-800',
+                isActive
+                  ? 'bg-cyber-primary/10 text-cyber-primary border border-cyber-primary/30'
+                  : 'text-gray-400 hover:text-gray-200'
+              )
+            }
+          >
+            <item.icon className={cn('w-5 h-5 flex-shrink-0', sidebarOpen && 'group-hover:scale-110 transition-transform')} />
+            {sidebarOpen && (
+              <span className="font-mono text-sm uppercase tracking-wider whitespace-nowrap">
+                {item.label}
+              </span>
+            )}
+          </NavLink>
+        ))}
+
+        {/* Admin-only menu items */}
+        {isAdmin && adminNavItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
