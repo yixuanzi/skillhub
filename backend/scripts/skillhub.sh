@@ -3,16 +3,37 @@
 # SkillHub CLI Script
 # Usage: skillhub.sh [res_type] [res_name] [options]
 
-# Ensure standard PATH is available for finding commands
-export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:$PATH"
-
 # SkillHub API URL (configure this to your SkillHub instance)
 SKILLHUB_URL="{SKILLHUB_URL}"
 
-# if SKILLHUB_URL=={SKILLHUB_URL} ,then SKILLHUB_URL=http://localhost:8000
-if [ "$SKILLHUB_URL" = "{SKILLHUB_URL}" ]; then
-    SKILLHUB_URL="http://localhost:5173"
+
+# Check for curl dependency
+if ! command -v /usr/bin/curl >/dev/null 2>&1 && ! command -v curl >/dev/null 2>&1; then
+    echo "Error: curl is not installed or not found in /usr/bin/curl" >&2
+    echo "Please install curl to use this script:" >&2
+    echo "  - macOS:   brew install curl" >&2
+    echo "  - Ubuntu/Debian: sudo apt-get install curl" >&2
+    echo "  - CentOS/RHEL: sudo yum install curl" >&2
+    echo "  - Fedora: sudo dnf install curl" >&2
+    exit 1
 fi
+
+# Use /usr/bin/curl if available, otherwise fall back to curl in PATH
+CURL_BIN="/usr/bin/curl"
+if [ ! -x "$CURL_BIN" ]; then
+    CURL_BIN="curl"
+fi
+
+# Find grep, sed, python3 for portability
+GREP_BIN="grep"
+SED_BIN="sed"
+PYTHON_BIN="python3"
+
+# Try to use /usr/bin variants if available for consistency
+[ -x "/usr/bin/grep" ] && GREP_BIN="/usr/bin/grep"
+[ -x "/usr/bin/sed" ] && SED_BIN="/usr/bin/sed"
+[ -x "/usr/bin/python3" ] && PYTHON_BIN="/usr/bin/python3"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -150,7 +171,7 @@ install_skill() {
     info "Fetching skill from: $api_url"
 
     local content
-    content=$(/usr/bin/curl --max-time $TIMEOUT -s -X GET "$api_url" \
+    content=$($CURL_BIN --max-time $TIMEOUT -s -X GET "$api_url" \
         -H "accept: text/plain" \
         -H "Authorization: Bearer $TOKEN")
 
@@ -163,13 +184,8 @@ install_skill() {
         error "Failed to get skill content. Check if skill exists and you have access."
     fi
 
-    # Check for JSON error response (install=true returns plain text on success)
-    if echo "$content" | /usr/bin/grep -q '"detail"'; then
-        error "API Error: $content"
-    fi
-
     # Write to actual location
-    echo "$content" > "$actual_dir/SKILL.md" || error "Failed to write to $actual_dir/SKILL.md"
+    echo "$content" > $actual_dir/SKILL.md || error "Failed to write to $actual_dir/SKILL.md"
 
     # Create local ./skills directory if not exists
     mkdir -p "./skills" 2>/dev/null || true
@@ -229,7 +245,7 @@ list_skills() {
 
     # Fetch skills from API
     local response
-    response=$(/usr/bin/curl --max-time $TIMEOUT -s -X GET "$api_url" \
+    response=$($CURL_BIN --max-time $TIMEOUT -s -X GET "$api_url" \
         -H "accept: application/json" \
         -H "Authorization: Bearer $TOKEN")
 
@@ -238,12 +254,12 @@ list_skills() {
     fi
 
     # Check for error response
-    if echo "$response" | /usr/bin/grep -q '"detail"'; then
+    if echo "$response" | $GREP_BIN -q '"detail"'; then
         error "API Error: $response"
     fi
 
     # Pretty print JSON response
-    echo "$response" | /usr/bin/python3 -m json.tool 2>/dev/null || echo "$response"
+    echo "$response" | $PYTHON_BIN -m json.tool 2>/dev/null || echo "$response"
 }
 
 # Parse command line arguments
@@ -324,7 +340,7 @@ if [ "$1" = "list" ]; then
                     error "Option -page requires a value"
                 fi
                 # Validate page is a number
-                if ! echo "$2" | /usr/bin/grep -qE '^[0-9]+$'; then
+                if ! echo "$2" | command $GREP_BIN -qE '^[0-9]+$'; then
                     error "Option -page requires a numeric value, got: $2"
                 fi
                 page="$2"
@@ -517,7 +533,7 @@ json_to_query_params() {
     # Remove outer braces and whitespace
     json="${json#\{}"
     json="${json%\}}"
-    json=$(echo "$json" | /usr/bin/sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    json=$(echo "$json" | $SED_BIN 's/^[[:space:]]*//;s/[[:space:]]*$//')
 
     # Process each character
     while [ $i -lt $len ]; do
@@ -598,7 +614,7 @@ case "$RES_TYPE" in
         #info "Calling: $METHOD $URL"
 
         # Build curl command with timeout
-        CURL_CMD="/usr/bin/curl --max-time $TIMEOUT -L -X '$METHOD' '$URL'"
+        CURL_CMD="$CURL_BIN --max-time $TIMEOUT -L -X '$METHOD' '$URL'"
         CURL_CMD="$CURL_CMD -H 'Content-Type: application/json'"
         CURL_CMD="$CURL_CMD -H 'Authorization: Bearer $TOKEN'"
 
@@ -609,7 +625,7 @@ case "$RES_TYPE" in
                 QUERY_PARAMS=$(json_to_query_params "$INPUTS")
                 if [ -n "$QUERY_PARAMS" ]; then
                     URL="$URL?$QUERY_PARAMS"
-                    CURL_CMD="/usr/bin/curl --max-time $TIMEOUT -L -X '$METHOD' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN'"
+                    CURL_CMD="$CURL_BIN --max-time $TIMEOUT -L -X '$METHOD' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN'"
 
                 fi
             else
@@ -630,7 +646,7 @@ case "$RES_TYPE" in
         URL="$SKILLHUB_URL/api/v1/gateway/$RES_NAME/$CLEAN_PATH"
         #info "Calling: $METHOD $URL"
         # Build curl command with timeout
-        CURL_CMD="/usr/bin/curl --max-time $TIMEOUT -L -X '$METHOD' '$URL'"
+        CURL_CMD="$CURL_BIN --max-time $TIMEOUT -L -X '$METHOD' '$URL'"
         CURL_CMD="$CURL_CMD -H 'Content-Type: application/json'"
         CURL_CMD="$CURL_CMD -H 'Authorization: Bearer $TOKEN'"
 
@@ -639,8 +655,10 @@ case "$RES_TYPE" in
             if [ "$METHOD" = "GET" ] || [ "$METHOD" = "DELETE" ]; then
                 # Add inputs as query parameters (URL encode the JSON string)
                 QUERY_PARAMS=$(json_to_query_params "$INPUTS")
-                URL="$URL?$QUERY_PARAMS"
-                CURL_CMD="/usr/bin/curl --max-time $TIMEOUT -L -X '$METHOD' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN'"
+                if [ -n "$QUERY_PARAMS" ]; then
+                    URL="$URL?$QUERY_PARAMS"
+                    CURL_CMD="$CURL_BIN --max-time $TIMEOUT -L -X '$METHOD' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN'"
+                fi
             else
                 CURL_CMD="$CURL_CMD -d '$INPUTS'"
             fi
@@ -665,7 +683,7 @@ case "$RES_TYPE" in
         fi
 
         # Execute curl command with timeout
-        CURL_CMD="/usr/bin/curl --max-time $TIMEOUT -L -X 'POST' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN' -d '$REQUEST_BODY'"
+        CURL_CMD="$CURL_BIN --max-time $TIMEOUT -L -X 'POST' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN' -d '$REQUEST_BODY'"
         if [ $VERBOSE -eq 1 ]; then
             info "$CURL_CMD"
         fi
