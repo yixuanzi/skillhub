@@ -10,20 +10,20 @@ DESCRIPTION
     Supports three resource types: third-party APIs, gateway resources, and MCP servers.
 
 USAGE
-    skillhub.sh list [search_term]              List all skills or search by name
-    skillhub.sh install [skill_name]           Install a skill to local directory
-    skillhub.sh [res_type] [res_name] [options] Invoke a resource
-    skillhub.sh -h
-    skillhub.sh
+    skillhub list [search_term]              List all skills or search by name
+    skillhub install [skill_name]           Install a skill to local directory
+    skillhub [res_type] [res_name] [options] Invoke a resource
+    skillhub -h
+    skillhub
 
 LIST COMMAND
-    skillhub.sh list [search_term]
+    skillhub list [search_term]
 
     Lists all available skills or searches by skill name.
     Outputs: JSON with skill summary (id, name, description, category, tags, etc.)
 
 INSTALL COMMAND
-    skillhub.sh install [skill_name]
+    skillhub install [skill_name]
 
     Downloads a skill from SkillHub and saves it to ./[skill_name]/SKILL.md
 
@@ -43,32 +43,32 @@ OPTIONS
 EXAMPLES
 
     # List all skills
-    skillhub.sh list
+    skillhub list
 
     # Search skills by name
-    skillhub.sh list weather
-    skillhub.sh list ai -token your-api-token
+    skillhub list weather
+    skillhub list ai -token your-api-token
 
     # Install a skill
-    skillhub.sh install weather-skill
-    skillhub.sh install customer-support -token your-api-token
+    skillhub install weather-skill
+    skillhub install customer-support -token your-api-token
 
     # Third-party API call
-    skillhub.sh third weather-api -method GET -inputs '{"city":"Beijing"}'
-    skillhub.sh third user-service -method POST -inputs '{"name":"John","email":"john@example.com"}'
+    skillhub third weather-api -method GET -inputs '{"city":"Beijing"}'
+    skillhub third user-service -method POST -inputs '{"name":"John","email":"john@example.com"}'
 
     # Gateway resource call
-    skillhub.sh gateway my-api -method GET -path users/123
-    skillhub.sh gateway backend-api -method POST -path users -inputs '{"name":"Jane"}'
-    skillhub.sh gateway backend-api -method PUT -path users/123 -inputs '{"name":"Jane Updated"}'
-    skillhub.sh gateway backend-api -method DELETE -path users/123
+    skillhub gateway my-api -method GET -path users/123
+    skillhub gateway backend-api -method POST -path users -inputs '{"name":"Jane"}'
+    skillhub gateway backend-api -method PUT -path users/123 -inputs '{"name":"Jane Updated"}'
+    skillhub gateway backend-api -method DELETE -path users/123
 
     # MCP server call
-    skillhub.sh mcp my-mcp-server -mcptool test -inputs '{"name":"weather_tool","arguments":{"location":"Tokyo"}}'
-    skillhub.sh mcp my-mcp-server -mcptool tool_name2
+    skillhub mcp my-mcp-server -mcptool test -inputs '{"name":"weather_tool","arguments":{"location":"Tokyo"}}'
+    skillhub mcp my-mcp-server -mcptool tool_name2
 
     # Using custom token
-    skillhub.sh third weather-api -method GET -inputs '{"city":"Shanghai"}' -token your-api-token-here
+    skillhub third weather-api -method GET -inputs '{"city":"Shanghai"}' -token your-api-token-here
 
 ENVIRONMENT VARIABLES
     SKILLHUB_API_KEY   Default API token if -token is not provided

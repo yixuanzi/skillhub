@@ -71,7 +71,7 @@ description: [comprehensive description of what this new skill does]
 ### CLI Syntax
 
 ```bash
-skillhub.sh [res_type] [res_name] [options]
+skillhub [res_type] [res_name] [options]
 ```
 
 ### Common Parameters
@@ -106,7 +106,7 @@ list all of specific resources like:
 
 ```bash
 # [Action description]
-skillhub.sh [res_type] [res_name] [options]
+skillhub [res_type] [res_name] [options]
 ```
 
 **Parameters:**
@@ -117,120 +117,63 @@ skillhub.sh [res_type] [res_name] [options]
 **Example:**
 ```bash
 # [Example scenario]
-skillhub.sh [command]
+skillhub [command]
 
-# Response
-[Expected response format]
 ```
 
 #### [resource-name-2]
 
 [Repeat for each resource]
 
-## Common Workflows
-
-### [Workflow Name 1]
-
-[Description of a common task that uses multiple resources]
-
-```bash
-# Step 1: [action]
-skillhub.sh [command-1]
-
-# Step 2: [action]
-skillhub.sh [command-2]
-```
-
-### [Workflow Name 2]
-
-[Additional workflow examples]
-
 ## Authentication
 
 Tokens are required for all requests. Provide via:
-1. `-token` option: `skillhub.sh ... -token your-token-here`
+1. `-token` option: `skillhub ... -token your-token-here`
 2. Environment variable: `export SKILLHUB_API_KEY=your-token-here`
-
-## Response Format
-
-[Describe common response structure]
-
-**Success Response Example:**
-```json
-{
-  "status": "success",
-  "data": { ... }
-}
-```
-
-## Error Handling
-
-| HTTP Status | Description | Resolution |
-|-------------|-------------|------------|
-| 401 | Unauthorized - Invalid or missing token | Verify token is valid |
-| 403 | Forbidden - Insufficient permissions | Check ACL permissions |
-| 404 | Not Found - Resource does not exist | Verify resource name |
-| 500 | Server Error | Contact system administrator |
-
-## Notes
-
-- [Any important notes, limitations, or best practices]
 
 </Body>
 
-## Combination Rules
+## Resource Type Guidelines
 
-1. **Name Generation**: Create a descriptive name that reflects the combined purpose
-   - Use user-provided name if specified
-   - Otherwise, combine key resource names (e.g., "weather-geo-skill")
-   - Keep it concise and lowercase
+### Third-Party Resources (`third`)
+- Show all available methods if multiple are documented
+- Use `-inputs` for query parameters (GET/DELETE) or body (POST/PUT)
+- Example: `skillhub third weather-api -method GET -inputs '{"city":"Beijing"}'`
 
-2. **Description**: Write a comprehensive description that:
-   - Explains what the combined skill does
-   - Lists the types of resources included
-   - Describes the primary use cases
+### Gateway Resources (`gateway`)
+- Document each available path as a separate command
+- Use `-path` for the resource path
+- Example: `skillhub gateway backend-api -method GET -path users/123`
 
-3. **Resource Table**: Include ALL resources from input files
-   - Don't duplicate resources with the same name
-   - Maintain original type and description
+### MCP Resources (`mcp`)
+- List each available tool as a separate command
+- Use `-mcptool` for the tool name
+- Parameters go in `-inputs` as `{"arguments": {...}}`
+- Example: `skillhub mcp my-mcp-server -mcptool tool_name -inputs '{"arguments":{"param":"value"}}'`
 
-4. **Command Organization**:
-   - Group related commands together
-   - Use clear, descriptive action names
-   - Preserve all original examples
+## Generation Rules
 
-5. **Workflow Section**: Add when combining multiple related resources
-   - Show how resources work together
-   - Provide practical multi-step examples
-
-## Generation Process
-
-1. **Parse Input Files**: Extract frontmatter and body from each SKILL.md
-2. **Analyze Requirements**: Understand what user wants to achieve
-3. **Filter Resources**: Include only relevant resources (if specified)
-4. **Generate Structure**: Create frontmatter and body sections
-5. **Merge Content**: Combine resource tables, commands, and examples
-6. **Add Workflows**: Create workflow sections for related operations
-7. **Review**: Ensure consistency and completeness
+1. **Resources Table is MANDATORY** - Always include a summary table at the top
+2. **Usage Section is MANDATORY** - Must contain CLI syntax and detailed command examples
+3. **One Command Per Resource** - Document each unique resource/path/tool separately
+4. **Real Examples Only** - Use actual resource names and parameters from input
+5. **Copy-Paste Ready** - All command examples should work directly
+6. **Be Concise** - Focus on actionable information, avoid fluff
 
 ## Quality Checklist
 
 Before outputting, verify:
-- [ ] Frontmatter has valid YAML with name and description
-- [ ] Resources table includes all relevant resources
-- [ ] Usage section has CLI syntax and parameter table
+- [ ] Resources table exists and lists all input resources
+- [ ] Usage section exists with CLI syntax
 - [ ] Each resource has at least one working example
-- [ ] Common parameters are documented
+- [ ] All parameters are documented with types and requirements
 - [ ] Authentication section is included
-- [ ] Error handling section covers common cases
-- [ ] Workflows are included when combining multiple resources
-- [ ] Output is pure markdown (no meta-commentary)
 
 ## Output Mode
 
 **CRITICAL: Output the SKILL.md content directly WITHOUT any code block markers.**
 
 **Generate ONLY the SKILL.md content.** Do not include:
-- Explanations of your process
-- Commentary on the input files
-- Meta-text like "Here is the combined skill"
+- Explanations of what you did
+- Commentary on the input
+- Meta-text like "Here is the generated documentation"

@@ -12,7 +12,7 @@ Every SKILL.md consists of:
 
 ## Your Core Responsibility
 
-Transform structured resource data (name, desc, type, method, tools, document) into a user-friendly `SKILL.md` that enables users to effectively discover, understand, and invoke platform resources via the `skillhub.sh` CLI tool.
+Transform structured resource data (name, desc, type, method, tools, document) into a user-friendly `SKILL.md` that enables users to effectively discover, understand, and invoke platform resources via the `skillhub` CLI tool.
 
 ## Input Format
 
@@ -62,7 +62,7 @@ description: [One-line description of what this skill provides]
 ### CLI Syntax
 
 ```bash
-skillhub.sh [res_type] [res_name] [options]
+skillhub [res_type] [res_name] [options]
 ```
 
 ### Common Parameters
@@ -97,7 +97,7 @@ list all of specific resources like:
 
 ```bash
 # [Action description]
-skillhub.sh [res_type] [res_name] [options]
+skillhub [res_type] [res_name] [options]
 ```
 
 **Parameters:**
@@ -108,10 +108,8 @@ skillhub.sh [res_type] [res_name] [options]
 **Example:**
 ```bash
 # [Example scenario]
-skillhub.sh [command]
+skillhub [command]
 
-# Response
-[Expected response format]
 ```
 
 #### [resource-name-2] 
@@ -121,33 +119,9 @@ skillhub.sh [command]
 ## Authentication
 
 Tokens are required for all requests. Provide via:
-1. `-token` option: `skillhub.sh ... -token your-token-here`
+1. `-token` option: `skillhub ... -token your-token-here`
 2. Environment variable: `export SKILLHUB_API_KEY=your-token-here`
 
-## Response Format
-
-[Describe common response structure for these resources]
-
-**Success Response Example:**
-```json
-{
-  "status": "success",
-  "data": { ... }
-}
-```
-
-## Error Handling
-
-| HTTP Status | Description | Resolution |
-|-------------|-------------|------------|
-| 401 | Unauthorized - Invalid or missing token | Verify token is valid and not expired |
-| 403 | Forbidden - Insufficient permissions | Check ACL permissions for the resource |
-| 404 | Not Found - Resource does not exist | Verify resource name and spelling |
-| 500 | Server Error | Contact system administrator |
-
-## Notes
-
-- [Any important notes, limitations, or best practices]
 </body>
 
 ## Resource Type Guidelines
@@ -155,18 +129,18 @@ Tokens are required for all requests. Provide via:
 ### Third-Party Resources (`third`)
 - Show all available methods if multiple are documented
 - Use `-inputs` for query parameters (GET/DELETE) or body (POST/PUT)
-- Example: `skillhub.sh third weather-api -method GET -inputs '{"city":"Beijing"}'`
+- Example: `skillhub third weather-api -method GET -inputs '{"city":"Beijing"}'`
 
 ### Gateway Resources (`gateway`)
 - Document each available path as a separate command
 - Use `-path` for the resource path
-- Example: `skillhub.sh gateway backend-api -method GET -path users/123`
+- Example: `skillhub gateway backend-api -method GET -path users/123`
 
 ### MCP Resources (`mcp`)
 - List each available tool as a separate command
 - Use `-mcptool` for the tool name
 - Parameters go in `-inputs` as `{"arguments": {...}}`
-- Example: `skillhub.sh mcp my-mcp-server -mcptool tool_name -inputs '{"arguments":{"param":"value"}}'`
+- Example: `skillhub mcp my-mcp-server -mcptool tool_name -inputs '{"arguments":{"param":"value"}}'`
 
 ## Generation Rules
 
@@ -185,8 +159,6 @@ Before outputting, verify:
 - [ ] Each resource has at least one working example
 - [ ] All parameters are documented with types and requirements
 - [ ] Authentication section is included
-- [ ] Error handling section covers common cases
-- [ ] Output is pure markdown (no explanations outside the skill content)
 
 ## Output Mode
 

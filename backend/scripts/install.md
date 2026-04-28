@@ -1,29 +1,29 @@
-# SkillHub CLI Installation Guide
+# skillhub Installation Guide
 
-This guide is for AI agents to install the SkillHub CLI tool (`skillhub.sh`) on a system.
+This guide is for AI agents to install the skillhub tool (`skillhub`) on a system.
 
 ## Overview
 
-The SkillHub CLI is a command-line interface for interacting with SkillHub gateway resources. It supports three resource types: third-party APIs, gateway resources, and MCP servers.
+The skillhub is a command-line interface for interacting with SkillHub gateway resources. It supports three resource types: third-party APIs, gateway resources, and MCP servers.
 
 ## Installation Steps
 
-### Step 1: Check if `skillhub.sh` is already installed
+### Step 1: Check if `skillhub` is already installed
 
 First, verify if the CLI tool is already installed and accessible in the PATH:
 
 ```bash
-# Check if skillhub.sh command exists
-if command -v skillhub.sh &> /dev/null; then
-    echo "skillhub.sh is already installed at: $(which skillhub.sh)"
+# Check if skillhub command exists
+if command -v skillhub &> /dev/null; then
+    echo "skillhub is already installed at: $(which skillhub)"
     echo "Current version:"
-    skillhub.sh -h
+    skillhub -h
     exit 0
 fi
 
 # Also check common installation locations
-if [ -f "$HOME/.local/bin/skillhub.sh" ]; then
-    echo "skillhub.sh found at ~/.local/bin/skillhub.sh but not in PATH"
+if [ -f "$HOME/.local/bin/skillhub" ]; then
+    echo "skillhub found at ~/.local/bin/skillhub but not in PATH"
     echo "You may need to add ~/.local/bin to your PATH"
 fi
 ```
@@ -50,18 +50,18 @@ if ! curl -s -f "$SKILLHUB_SERVER/api/v1/script/health/" > /dev/null 2>&1; then
 fi
 ```
 
-### Step 4: Download the skillhub.sh script
+### Step 4: Download the skillhub script
 
 Download the CLI tool from the SkillHub server:
 
 ```bash
-INSTALL_PATH="$HOME/.local/bin/skillhub.sh"
+INSTALL_PATH="$HOME/.local/bin/skillhub"
 
-echo "Downloading skillhub.sh from $SKILLHUB_SERVER/api/v1/script/bash..."
+echo "Downloading skillhub from $SKILLHUB_SERVER/api/v1/script/bash..."
 curl -s -f "$SKILLHUB_SERVER/api/v1/script/bash" -o "$INSTALL_PATH"
 
 if [ $? -ne 0 ]; then
-    echo "Error: Failed to download skillhub.sh"
+    echo "Error: Failed to download skillhub"
     exit 1
 fi
 ```
@@ -72,7 +72,7 @@ Set execute permissions on the downloaded script:
 
 ```bash
 chmod +x "$INSTALL_PATH"
-echo "Made skillhub.sh executable"
+echo "Made skillhub executable"
 ```
 
 ### Step 6: Verify the installation
@@ -85,7 +85,7 @@ echo "Verifying installation..."
 
 if [ $? -eq 0 ]; then
     echo ""
-    echo "✓ SkillHub CLI installed successfully!"
+    echo "✓ skillhub installed successfully!"
     echo ""
     echo "Installation location: $INSTALL_PATH"
     echo ""
@@ -118,7 +118,7 @@ fi
 - `SKILLHUB_API_KEY` - Default API token for authentication (required for most operations,you can set in .bashrc/.zshrc/profile)
 
 
-#### "command not found: skillhub.sh"
+#### "command not found: skillhub"
 
 Add `~/.local/bin` to your PATH:
 
@@ -131,6 +131,6 @@ source ~/.bashrc
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
-- Output the skillhub.sh requrement env key and common exception handling methods
+- Output the skillhub requrement env key and common exception handling methods
 - summary the result and status with install workflow ,succ or fail
 - exit the workflow,do not other any thing

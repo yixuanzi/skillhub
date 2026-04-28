@@ -16,7 +16,7 @@ from models.user import User
 
 router = APIRouter(prefix="/gateway", tags=["Gateway"])
 
-@router.post("/{resource_name}", response_model=GatewayResponse)
+@router.post("/{resource_name}")
 async def call_resource(
     resource_name: str,
     request_data: GatewayCallRequest | None = None,
@@ -92,10 +92,10 @@ async def call_resource(
                 detail=error
             )
 
-    return GatewayResponse(**result)
+    return result['data']
 
 
-@router.get("/{resource_name}/get", response_model=GatewayResponse)
+@router.get("/{resource_name}/get")
 async def call_resource_get(
     resource_name: str,
     request: Request,
@@ -149,10 +149,10 @@ async def call_resource_get(
                 detail=error
             )
 
-    return GatewayResponse(**result)
+    return result['data']
 
 
-@router.post("/{resource_name}/post", response_model=GatewayResponse)
+@router.post("/{resource_name}/post")
 async def call_resource_post(
     resource_name: str,
     body: Dict[str, Any] | None = None,
@@ -211,7 +211,7 @@ async def call_resource_post(
                 detail=error
             )
 
-    return GatewayResponse(**result)
+    return result['data']
 
 
 from pydantic import BaseModel, Field
@@ -317,7 +317,7 @@ async def list_mcp_tools(
 
 
 # New routes with path support for gateway-type resources
-@router.get("/{resource_name}/{path:path}", response_model=GatewayResponse)
+@router.get("/{resource_name}/{path:path}")
 async def call_resource_with_path_get(
     resource_name: str,
     path: str,
@@ -378,10 +378,10 @@ async def call_resource_with_path_get(
                 detail=error
             )
 
-    return GatewayResponse(**result)
+    return result['data']
 
 
-@router.post("/{resource_name}/{path:path}", response_model=GatewayResponse)
+@router.post("/{resource_name}/{path:path}")
 async def call_resource_with_path_post(
     resource_name: str,
     path: str,
@@ -447,10 +447,10 @@ async def call_resource_with_path_post(
                 detail=error
             )
 
-    return GatewayResponse(**result)
+    return result['data']
 
 
-@router.put("/{resource_name}/{path:path}", response_model=GatewayResponse)
+@router.put("/{resource_name}/{path:path}")
 async def call_resource_with_path_put(
     resource_name: str,
     path: str,
@@ -516,10 +516,10 @@ async def call_resource_with_path_put(
                 detail=error
             )
 
-    return GatewayResponse(**result)
+    return result['data']
 
 
-@router.delete("/{resource_name}/{path:path}", response_model=GatewayResponse)
+@router.delete("/{resource_name}/{path:path}")
 async def call_resource_with_path_delete(
     resource_name: str,
     path: str,
@@ -580,4 +580,4 @@ async def call_resource_with_path_delete(
                 detail=error
             )
 
-    return GatewayResponse(**result)
+    return result['data']

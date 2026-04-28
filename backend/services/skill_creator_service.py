@@ -130,10 +130,10 @@ Generate the SKILL.md content following the format specified in your instruction
         try:
             if request.type == SkillCreatorType.BASE:
                 context_conf = await SkillCreatorService._generate_from_resources(db, request, user)
-                skill = await SkillCreatorService._generate_skill_documentation(f"<resource_list>{context_conf}</resource_list>","agent_res")
+                skill = await SkillCreatorService._generate_skill_documentation(f"<resource_list>{context_conf}</resource_list>","agent_base")
             else:
                 context_conf = SkillCreatorService._generate_from_skills(db, request, user)
-                skill = await SkillCreatorService._generate_skill_documentation(f"<skill_list>{context_conf}</skill_list><user_requirement>{request.userinput}</user_requirement>","agent_skill")
+                skill = await SkillCreatorService._generate_skill_documentation(f"<skill_list>{context_conf}</skill_list><user_requirement>{request.userinput}</user_requirement>","agent_mix")
 
         except Exception as e:
             # If skill generation fails, return empty skill instead of failing

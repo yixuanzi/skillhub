@@ -36,7 +36,7 @@ async def get_bash_script():
         chmod +x skillhub.sh
         ./skillhub.sh -h
     """
-    script_path = os.path.join(SCRIPT_DIR, "skillhub.sh")
+    script_path = os.path.join(SCRIPT_DIR, "skillhub")
 
     try:
         with open(script_path, 'r', encoding='utf-8') as f:
@@ -55,7 +55,7 @@ async def get_bash_script():
             content=script_content,
             media_type="text/plain",
             headers={
-                "Content-Disposition": 'attachment; filename="skillhub.sh"'
+                "Content-Disposition": 'attachment; filename="skillhub"'
             }
         )
     except FileNotFoundError:

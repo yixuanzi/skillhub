@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # SkillHub CLI Script
-# Usage: skillhub.sh [res_type] [res_name] [options]
+# Usage: skillhub [res_type] [res_name] [options]
 
 # SkillHub API URL (configure this to your SkillHub instance)
 SKILLHUB_URL="{SKILLHUB_URL}"
@@ -69,17 +69,17 @@ show_help() {
     printf "    A command-line interface for interacting with SkillHub gateway resources.\n"
     printf "    Supports three resource types: third-party APIs, gateway resources, and MCP servers.\n\n"
     printf "${BLUE}USAGE${NC}\n"
-    printf "    skillhub.sh list [search_term]              List all skills or search by name\n"
-    printf "    skillhub.sh install [skill_name]           Install a skill to local directory\n"
-    printf "    skillhub.sh [res_type] [res_name] [options] Invoke a resource\n"
-    printf "    skillhub.sh -h\n"
-    printf "    skillhub.sh\n\n"
+    printf "    skillhub list [search_term]              List all skills or search by name\n"
+    printf "    skillhub install [skill_name]           Install a skill to local directory\n"
+    printf "    skillhub [res_type] [res_name] [options] Invoke a resource\n"
+    printf "    skillhub -h\n"
+    printf "    skillhub\n\n"
     printf "${BLUE}LIST COMMAND${NC}\n"
-    printf "    skillhub.sh list [search_term] [-page <number>]\n\n"
+    printf "    skillhub list [search_term] [-page <number>]\n\n"
     printf "    Lists all available skills or searches by skill name.\n"
     printf "    Outputs: JSON with skill summary (id, name, description, category, tags, etc.)\n\n"
     printf "${BLUE}INSTALL COMMAND${NC}\n"
-    printf "    skillhub.sh install [skill_name]\n\n"
+    printf "    skillhub install [skill_name]\n\n"
     printf "    Downloads a skill from SkillHub and saves it to ./[skill_name]/SKILL.md\n\n"
     printf "${BLUE}ARGUMENTS${NC}\n"
     printf "    res_type        Resource type (required): third, gateway, mcp\n"
@@ -95,27 +95,27 @@ show_help() {
     printf "    -v                  Verbose mode: show curl command being executed (optional)\n\n"
     printf "${BLUE}EXAMPLES${NC}\n\n"
     printf "    ${YELLOW}# List all skills${NC}\n"
-    printf "    skillhub.sh list\n\n"
+    printf "    skillhub list\n\n"
     printf "    ${YELLOW}# Search skills by name${NC}\n"
-    printf "    skillhub.sh list weather\n"
-    printf "    skillhub.sh list ai -token your-api-token\n"
-    printf "    skillhub.sh list ai -page 2\n\n"
+    printf "    skillhub list weather\n"
+    printf "    skillhub list ai -token your-api-token\n"
+    printf "    skillhub list ai -page 2\n\n"
     printf "    ${YELLOW}# Install a skill${NC}\n"
-    printf "    skillhub.sh install weather-skill\n"
-    printf "    skillhub.sh install customer-support -token your-api-token\n\n"
+    printf "    skillhub install weather-skill\n"
+    printf "    skillhub install customer-support -token your-api-token\n\n"
     printf "    ${YELLOW}# Third-party API call${NC}\n"
-    printf "    skillhub.sh third weather-api -method GET -inputs '{\"city\":\"Beijing\"}'\n"
-    printf "    skillhub.sh third user-service -method POST -inputs '{\"name\":\"John\",\"email\":\"john@example.com\"}'\n\n"
+    printf "    skillhub third weather-api -method GET -inputs '{\"city\":\"Beijing\"}'\n"
+    printf "    skillhub third user-service -method POST -inputs '{\"name\":\"John\",\"email\":\"john@example.com\"}'\n\n"
     printf "    ${YELLOW}# Gateway resource call${NC}\n"
-    printf "    skillhub.sh gateway my-api -method GET -path users/123\n"
-    printf "    skillhub.sh gateway backend-api -method POST -path users -inputs '{\"name\":\"Jane\"}'\n"
-    printf "    skillhub.sh gateway backend-api -method PUT -path users/123 -inputs '{\"name\":\"Jane Updated\"}'\n"
-    printf "    skillhub.sh gateway backend-api -method DELETE -path users/123\n\n"
+    printf "    skillhub gateway my-api -method GET -path users/123\n"
+    printf "    skillhub gateway backend-api -method POST -path users -inputs '{\"name\":\"Jane\"}'\n"
+    printf "    skillhub gateway backend-api -method PUT -path users/123 -inputs '{\"name\":\"Jane Updated\"}'\n"
+    printf "    skillhub gateway backend-api -method DELETE -path users/123\n\n"
     printf "    ${YELLOW}# MCP server call${NC}\n"
-    printf "    skillhub.sh mcp my-mcp-server -mcptool test -inputs '{\"name\":\"weather_tool\",\"arguments\":{\"location\":\"Tokyo\"}}'\n"
-    printf "    skillhub.sh mcp my-mcp-server -mcptool tool_name2\n\n"
+    printf "    skillhub mcp my-mcp-server -mcptool test -inputs '{\"name\":\"weather_tool\",\"arguments\":{\"location\":\"Tokyo\"}}'\n"
+    printf "    skillhub mcp my-mcp-server -mcptool tool_name2\n\n"
     printf "    ${YELLOW}# Using custom token${NC}\n"
-    printf "    skillhub.sh third weather-api -method GET -inputs '{\"city\":\"Shanghai\"}' -token your-api-token-here\n\n"
+    printf "    skillhub third weather-api -method GET -inputs '{\"city\":\"Shanghai\"}' -token your-api-token-here\n\n"
     printf "${BLUE}ENVIRONMENT VARIABLES${NC}\n"
     printf "    SKILLHUB_API_KEY   Default API token if -token is not provided\n"
     printf "    SKILLHUB_URL       Override the default SkillHub URL \n\n"
@@ -150,9 +150,9 @@ install_skill() {
     info "Installing skill: $skill_name"
 
     # Define storage locations
-    local skillhub_home="$HOME/.agent/skills"
+    local skillhub_home="$HOME/.agents/skills"
     local actual_dir="$skillhub_home/$skill_name"
-    local link_dir="./skills/$skill_name"
+    # local link_dir="./skills/$skill_name"
 
     # Create skillhub home directory if not exists
     if [ ! -d "$skillhub_home" ]; then
@@ -170,8 +170,8 @@ install_skill() {
     local api_url="$SKILLHUB_URL/api/v1/skills/$skill_name/?install=true"
     info "Fetching skill from: $api_url"
 
-    local content
-    content=$($CURL_BIN --max-time $TIMEOUT -s -X GET "$api_url" \
+    local http_code content
+    content=$($CURL_BIN --max-time $TIMEOUT -s -w "\n%{http_code}" -X GET "$api_url" \
         -H "accept: text/plain" \
         -H "Authorization: Bearer $TOKEN")
 
@@ -179,35 +179,48 @@ install_skill() {
         error "Failed to fetch skill from API"
     fi
 
-    # Check if content is empty or contains error
-    if [ -z "$content" ]; then
+    # Extract HTTP status code (last line) and body (everything before)
+    local body
+    http_code=$(echo "$content" | tail -1)
+    body=$(echo "$content" | $SED_BIN '$d')
+
+    if [ "$http_code" != "200" ]; then
+        if [ -n "$body" ]; then
+            error "Failed to install skill '$skill_name' (HTTP $http_code): $body"
+        else
+            error "Failed to install skill '$skill_name' (HTTP $http_code). Check if the skill exists and you have access."
+        fi
+    fi
+
+    # Check if content is empty
+    if [ -z "$body" ]; then
         error "Failed to get skill content. Check if skill exists and you have access."
     fi
 
     # Write to actual location
-    echo "$content" > $actual_dir/SKILL.md || error "Failed to write to $actual_dir/SKILL.md"
+    echo "$body" > $actual_dir/SKILL.md || error "Failed to write to $actual_dir/SKILL.md"
 
     # Create local ./skills directory if not exists
-    mkdir -p "./skills" 2>/dev/null || true
+    # mkdir -p "./skills" 2>/dev/null || true
 
     # Create or update symbolic link
-    if [ -L "$link_dir" ]; then
-        # Link exists, remove it first
-        rm "$link_dir" || warning "Failed to remove existing symlink: $link_dir"
-    elif [ -e "$link_dir" ]; then
-        # A file/directory exists (not a symlink), back it up
-        warning "Backing up existing $link_dir to $link_dir.backup"
-        mv "$link_dir" "$link_dir.backup" || error "Failed to backup existing directory: $link_dir"
-    fi
+    # if [ -L "$link_dir" ]; then
+    #     # Link exists, remove it first
+    #     rm "$link_dir" || warning "Failed to remove existing symlink: $link_dir"
+    # elif [ -e "$link_dir" ]; then
+    #     # A file/directory exists (not a symlink), back it up
+    #     warning "Backing up existing $link_dir to $link_dir.backup"
+    #     mv "$link_dir" "$link_dir.backup" || error "Failed to backup existing directory: $link_dir"
+    # fi
 
     # Create symbolic link
-    ln -s "$actual_dir" "$link_dir" || warning "Failed to create symlink: $link_dir -> $actual_dir"
+    # ln -s "$actual_dir" "$link_dir" || warning "Failed to create symlink: $link_dir -> $actual_dir"
 
     success "Skill installed successfully:"
     echo "  Actual: $actual_dir"
-    if [ -L "$link_dir" ]; then
-        echo "  Link:   $link_dir -> $actual_dir"
-    fi
+    # if [ -L "$link_dir" ]; then
+    #     echo "  Link:   $link_dir -> $actual_dir"
+    # fi
 }
 
 # List skills from SkillHub
