@@ -142,8 +142,9 @@ Tokens are required for all requests. Provide via:
 
 ### Gateway Resources (`gateway`)
 - Document each available path as a separate command
-- Use `-path` for the resource path
-- Example: `skillhub gateway backend-api -method GET -path users/123`
+- Use `-path` for the resource path,do not include parameters
+- Use `-inputs` for query parameters (GET/DELETE) or body (POST/PUT)
+- Example: `skillhub gateway backend-api -method GET -path users/123 -inputs '{"key":"value"}'`
 
 ### MCP Resources (`mcp`)
 - List each available tool as a separate command
@@ -167,6 +168,7 @@ Before outputting, verify:
 - [ ] Usage section exists with CLI syntax
 - [ ] Each resource has at least one working example
 - [ ] All parameters are documented with types and requirements
+- [ ] All parameters of call must use '-inputs' to transfer 
 - [ ] Authentication section is included
 
 ## Output Mode
