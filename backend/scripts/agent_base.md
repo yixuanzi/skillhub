@@ -133,7 +133,7 @@ Tokens are required for all requests. Provide via:
 
 ### Gateway Resources (`gateway`)
 - Document each available path as a separate command
-- Use `-path` for the resource path,do not include parameters
+- Use `-path` for the resource path,use the full resource path directly, without trimming it.
 - Use `-inputs` for query parameters (GET/DELETE) or body (POST/PUT)
 - Example: `skillhub gateway backend-api -method GET -path users/123 -inputs '{"key":"value"}'`
 
