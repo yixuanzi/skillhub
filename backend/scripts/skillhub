@@ -171,7 +171,7 @@ install_skill() {
     info "Fetching skill from: $api_url"
 
     local http_code content
-    content=$($CURL_BIN --max-time $TIMEOUT -s -w "\n%{http_code}" -X GET "$api_url" \
+    content=$($CURL_BIN --max-time $TIMEOUT -sS -w "\n%{http_code}" -X GET "$api_url" \
         -H "accept: text/plain" \
         -H "Authorization: Bearer $TOKEN")
 
@@ -258,7 +258,7 @@ list_skills() {
 
     # Fetch skills from API
     local response
-    response=$($CURL_BIN --max-time $TIMEOUT -s -X GET "$api_url" \
+    response=$($CURL_BIN --max-time $TIMEOUT -sS -X GET "$api_url" \
         -H "accept: application/json" \
         -H "Authorization: Bearer $TOKEN")
 
@@ -627,7 +627,7 @@ case "$RES_TYPE" in
         #info "Calling: $METHOD $URL"
 
         # Build curl command with timeout
-        CURL_CMD="$CURL_BIN --max-time $TIMEOUT -L -X '$METHOD' '$URL'"
+        CURL_CMD="$CURL_BIN --max-time $TIMEOUT -sS -L -X '$METHOD' '$URL'"
         CURL_CMD="$CURL_CMD -H 'Content-Type: application/json'"
         CURL_CMD="$CURL_CMD -H 'Authorization: Bearer $TOKEN'"
 
@@ -659,7 +659,7 @@ case "$RES_TYPE" in
         URL="$SKILLHUB_URL/api/v1/gateway/$RES_NAME/$CLEAN_PATH"
         #info "Calling: $METHOD $URL"
         # Build curl command with timeout
-        CURL_CMD="$CURL_BIN --max-time $TIMEOUT -L -X '$METHOD' '$URL'"
+        CURL_CMD="$CURL_BIN --max-time $TIMEOUT -sS -L -X '$METHOD' '$URL'"
         CURL_CMD="$CURL_CMD -H 'Content-Type: application/json'"
         CURL_CMD="$CURL_CMD -H 'Authorization: Bearer $TOKEN'"
 
@@ -696,7 +696,7 @@ case "$RES_TYPE" in
         fi
 
         # Execute curl command with timeout
-        CURL_CMD="$CURL_BIN --max-time $TIMEOUT -L -X 'POST' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN' -d '$REQUEST_BODY'"
+        CURL_CMD="$CURL_BIN --max-time $TIMEOUT -sS -L -X 'POST' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN' -d '$REQUEST_BODY'"
         if [ $VERBOSE -eq 1 ]; then
             info "$CURL_CMD"
         fi

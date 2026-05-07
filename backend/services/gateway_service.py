@@ -17,6 +17,7 @@ import time
 import json
 import logging
 import re
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,26 @@ class GatewayService:
 
         # Return other types as-is
         return config
+
+    @staticmethod
+    def _should_force_plaintext() -> bool:
+        """Return whether outbound gateway requests should force plaintext transfer."""
+        return os.getenv("GATEWAY_FORCE_PLAINTEXT", "false").lower() == "true"
+
+    @staticmethod
+    def _merge_request_headers(
+        headers: Optional[Dict[str, str]] = None,
+        auth_headers: Optional[Dict[str, str]] = None,
+    ) -> Optional[Dict[str, str]]:
+        """Merge request headers and optionally force plaintext transfer."""
+        merged_headers = {}
+        if headers:
+            merged_headers.update(headers)
+        if auth_headers:
+            merged_headers.update(auth_headers)
+        if GatewayService._should_force_plaintext():
+            merged_headers["Accept-Encoding"] = "identity"
+        return merged_headers if merged_headers else None
 
     @staticmethod
     def _build_url(base_url: str, path: str) -> str:
@@ -306,11 +327,7 @@ class GatewayService:
         auth_headers = ext_config.get("headers", {})
 
         # Merge headers
-        merged_headers = {}
-        if headers:
-            merged_headers.update(headers)
-        if auth_headers:
-            merged_headers.update(auth_headers)
+        merged_headers = GatewayService._merge_request_headers(headers, auth_headers)
         # get access token from user and add to headers
         # merged_headers["Authorization"] = f"Bearer {user.access_token}"
 
@@ -320,27 +337,27 @@ class GatewayService:
                 if method.upper() == "GET":
                     response = await client.get(
                         resource.url,
-                        headers=merged_headers if merged_headers else None,
+                        headers=merged_headers,
                         params=params
                     )
                 elif method.upper() == "POST":
                     response = await client.post(
                         resource.url,
-                        headers=merged_headers if merged_headers else None,
+                        headers=merged_headers,
                         params=params,
                         json=body
                     )
                 elif method.upper() == "PUT":
                     response = await client.put(
                         resource.url,
-                        headers=merged_headers if merged_headers else None,
+                        headers=merged_headers,
                         params=params,
                         json=body
                     )
                 elif method.upper() == "DELETE":
                     response = await client.delete(
                         resource.url,
-                        headers=merged_headers if merged_headers else None,
+                        headers=merged_headers,
                         params=params
                     )
                 else:
@@ -412,11 +429,7 @@ class GatewayService:
         auth_headers = ext_config.get("headers", {})
 
         # Merge headers
-        merged_headers = {}
-        if headers:
-            merged_headers.update(headers)
-        if auth_headers:
-            merged_headers.update(auth_headers)
+        merged_headers = GatewayService._merge_request_headers(headers, auth_headers)
 
         # Make HTTP call
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -424,27 +437,27 @@ class GatewayService:
                 if method.upper() == "GET":
                     response = await client.get(
                         full_url,
-                        headers=merged_headers if merged_headers else None,
+                        headers=merged_headers,
                         params=params
                     )
                 elif method.upper() == "POST":
                     response = await client.post(
                         full_url,
-                        headers=merged_headers if merged_headers else None,
+                        headers=merged_headers,
                         params=params,
                         json=body
                     )
                 elif method.upper() == "PUT":
                     response = await client.put(
                         full_url,
-                        headers=merged_headers if merged_headers else None,
+                        headers=merged_headers,
                         params=params,
                         json=body
                     )
                 elif method.upper() == "DELETE":
                     response = await client.delete(
                         full_url,
-                        headers=merged_headers if merged_headers else None,
+                        headers=merged_headers,
                         params=params
                     )
                 else:

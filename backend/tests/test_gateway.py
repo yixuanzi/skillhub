@@ -6,6 +6,7 @@ This module contains tests for gateway operations including:
 - Error handling for permission denied and resource not found
 - Different HTTP methods (GET, POST, PUT, DELETE)
 """
+import os
 import pytest
 import httpx
 from unittest.mock import AsyncMock, patch, MagicMock
@@ -64,22 +65,22 @@ def test_role(db):
 
 
 @pytest.fixture(scope="function")
-def build_resource(db):
-    """Create a test build resource."""
+def build_resource(db, test_user):
+    """Create a test third-party resource."""
     from services.resource_service import ResourceService
     from schemas.resource import ResourceCreate
 
     resource_data = ResourceCreate(
         name="test-build-api",
-        type=ResourceType.BUILD,
+        type=ResourceType.THIRD,
         url="https://api.example.com/test",
         ext={"timeout": 10, "headers": {"X-Custom": "value"}}
     )
-    return ResourceService.create(db, resource_data)
+    return ResourceService.create(db, resource_data, user=test_user)
 
 
 @pytest.fixture(scope="function")
-def acl_rule_with_permission(db, build_resource, test_role):
+def acl_rule_with_permission(db, build_resource, test_role, test_user):
     """Create ACL rule allowing access to the resource."""
     from services.acl_resource_service import ACLResourceService
     from models.acl import AccessMode
@@ -95,7 +96,7 @@ def acl_rule_with_permission(db, build_resource, test_role):
         access_mode=AccessMode.RBAC,
         role_bindings=[role_binding]
     )
-    return ACLResourceService.create(db, acl_data)
+    return ACLResourceService.create(db, acl_data, user=test_user)
 
 
 @pytest.mark.asyncio
@@ -212,7 +213,7 @@ async def test_gateway_call_insufficient_permissions(db, test_user, test_role, b
         access_mode=AccessMode.RBAC,
         role_bindings=[role_binding]
     )
-    ACLResourceService.create(db, acl_data)
+    ACLResourceService.create(db, acl_data, user=test_user)
 
     result = await GatewayService.call_resource(
         db=db,
@@ -237,7 +238,7 @@ async def test_gateway_call_any_mode(db, test_user, build_resource):
         resource_name=build_resource.name,
         access_mode=AccessMode.ANY
     )
-    ACLResourceService.create(db, acl_data)
+    ACLResourceService.create(db, acl_data, user=test_user)
 
     # Mock HTTP response
     mock_response = MagicMock()
@@ -275,7 +276,7 @@ async def test_gateway_call_with_user_whitelist(db, test_user, build_resource):
         access_mode=AccessMode.RBAC,
         conditions=conditions
     )
-    ACLResourceService.create(db, acl_data)
+    ACLResourceService.create(db, acl_data, user=test_user)
 
     # Mock HTTP response
     mock_response = MagicMock()
@@ -345,7 +346,7 @@ async def test_gateway_call_http_error(db, test_user, test_role, build_resource,
 
 
 @pytest.mark.asyncio
-async def test_gateway_call_with_headers(db, test_user, test_role, build_resource, acl_rule_with_permission):
+async def test_gateway_call_with_headers(db, test_user, test_role, third_resource, acl_rule_with_permission):
     """Test gateway call with custom headers."""
     # Assign role to user
     test_user.roles.append(test_role)
@@ -363,18 +364,78 @@ async def test_gateway_call_with_headers(db, test_user, test_role, build_resourc
 
         result = await GatewayService.call_resource(
             db=db,
-            resource_name=build_resource.name,
+            resource_name=third_resource.name,
             user=test_user,
             method="GET",
             headers={"X-Custom-Header": "custom-value"}
         )
 
         assert result["success"] is True
-        # Verify the call was made with custom headers
         call_args = mock_get.call_args
         headers = call_args[1].get("headers") if call_args else None
         assert headers is not None
-        assert "X-Custom-Header" in headers or "X-Custom" in headers  # May have resource headers merged
+        assert headers["X-Custom-Header"] == "custom-value"
+        assert headers["X-Custom"] == "value"
+        assert "Accept-Encoding" not in headers
+
+
+@pytest.mark.asyncio
+async def test_gateway_call_adds_identity_encoding_when_enabled(db, test_user, test_role, third_resource, acl_rule_with_permission):
+    test_user.roles.append(test_role)
+    db.commit()
+    db.refresh(test_user)
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"headers": "received"}
+
+    with patch.dict(os.environ, {"GATEWAY_FORCE_PLAINTEXT": "true"}, clear=False):
+        with patch('httpx.AsyncClient') as mock_client:
+            mock_get = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.get = mock_get
+
+            result = await GatewayService.call_resource(
+                db=db,
+                resource_name=third_resource.name,
+                user=test_user,
+                method="GET"
+            )
+
+    assert result["success"] is True
+    call_args = mock_get.call_args
+    headers = call_args[1].get("headers") if call_args else None
+    assert headers is not None
+    assert headers["Accept-Encoding"] == "identity"
+
+
+@pytest.mark.asyncio
+async def test_gateway_resource_adds_identity_encoding_when_enabled(db, test_user, test_role, gateway_resource, acl_rule_for_gateway):
+    test_user.roles.append(test_role)
+    db.commit()
+    db.refresh(test_user)
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"headers": "received"}
+
+    with patch.dict(os.environ, {"GATEWAY_FORCE_PLAINTEXT": "true"}, clear=False):
+        with patch('httpx.AsyncClient') as mock_client:
+            mock_get = AsyncMock(return_value=mock_response)
+            mock_client.return_value.__aenter__.return_value.get = mock_get
+
+            result = await GatewayService.call_resource(
+                db=db,
+                resource_name=gateway_resource.name,
+                user=test_user,
+                method="GET",
+                path="users"
+            )
+
+    assert result["success"] is True
+    call_args = mock_get.call_args
+    headers = call_args[1].get("headers") if call_args else None
+    assert headers is not None
+    assert headers["Accept-Encoding"] == "identity"
 
 
 @pytest.mark.asyncio
@@ -409,41 +470,51 @@ async def test_gateway_call_with_params(db, test_user, test_role, build_resource
         assert params is not None
 
 
-def test_gateway_execution_time_tracking(db, test_user, test_role, build_resource, acl_rule_with_permission):
+@pytest.mark.asyncio
+async def test_gateway_execution_time_tracking(db, test_user, test_role, build_resource, acl_rule_with_permission):
     """Test that gateway calls track execution time."""
-    import asyncio
-
     # Assign role to user
     test_user.roles.append(test_role)
     db.commit()
     db.refresh(test_user)
 
-    async def run_test():
-        # Mock HTTP response
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"data": "test"}
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"data": "test"}
 
-        with patch('httpx.AsyncClient') as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
+    with patch('httpx.AsyncClient') as mock_client:
+        mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
 
-            result = await GatewayService.call_resource(
-                db=db,
-                resource_name=build_resource.name,
-                user=test_user,
-                method="GET"
-            )
+        result = await GatewayService.call_resource(
+            db=db,
+            resource_name=build_resource.name,
+            user=test_user,
+            method="GET"
+        )
 
-            assert result["success"] is True
-            assert result["execution_time_ms"] is not None
-            assert result["execution_time_ms"] >= 0
-
-    asyncio.run(run_test())
+        assert result["success"] is True
+        assert result["execution_time_ms"] is not None
+        assert result["execution_time_ms"] >= 0
 
 
 # Tests for gateway type resource with path support
 @pytest.fixture(scope="function")
-def gateway_resource(db):
+def third_resource(db, test_user):
+    """Create a test third-party resource."""
+    from services.resource_service import ResourceService
+    from schemas.resource import ResourceCreate
+
+    resource_data = ResourceCreate(
+        name="test-third-api",
+        type=ResourceType.THIRD,
+        url="https://api.example.com/test",
+        ext={"timeout": 10, "headers": {"X-Custom": "value"}}
+    )
+    return ResourceService.create(db, resource_data, user=test_user)
+
+
+@pytest.fixture(scope="function")
+def gateway_resource(db, test_user):
     """Create a test gateway resource."""
     from services.resource_service import ResourceService
     from schemas.resource import ResourceCreate
@@ -454,11 +525,11 @@ def gateway_resource(db):
         url="https://api.example.com",
         ext={"timeout": 10}
     )
-    return ResourceService.create(db, resource_data)
+    return ResourceService.create(db, resource_data, user=test_user)
 
 
 @pytest.fixture(scope="function")
-def acl_rule_for_gateway(db, gateway_resource, test_role):
+def acl_rule_for_gateway(db, gateway_resource, test_role, test_user):
     """Create ACL rule allowing access to the gateway resource."""
     from services.acl_resource_service import ACLResourceService
     from models.acl import AccessMode
@@ -474,7 +545,7 @@ def acl_rule_for_gateway(db, gateway_resource, test_role):
         access_mode=AccessMode.RBAC,
         role_bindings=[role_binding]
     )
-    return ACLResourceService.create(db, acl_data)
+    return ACLResourceService.create(db, acl_data, user=test_user)
 
 
 def test_build_url_function():

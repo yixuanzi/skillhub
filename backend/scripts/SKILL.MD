@@ -10,7 +10,7 @@ DESCRIPTION
     Supports three resource types: third-party APIs, gateway resources, and MCP servers.
 
 USAGE
-    skillhub list [search_term]              List all skills or search by name
+    skillhub list [search_term] [-page <number>]             List all skills or search by name
     skillhub install [skill_name]           Install a skill to local directory
     skillhub [res_type] [res_name] [options] Invoke a resource
     skillhub -h
