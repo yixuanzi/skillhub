@@ -17,7 +17,7 @@ import time
 import json
 import logging
 import re
-import os
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ class GatewayService:
     @staticmethod
     def _should_force_plaintext() -> bool:
         """Return whether outbound gateway requests should force plaintext transfer."""
-        return os.getenv("GATEWAY_FORCE_PLAINTEXT", "false").lower() == "true"
+        return settings.GATEWAY_FORCE_PLAINTEXT
 
     @staticmethod
     def _merge_request_headers(

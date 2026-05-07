@@ -1,7 +1,5 @@
 from pydantic_settings import BaseSettings
 from typing import List
-import os
-import sys
 import dotenv
 
 class Settings(BaseSettings):
@@ -15,9 +13,11 @@ class Settings(BaseSettings):
     SKILL_PORT: int = 8000
     ANTHROPIC_BASE_URL:str=""
     ANTHROPIC_AUTH_TOKEN:str=""
+    GATEWAY_FORCE_PLAINTEXT: bool = False
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 settings = Settings()
 dotenv.load_dotenv()
