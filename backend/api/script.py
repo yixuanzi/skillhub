@@ -47,7 +47,7 @@ async def get_bash_script():
 
         # Replace the default SKILLHUB_URL in the script
         script_content = script_content.replace(
-            "{SKILLHUB_URL}",
+            "{PLACEHOLDER_SKILLHUB_URL}",
             settings.SKILLHUB_URL
         )
 

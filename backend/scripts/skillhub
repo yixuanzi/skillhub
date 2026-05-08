@@ -4,7 +4,7 @@
 # Usage: skillhub [res_type] [res_name] [options]
 
 # SkillHub API URL (configure this to your SkillHub instance)
-SKILLHUB_URL="{SKILLHUB_URL}"
+SKILLHUB_URL="{PLACEHOLDER_SKILLHUB_URL}"
 
 
 # Check for curl dependency
