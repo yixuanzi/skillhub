@@ -507,117 +507,30 @@ case "$METHOD" in
     DELETE) METHOD_LOWER="delete" ;;
 esac
 
-# URL encode a string (percent encoding) - bash 3.x compatible
-url_encode() {
-    local string="$1"
-    local encoded=""
-    local length=${#string}
-    local pos=0
-    local c=""
-
-    while [ $pos -lt $length ]; do
-        c="${string:$pos:1}"
-        case "$c" in
-            [a-zA-Z0-9._~-]) encoded="$encoded$c" ;;
-            ' ') encoded="$encoded+" ;;
-            *)
-                # Get ASCII value and convert to hex
-                local char_val
-                char_val=$(printf '%d' "'$c")
-                encoded="$encoded%$(printf '%02X' $char_val)"
-                ;;
-        esac
-        pos=$((pos+1))
-    done
-    echo "$encoded"
-}
-
-# Convert JSON to URL query parameters (simplified parser for flat JSON)
+# Convert JSON to URL query parameters using Python for correct parsing/encoding
 json_to_query_params() {
     local json="$1"
-    local result=""
-    local key=""
-    local value=""
-    local state="start"  # start, key, colon, value, done
-    local i=0
-    local len=${#json}
-    local char=""
 
-    # Remove outer braces and whitespace
-    json="${json#\{}"
-    json="${json%\}}"
-    json=$(echo "$json" | $SED_BIN 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    JSON_TO_ENCODE="$json" "$PYTHON_BIN" - <<'PY'
+import json
+import os
+import sys
+from urllib.parse import urlencode
 
-    # Process each character
-    while [ $i -lt $len ]; do
-        char="${json:$i:1}"
+raw = os.environ.get("JSON_TO_ENCODE", "")
 
-        case "$char" in
-            '"')
-                case "$state" in
-                    start|comma)
-                        state="key"
-                        key=""
-                        ;;
-                    key)
-                        # End of key, look for colon
-                        state="after_key"
-                        ;;
-                    value)
-                        # End of value, add pair
-                        local ek=$(url_encode "$key")
-                        local ev=$(url_encode "$value")
-                        if [ -n "$result" ]; then
-                            result="$result&$ek=$ev"
-                        else
-                            result="$ek=$ev"
-                        fi
-                        key=""
-                        value=""
-                        state="done"
-                        ;;
-                esac
-                ;;
-            ':')
-                if [ "$state" = "after_key" ]; then
-                    state="before_value"
-                fi
-                ;;
-            ',')
-                if [ "$state" = "done" ]; then
-                    state="comma"
-                fi
-                ;;
-            *)
-                case "$state" in
-                    key)
-                        key="$key$char"
-                        ;;
-                    value)
-                        value="$value$char"
-                        ;;
-                    before_value)
-                        state="value"
-                        value="$char"
-                        ;;
-                esac
-                ;;
-        esac
-        i=$((i+1))
-    done
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError as exc:
+    print(f"Error: invalid JSON for -inputs: {exc}", file=sys.stderr)
+    sys.exit(1)
 
-    # Handle last pair
-    if [ -n "$key" ]; then
-        local ek=$(url_encode "$key")
-        local ev=$(url_encode "$value")
-        if [ -n "$result" ]; then
-            result="$result&$ek=$ev"
-        else
-            result="$ek=$ev"
-        fi
-    fi
+if not isinstance(data, dict):
+    print("Error: -inputs must be a JSON object", file=sys.stderr)
+    sys.exit(1)
 
-    echo "$result"
+print(urlencode(data, doseq=True))
+PY
 }
 
 # Build URL and execute curl based on res_type
