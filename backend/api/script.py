@@ -32,9 +32,9 @@ async def get_bash_script():
         Shell script content with environment-specific SKILLHUB_URL
 
     Example:
-        curl http://localhost:8000/api/v1/script/bash -o skillhub.sh
-        chmod +x skillhub.sh
-        ./skillhub.sh -h
+        curl http://localhost:8000/api/v1/script/bash -o skillhub
+        chmod +x skillhub
+        ./skillhub -h
     """
     script_path = os.path.join(SCRIPT_DIR, "skillhub")
 

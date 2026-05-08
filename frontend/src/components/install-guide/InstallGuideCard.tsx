@@ -103,7 +103,7 @@ export const InstallGuideCard = () => {
   const agentText = `从 ${installUrl} 获取 install.md 文件，并按照指引完成安装`;
 
   // Human mode: Direct curl command for users
-  const humanCommand = `curl -s ${bashUrl} -o skillhub.sh && chmod +x skillhub.sh`;
+  const humanCommand = `curl -s ${bashUrl} -o skillhub && chmod +x skillhub`;
 
   return (
     <Card>

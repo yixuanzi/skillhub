@@ -193,7 +193,11 @@ Generate the SKILL.md content following the format specified in your instruction
             # Add tools for MCP type resources
             if resource.type == ResourceType.MCP:
                 try:
-                    tools = await MCPService.list_tools(db=db, resource_name=resource.name)
+                    tools = await MCPService.list_tools(
+                        db=db,
+                        resource_name=resource.name,
+                        user=user
+                    )
                     if tools:
                         tools_json = json.dumps(tools, ensure_ascii=False, indent=2)
                         resource_part += f"\ntools: {tools_json}"

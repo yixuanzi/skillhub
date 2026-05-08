@@ -199,7 +199,7 @@ class TestTokenReplacement:
         db.commit()
 
         env = {"API_KEY": "${token:test_api}"}
-        result = MCPService._replace_tokens(db, env)
+        result = MCPService._replace_tokens(db, env, user_id)
 
         assert result["API_KEY"] == "secret_key_123"
 
@@ -231,7 +231,7 @@ class TestTokenReplacement:
             "API2_KEY": "${token:api2}",
             "STATIC": "no_change"
         }
-        result = MCPService._replace_tokens(db, env)
+        result = MCPService._replace_tokens(db, env, user_id)
 
         assert result["API1_KEY"] == "key1"
         assert result["API2_KEY"] == "key2"
@@ -239,16 +239,20 @@ class TestTokenReplacement:
 
     def test_replace_tokens_missing_token_raises_error(self, db):
         """Test that missing token raises error."""
+        import uuid
+        user_id = str(uuid.uuid4())
         env = {"API_KEY": "${token:nonexistent}"}
 
         with pytest.raises(ValidationException) as exc_info:
-            MCPService._replace_tokens(db, env)
+            MCPService._replace_tokens(db, env, user_id)
         assert "Token not found" in str(exc_info.value)
 
     def test_replace_tokens_non_dict_env(self, db):
         """Test handling non-dict env values."""
+        import uuid
+        user_id = str(uuid.uuid4())
         env = {"KEY": "value without placeholder"}
-        result = MCPService._replace_tokens(db, env)
+        result = MCPService._replace_tokens(db, env, user_id)
 
         assert result["KEY"] == "value without placeholder"
 

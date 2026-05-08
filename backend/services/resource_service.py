@@ -9,7 +9,7 @@ Security Policy:
 - Write operations: only the resource owner can modify
 """
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, and_, func
+from sqlalchemy import or_
 from models.resource import Resource, ResourceType
 from models.user import User, Role
 from models.acl import ACLRule, AccessMode
@@ -257,8 +257,6 @@ class ResourceService:
     def _get_acl_granted_resource_ids(db: Session, user: User) -> List[str]:
         """Get list of resource IDs the user has access to via ACL rules.
 
-        Uses SQLite JSON functions for efficient database-level filtering.
-
         Args:
             db: Database session
             user: User object
@@ -266,44 +264,33 @@ class ResourceService:
         Returns:
             List of resource IDs accessible via ACL
         """
-        from sqlalchemy import func, or_, and_
-
-        if not user or not user.roles:
+        if not user:
             return []
 
-        user_role_ids = [str(role.id) for role in user.roles]
-        username_literal = user.username.replace("'", "''")  # Escape single quotes
+        user_role_ids = {str(role.id) for role in (user.roles or [])}
+        granted_resource_ids: set[str] = set()
 
-        # Use SQLite JSON functions to filter ACL rules at database level
-        # Filter for:
-        # 1. access_mode = 'any' OR
-        # 2. (access_mode = 'rbac' AND
-        #    (conditions->>'$.users' LIKE '%username%' OR
-        #     conditions->>'$.roles' LIKE '%role_id%'))
+        acl_rules = db.query(ACLRule).all()
+        for acl_rule in acl_rules:
+            if acl_rule.access_mode == AccessMode.ANY:
+                granted_resource_ids.add(acl_rule.resource_id)
+                continue
 
-        # Build role filter with OR conditions for each role
-        role_filters = [
-            func.json_extract(ACLRule.conditions, '$.roles').like(f'%{role_id}%')
-            for role_id in user_role_ids
-        ]
+            if acl_rule.access_mode != AccessMode.RBAC:
+                continue
 
-        # Combine filters: ANY mode OR (RBAC mode AND (user_in_users OR user_has_role))
-        query = db.query(ACLRule.resource_id).filter(
-            or_(
-                ACLRule.access_mode == AccessMode.ANY,
-                and_(
-                    ACLRule.access_mode == AccessMode.RBAC,
-                    or_(
-                        func.json_extract(ACLRule.conditions, '$.users').like(f'%{username_literal}%'),
-                        *role_filters
-                    )
-                )
-            )
-        )
+            conditions = acl_rule.conditions or {}
+            allowed_users = conditions.get("users") or []
+            allowed_roles = conditions.get("roles") or []
 
-        # Return unique resource IDs
-        result = query.distinct().all()
-        return [row[0] for row in result]
+            if user.username in allowed_users:
+                granted_resource_ids.add(acl_rule.resource_id)
+                continue
+
+            if user_role_ids and any(role_id in user_role_ids for role_id in allowed_roles):
+                granted_resource_ids.add(acl_rule.resource_id)
+
+        return list(granted_resource_ids)
 
     @staticmethod
     def list_all(db: Session, skip: int = 0, limit: int = 100) -> List[Resource]:

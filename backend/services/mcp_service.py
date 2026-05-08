@@ -13,6 +13,7 @@ from typing import Any, Optional, Dict
 from sqlalchemy.orm import Session
 
 from models.resource import Resource, ResourceType
+from models.user import User
 from schemas.resource import MCPConfig, MCPServerType
 from core.exceptions import ValidationException, ExternalServiceException
 
@@ -56,7 +57,7 @@ class MCPService:
         return MCPConfig(**config_dict)
 
     @staticmethod
-    def _replace_tokens(db: Session, value: Any) -> Any:
+    def _replace_tokens(db: Session, value: Any, user_id: str) -> Any:
         """Replace ${token:name} placeholders with actual token values.
 
         This supports both string values and dict values (for env vars).
@@ -84,7 +85,8 @@ class MCPService:
                         key_name = match.group(1)
                         # Look up token by key_name
                         token = db.query(MToken).filter(
-                            MToken.key_name == key_name
+                            MToken.key_name == key_name,
+                            MToken.created_by == user_id
                         ).first()
                         if token:
                             val = val.replace(f'${{token:{key_name}}}', token.value)
@@ -101,7 +103,8 @@ class MCPService:
                 key_name = match.group(1)
                 # Look up token by key_name
                 token = db.query(MToken).filter(
-                    MToken.key_name == key_name
+                    MToken.key_name == key_name,
+                    MToken.created_by == user_id
                 ).first()
                 if token:
                     value = value.replace(f'${{token:{key_name}}}', token.value)
@@ -111,7 +114,12 @@ class MCPService:
         return value
 
     @staticmethod
-    def _convert_config_to_mcp_client_format(resource_name: str, config: MCPConfig, db: Optional[Session] = None) -> dict:
+    def _convert_config_to_mcp_client_format(
+        resource_name: str,
+        config: MCPConfig,
+        db: Optional[Session] = None,
+        user_id: Optional[str] = None
+    ) -> dict:
         """Convert MCPConfig to MultiServerMCPClient format.
 
         Args:
@@ -146,8 +154,8 @@ class MCPService:
         # Add headers if provided
         if config.headers:
             # Replace tokens in header values if db session provided
-            if db:
-                headers = MCPService._replace_tokens(db, config.headers)
+            if db and user_id:
+                headers = MCPService._replace_tokens(db, config.headers, user_id)
             else:
                 headers = config.headers
             mcp_config["headers"] = headers
@@ -160,7 +168,8 @@ class MCPService:
     async def _get_or_create_client(
         resource_name: str,
         config: MCPConfig,
-        db: Optional[Session] = None
+        db: Optional[Session] = None,
+        user_id: Optional[str] = None
     ) -> tuple[Any, dict]:
         """Get or create MCP client for the resource.
 
@@ -187,7 +196,7 @@ class MCPService:
                 from langchain_mcp_adapters.client import MultiServerMCPClient
 
                 mcp_config = MCPService._convert_config_to_mcp_client_format(
-                    resource_name, config, db
+                    resource_name, config, db, user_id
                 )
 
                 logger.info(f"Creating MCP client for resource: {resource_name}")
@@ -242,7 +251,8 @@ class MCPService:
         db: Session,
         resource_name: str,
         method: str,
-        params: dict[str, Any]
+        params: dict[str, Any],
+        user: User
     ) -> dict[str, Any]:
         """Call an MCP server resource.
 
@@ -265,13 +275,22 @@ class MCPService:
         if not resource:
             raise ValidationException(f"Resource '{resource_name}' not found")
 
+        # Enforce the same visibility/ACL checks as standard resource access.
+        from services.resource_service import ResourceService
+        ResourceService.get_accessible(db, resource.id, user)
+
         if resource.type != ResourceType.MCP:
             raise ValidationException("Resource is not an MCP resource")
 
         config = MCPService.parse_mcp_config(resource.ext)
 
         # Get or create MCP client
-        client, tools_dict = await MCPService._get_or_create_client(resource_name, config, db)
+        client, tools_dict = await MCPService._get_or_create_client(
+            resource_name,
+            config,
+            db,
+            str(user.id)
+        )
 
         # Find the tool by method name
         if method not in tools_dict:
@@ -302,7 +321,8 @@ class MCPService:
     @staticmethod
     async def list_tools(
         db: Session,
-        resource_name: str
+        resource_name: str,
+        user: User
     ) -> list[dict[str, Any]]:
         """List available tools/methods from an MCP resource.
 
@@ -321,13 +341,22 @@ class MCPService:
         if not resource:
             raise ValidationException(f"Resource '{resource_name}' not found")
 
+        # Enforce the same visibility/ACL checks as standard resource access.
+        from services.resource_service import ResourceService
+        ResourceService.get_accessible(db, resource.id, user)
+
         if resource.type != ResourceType.MCP:
             raise ValidationException("Resource is not an MCP resource")
 
         config = MCPService.parse_mcp_config(resource.ext)
 
         # Get or create MCP client
-        client, tools_dict = await MCPService._get_or_create_client(resource_name, config, db)
+        client, tools_dict = await MCPService._get_or_create_client(
+            resource_name,
+            config,
+            db,
+            str(user.id)
+        )
 
         # Return tool information
         tools_info = []

@@ -10,7 +10,6 @@ Security Policy:
 - ACL read operations return rules for resources user has access to
 """
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, or_, and_
 from models.acl import ACLRule, ACLRuleRole, AccessMode
 from models.resource import Resource
 from models.user import Role, User
@@ -268,8 +267,6 @@ class ACLResourceService:
         Returns:
             Tuple of (list of accessible ACL rule responses, total count)
         """
-        from sqlalchemy import func, or_, and_
-
         # Admin users can see all ACL rules
         if _is_admin_user(user):
             query = db.query(ACLRule).options(
@@ -282,47 +279,21 @@ class ACLResourceService:
             acl_rules = query.offset(skip).limit(limit).all()
             return [ACLResourceService._to_response(db, rule) for rule in acl_rules], total
 
-        # Regular users: filter using SQLite JSON functions
-        # Build filter for authorized access:
-        # 1. access_mode = 'any' OR
-        # 2. (access_mode = 'rbac' AND
-        #    (conditions->>'$.users' LIKE '%username%' OR
-        #     json_each(conditions, '$.roles') value = user_role_id))
-
-        # Get user's role IDs
-        user_role_ids = [str(role.id) for role in user.roles] if user.roles else []
-        username_literal = user.username.replace("'", "''")  # Escape single quotes
-
-        # Build the JSON filter conditions
-        # ANY mode: always accessible
-        any_mode_filter = ACLRule.access_mode == AccessMode.ANY
-
-        # RBAC mode: check if user is in conditions.users OR conditions.roles
-        # Using json_extract to check arrays
-        rbac_user_filter = and_(
-            ACLRule.access_mode == AccessMode.RBAC,
-            or_(
-                # Check if username is in conditions.users array
-                func.json_extract(ACLRule.conditions, '$.users').like(f'%{username_literal}%'),
-                # Check if any of user's roles are in conditions.roles array
-                *[func.json_extract(ACLRule.conditions, '$.roles').like(f'%{role_id}%')
-                 for role_id in user_role_ids]
-            )
-        )
-
-        query = db.query(ACLRule).options(
-            joinedload(ACLRule.role_bindings)
-        ).filter(
-            or_(any_mode_filter, rbac_user_filter)
-        )
-
+        # For regular users, apply exact membership checks in Python to avoid
+        # unsafe substring matching on JSON arrays.
+        query = db.query(ACLRule).options(joinedload(ACLRule.role_bindings))
         if access_mode:
             query = query.filter(ACLRule.access_mode == access_mode)
 
-        total = query.count()
-        acl_rules = query.offset(skip).limit(limit).all()
+        all_rules = query.all()
+        accessible_rules = [
+            rule for rule in all_rules
+            if user and ACLResourceService._user_has_acl_access(db, rule, user)
+        ]
 
-        return [ACLResourceService._to_response(db, rule) for rule in acl_rules], total
+        total = len(accessible_rules)
+        paged_rules = accessible_rules[skip:skip + limit]
+        return [ACLResourceService._to_response(db, rule) for rule in paged_rules], total
 
     @staticmethod
     def _user_has_acl_access(db: Session, acl_rule: ACLRule, user: User) -> bool:
@@ -336,6 +307,11 @@ class ACLResourceService:
         Returns:
             True if user has access via this ACL rule
         """
+        # Resource owner always has access to its ACL rule.
+        resource = db.query(Resource).filter(Resource.id == acl_rule.resource_id).first()
+        if resource and user and resource.owner_id == user.id:
+            return True
+
         # ANY mode means public access
         if acl_rule.access_mode == AccessMode.ANY:
             return True
@@ -692,17 +668,17 @@ class ACLResourceService:
         # RBAC mode - check user permissions
         if acl_rule.access_mode == AccessMode.RBAC:
             # Get user's roles
-            from models.user import User
-            user = db.query(User).options(
-                joinedload(User.roles)
-            ).filter(User.id == current_user.id).first()
+            # from models.user import User
+            # user = db.query(User).options(
+            #     joinedload(User.roles)
+            # ).filter(User.id == current_user.id).first()
 
-            if not user:
-                return PermissionCheckResponse(
-                    allowed=False,
-                    reason="User not found",
-                    access_mode="rbac"
-                )
+            # if not user:
+            #     return PermissionCheckResponse(
+            #         allowed=False,
+            #         reason="User not found",
+            #         access_mode="rbac"
+            #     )
 
             # Check conditions - user whitelist
             if acl_rule.conditions:
@@ -718,7 +694,7 @@ class ACLResourceService:
 
                 # Check conditions - role whitelist
                 if "roles" in conditions and conditions["roles"]:
-                    user_role_ids = [str(role.id) for role in user.roles]
+                    user_role_ids = [str(role.name) for role in current_user.roles]
                     if any(role_id in conditions["roles"] for role_id in user_role_ids):
                         return PermissionCheckResponse(
                             allowed=True,

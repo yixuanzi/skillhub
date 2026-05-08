@@ -254,11 +254,17 @@ async def call_mcp_resource(
             db=db,
             resource_name=resource_name,
             method=request.method,
-            params=request.params
+            params=request.params,
+            user=current_user
         )
         return result
 
     except ValidationException as e:
+        if "permission" in str(e).lower() or "access" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=str(e)
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -301,10 +307,19 @@ async def list_mcp_tools(
     from core.exceptions import ValidationException, ExternalServiceException
 
     try:
-        tools = await MCPService.list_tools(db=db, resource_name=resource_name)
+        tools = await MCPService.list_tools(
+            db=db,
+            resource_name=resource_name,
+            user=current_user
+        )
         return MCPToolsResponse(tools=tools)
 
     except ValidationException as e:
+        if "permission" in str(e).lower() or "access" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=str(e)
+            )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
