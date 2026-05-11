@@ -123,6 +123,13 @@ export const TokensPage = () => {
     });
   };
 
+  const handleKeyNameChange = (value: string) => {
+    setFormData({
+      ...formData,
+      key_name: value.replace(/[^A-Za-z0-9_]/g, ''),
+    });
+  };
+
   const toggleTokenVisibility = (tokenId: string) => {
     setShowTokenValue((prev) => ({
       ...prev,
@@ -400,10 +407,13 @@ export const TokensPage = () => {
             </label>
             <Input
               value={formData.key_name}
-              onChange={(e) => setFormData({ ...formData, key_name: e.target.value })}
+              onChange={(e) => handleKeyNameChange(e.target.value)}
               placeholder="e.g., API Key, Access Token"
               required
             />
+            <p className="text-xs text-gray-500 font-mono">
+              Only letters, numbers, and underscores are allowed.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -483,10 +493,13 @@ export const TokensPage = () => {
             </label>
             <Input
               value={formData.key_name}
-              onChange={(e) => setFormData({ ...formData, key_name: e.target.value })}
+              onChange={(e) => handleKeyNameChange(e.target.value)}
               placeholder="e.g., API Key, Access Token"
               required
             />
+            <p className="text-xs text-gray-500 font-mono">
+              Only letters, numbers, and underscores are allowed.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
