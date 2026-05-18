@@ -30,12 +30,10 @@ def display_message(message) -> None:
     if isinstance(message, AssistantMessage):
         for block in message.content:
             if isinstance(block, TextBlock):
-                pass
-                #print(block.text)
+                return block.text
             elif isinstance(block, ToolUseBlock):
                 # 显示工具调用（可选，用于调试）
-                # print(f"[工具调用: {block.name}]")
-                pass
+                return f"toolcall: {block.name}"
 
     # 处理最终结果消息
     elif isinstance(message, ResultMessage):
@@ -98,6 +96,7 @@ Generate the SKILL.md content following the format specified in your instruction
                 if isinstance(message, (AssistantMessage, ResultMessage)):
                     finalrs=display_message(message)
                     if finalrs:
+                        print(f"Received content chunk:\n{finalrs[:50]} {len(finalrs)}\n")
                         skill_doc += f"{finalrs}\n"
 
             return skill_doc

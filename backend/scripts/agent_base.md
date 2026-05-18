@@ -84,11 +84,13 @@ skillhub [res_type] [res_name] [options]
 list all of specific resources like:
 
 ```table
-| Resource Name | Type | Description |
-|---------------|------|-------------|
-| [name-1] | [third] | [brief description] |
-| [name-2] | [gateway.[path]] | [brief description] | (list all paths)
-| [name-2] | [mcp.[tool]] | [brief description] | (list all tools)
+| Resource Name | Type | Ext | Description |
+|---------------|------|------|-------------|
+| [name-1] | [third] | None | [brief description] |
+| [name-2] | [gateway | [path_1] | [brief description] | (list all paths)
+| [name-2] | [gateway | [path_2] | [brief description] | ...
+| [name-3] | [mcp] | [tool_1] |[brief description] | (list all tools)
+| [name-3] | [mcp] | [tool_2] |[brief description] | ...
 ```
 
 #### [resource-name-1] 
