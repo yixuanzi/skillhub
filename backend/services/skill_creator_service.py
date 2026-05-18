@@ -28,17 +28,17 @@ def display_message(message) -> str | None:
     Args:
         message: Agent SDK 返回的消息对象
     """
-    # if isinstance(message, AssistantMessage):
-    #     text_blocks = [block.text for block in message.content if isinstance(block, TextBlock) and block.text]
-    #     if text_blocks:
-    #         return "\n".join(text_blocks)
-    #     return None
+    if isinstance(message, AssistantMessage):
+        text_blocks = [block.text for block in message.content if isinstance(block, TextBlock) and block.text]
+        if text_blocks:
+            return "\n".join(text_blocks)
+        return None
 
-    if isinstance(message, ResultMessage):
-        if message.result:
-            return message.result
-        if message.total_cost_usd and message.total_cost_usd > 0:
-            pass
+    # if isinstance(message, ResultMessage):
+    #     if message.result:
+    #         return message.result
+    #     if message.total_cost_usd and message.total_cost_usd > 0:
+    #         pass
 
     return None
 
@@ -61,15 +61,15 @@ class SkillCreatorService:
         """
         # Read the agent system prompt
         try:
-            if not SkillCreatorService.agent_cache.get(agentname, None):
+            if not SkillCreatorService.agent_cache.get(agentname,None):
                 agent_prompt_path = Path(__file__).parent.parent / "scripts" / f"{agentname}.md"
                 system_prompt = agent_prompt_path.read_text(encoding="utf-8")
+                # Configure Agent options
                 agent = ClaudeAgentOptions(
-                    cwd=os.getcwd(),
-                    allowed_tools=[],
-                    system_prompt=system_prompt
-                )
-                SkillCreatorService.agent_cache[agentname] = agent
+                        cwd=os.getcwd(),
+                        allowed_tools=[], # 不使用任何工具
+                        system_prompt=system_prompt
+                    )
             else:
                 agent = SkillCreatorService.agent_cache.get(agentname)
         except Exception as e:
