@@ -8,42 +8,39 @@ Security Policy:
 - Resource access follows standard ACL rules (public, owner, admin, ACL-granted)
 """
 import os
+import json
+from pathlib import Path
+from typing import Tuple
+
 from sqlalchemy.orm import Session
-from models.resource import Resource, ResourceType
+
+from models.resource import ResourceType
 from models.skill_list import SkillList
 from models.user import User
-from schemas.skill_creator import SkillCreatorRequest, SkillCreatorResponse, SkillCreatorType
+from schemas.skill_creator import SkillCreatorRequest, SkillCreatorType
 from core.exceptions import ValidationException, NotFoundException
-from typing import List, Tuple
-import json
-import anyio
-from pathlib import Path
-from claude_agent_sdk import query, ClaudeAgentOptions,AssistantMessage,ResultMessage,TextBlock,ToolUseBlock
+from services.skill_list_service import _is_admin_user
+from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, ResultMessage, TextBlock
 
-def display_message(message) -> None:
+def display_message(message) -> str | None:
     """显示 Agent 返回的消息
 
     Args:
         message: Agent SDK 返回的消息对象
     """
-    # 处理助手消息
-    if isinstance(message, AssistantMessage):
-        for block in message.content:
-            if isinstance(block, TextBlock):
-                return block.text
-            elif isinstance(block, ToolUseBlock):
-                # 显示工具调用（可选，用于调试）
-                return f"toolcall: {block.name}"
+    # if isinstance(message, AssistantMessage):
+    #     text_blocks = [block.text for block in message.content if isinstance(block, TextBlock) and block.text]
+    #     if text_blocks:
+    #         return "\n".join(text_blocks)
+    #     return None
 
-    # 处理最终结果消息
-    elif isinstance(message, ResultMessage):
+    if isinstance(message, ResultMessage):
         if message.result:
-            #print(f"\n{message.result}")
             return message.result
-        # 可选：显示成本信息
         if message.total_cost_usd and message.total_cost_usd > 0:
             pass
-            #print(f"\n[成本: ${message.total_cost_usd:.4f}]")
+
+    return None
 
 class SkillCreatorService:
     """Service class for skill generation operations."""
@@ -64,15 +61,15 @@ class SkillCreatorService:
         """
         # Read the agent system prompt
         try:
-            if not SkillCreatorService.agent_cache.get(agentname,None):
+            if not SkillCreatorService.agent_cache.get(agentname, None):
                 agent_prompt_path = Path(__file__).parent.parent / "scripts" / f"{agentname}.md"
                 system_prompt = agent_prompt_path.read_text(encoding="utf-8")
-                # Configure Agent options
                 agent = ClaudeAgentOptions(
-                        cwd=os.getcwd(),
-                        allowed_tools=[], # 不使用任何工具
-                        system_prompt=system_prompt
-                    )
+                    cwd=os.getcwd(),
+                    allowed_tools=[],
+                    system_prompt=system_prompt
+                )
+                SkillCreatorService.agent_cache[agentname] = agent
             else:
                 agent = SkillCreatorService.agent_cache.get(agentname)
         except Exception as e:
@@ -88,16 +85,18 @@ Generate the SKILL.md content following the format specified in your instruction
 
         try:
             skill_doc = ""
-            # Call Claude Agent SDK
             async for message in query(
                 prompt=user_prompt,
                 options=agent,
             ):
                 if isinstance(message, (AssistantMessage, ResultMessage)):
-                    finalrs=display_message(message)
+                    finalrs = display_message(message)
                     if finalrs:
-                        print(f"Received content chunk:\n{finalrs[:50]} {len(finalrs)}\n")
+                        print(f"Received content chunk lenght:{len(finalrs)} :\n{finalrs[:50]}\n")
                         skill_doc += f"{finalrs}\n"
+
+            if not skill_doc.strip():
+                raise ValidationException("Generated SKILL.md content is empty")
 
             return skill_doc
 
@@ -126,17 +125,26 @@ Generate the SKILL.md content following the format specified in your instruction
             ValidationException: If validation fails or access denied
             NotFoundException: If referenced resources/skills not found
         """
-        try:
-            if request.type == SkillCreatorType.BASE:
-                context_conf = await SkillCreatorService._generate_from_resources(db, request, user)
-                skill = await SkillCreatorService._generate_skill_documentation(f"<resource_list>{context_conf}</resource_list>","agent_base")
-            else:
-                context_conf = SkillCreatorService._generate_from_skills(db, request, user)
-                skill = await SkillCreatorService._generate_skill_documentation(f"<skill_list>{context_conf}</skill_list><user_requirement>{request.userinput}</user_requirement>","agent_mix")
+        context_conf = ""
 
-        except Exception as e:
-            # If skill generation fails, return empty skill instead of failing
-            skill = f"# SKILL.md Generation Failed\n\nError: {str(e)}\n\n## Raw Content\n\n{context_conf}"
+        if request.type == SkillCreatorType.BASE:
+            context_conf = await SkillCreatorService._generate_from_resources(db, request, user)
+            try:
+                skill = await SkillCreatorService._generate_skill_documentation(
+                    f"<resource_list>{context_conf}</resource_list>",
+                    "agent_base"
+                )
+            except Exception as e:
+                skill = f"# SKILL.md Generation Failed\n\nError: {str(e)}\n\n## Raw Content\n\n{context_conf}"
+        else:
+            context_conf = SkillCreatorService._generate_from_skills(db, request, user)
+            try:
+                skill = await SkillCreatorService._generate_skill_documentation(
+                    f"<skill_list>{context_conf}</skill_list><user_requirement>{request.userinput}</user_requirement>",
+                    "agent_mix"
+                )
+            except Exception as e:
+                skill = f"# SKILL.md Generation Failed\n\nError: {str(e)}\n\n## Raw Content\n\n{context_conf}"
 
         return skill, context_conf
 
@@ -253,6 +261,9 @@ Generate the SKILL.md content following the format specified in your instruction
             skill = db.query(SkillList).filter(SkillList.id == skill_id).first()
             if not skill:
                 raise NotFoundException(f"Skill with id '{skill_id}' not found")
+
+            # if skill.created_by != user.username and not _is_admin_user(user):
+            #     raise ValidationException("You do not have permission to access this skill")
 
             # Build skill section
             skill_part = f"name: {skill.name}\ndescription: {skill.description or ''}\n<skill_content>\n{skill.content or ''}</skill_content>\n"

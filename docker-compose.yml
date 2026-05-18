@@ -34,7 +34,7 @@ services:
       # Persist SQLite database and logs
       - ./backend:/app
       #- ./backend/data:/app/data
-      - skillhub-logs:/var/log/supervisor
+      # - skillhub-logs:/var/log/supervisor
 
       # Optional: Mount for development (comment out in production)
       # - ./backend:/app/backend:ro
@@ -48,14 +48,14 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
+        max-size: "5m"
         max-file: "3"
 
 volumes:
   skillhub-data:
     driver: local
-  skillhub-logs:
-    driver: local
+  # skillhub-logs:
+  #   driver: local
 
 networks:
   skillhub-network:
