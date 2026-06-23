@@ -70,6 +70,7 @@ class SkillCreatorService:
                         allowed_tools=[], # 不使用任何工具
                         system_prompt=system_prompt
                     )
+                SkillCreatorService.agent_cache[agentname] = agent
             else:
                 agent = SkillCreatorService.agent_cache.get(agentname)
         except Exception as e:

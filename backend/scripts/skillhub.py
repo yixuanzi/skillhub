@@ -17,6 +17,7 @@ from typing import Dict, Optional, Tuple
 
 
 SKILLHUB_URL = "{PLACEHOLDER_SKILLHUB_URL}"
+SKILLHUB_URL="http://172.18.40.74:8015"
 
 # Colors for output
 RED = "\033[0;31m"
@@ -51,6 +52,7 @@ def show_help() -> None:
     print(f"{BLUE}USAGE{NC}")
     print("    skillhub list [search_term]              List all skills or search by name")
     print("    skillhub install [skill_name]           Install a skill to local directory")
+    print("    skillhub getme                          Get current user info")
     print("    skillhub [res_type] [res_name] [options] Invoke a resource")
     print("    skillhub -h")
     print("    skillhub\n")
@@ -61,6 +63,9 @@ def show_help() -> None:
     print(f"{BLUE}INSTALL COMMAND{NC}")
     print("    skillhub install [skill_name]\n")
     print("    Downloads a skill from SkillHub and saves it to ./[skill_name]/SKILL.md\n")
+    print(f"{BLUE}GETME COMMAND{NC}")
+    print("    skillhub getme [-token <token>]\n")
+    print("    Returns the current authenticated user's profile information.\n")
     print(f"{BLUE}ARGUMENTS{NC}")
     print("    res_type        Resource type (required): third, gateway, mcp")
     print("    res_name        Resource name (required): name of the resource to call\n")
@@ -94,6 +99,9 @@ def show_help() -> None:
     print(f"    {YELLOW}# MCP server call{NC}")
     print("    skillhub mcp my-mcp-server -mcptool test -inputs '{\"name\":\"weather_tool\",\"arguments\":{\"location\":\"Tokyo\"}}'")
     print("    skillhub mcp my-mcp-server -mcptool tool_name2\n")
+    print(f"    {YELLOW}# Get current user info{NC}")
+    print("    skillhub getme")
+    print("    skillhub getme -token your-api-token\n")
     print(f"    {YELLOW}# Using custom token{NC}")
     print("    skillhub third weather-api -method GET -inputs '{\"city\":\"Shanghai\"}' -token your-api-token-here\n")
     print(f"{BLUE}ENVIRONMENT VARIABLES{NC}")
@@ -154,6 +162,36 @@ def json_to_query_params(raw_json: str) -> Optional[str]:
         return None
 
     return urllib.parse.urlencode(data, doseq=True)
+
+
+def getme_user(token: str, timeout_value: str) -> None:
+    if not token:
+        token = os.environ.get("SKILLHUB_API_KEY", "")
+
+    if not token:
+        error("No authentication token found. Please provide via -token option or set SKILLHUB_API_KEY environment variable")
+
+    api_url = f"{SKILLHUB_URL}/api/v1/auth/me/"
+
+    try:
+        _status, response = _http_request(
+            method="GET",
+            url=api_url,
+            headers={
+                "accept": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            timeout_value=timeout_value,
+        )
+    except Exception:
+        error("Failed to fetch user info from API")
+
+    try:
+        parsed = json.loads(response)
+        pretty = json.dumps(parsed, indent=4, ensure_ascii=False)
+        print(pretty)
+    except Exception:
+        print(response)
 
 
 def install_skill(skill_name: str, token: str, timeout_value: str) -> None:
@@ -322,6 +360,26 @@ def main() -> None:
                 install_skill(a, token, timeout_value)
                 sys.exit(0)
         error("install command requires a skill name")
+
+    if args[0] == "getme":
+        rest = args[1:]
+        i = 0
+        while i < len(rest):
+            a = rest[i]
+            if a == "-token":
+                if i + 1 >= len(rest):
+                    error("Option -token requires a value")
+                token = rest[i + 1]
+                i += 2
+            elif a == "-timeout":
+                if i + 1 >= len(rest):
+                    error("Option -timeout requires a value")
+                timeout_value = rest[i + 1]
+                i += 2
+            else:
+                error(f"Unknown option for getme command: {a}")
+        getme_user(token, timeout_value)
+        sys.exit(0)
 
     if args[0] == "list":
         rest = args[1:]

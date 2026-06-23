@@ -13,6 +13,7 @@ USAGE
     skillhub list [search_term] [-page <number>]             List all skills or search by name
     skillhub install [skill_name]           Install a skill to local directory
     skillhub [res_type] [res_name] [options] Invoke a resource
+    skillhub getme                          Get current authenticated user info
     skillhub -h
     skillhub
 
