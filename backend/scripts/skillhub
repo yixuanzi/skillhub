@@ -611,7 +611,7 @@ case "$RES_TYPE" in
                 QUERY_PARAMS=$(json_to_query_params "$INPUTS")
                 if [ -n "$QUERY_PARAMS" ]; then
                     URL="$URL?$QUERY_PARAMS"
-                    CURL_CMD="$CURL_BIN --max-time $TIMEOUT -L -X '$METHOD' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN'"
+                    CURL_CMD="$CURL_BIN --max-time $TIMEOUT -sS -L -X '$METHOD' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN'"
 
                 fi
             else
@@ -643,7 +643,7 @@ case "$RES_TYPE" in
                 QUERY_PARAMS=$(json_to_query_params "$INPUTS")
                 if [ -n "$QUERY_PARAMS" ]; then
                     URL="$URL?$QUERY_PARAMS"
-                    CURL_CMD="$CURL_BIN --max-time $TIMEOUT -L -X '$METHOD' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN'"
+                    CURL_CMD="$CURL_BIN --max-time $TIMEOUT -sS -L -X '$METHOD' '$URL' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN'"
                 fi
             else
                 CURL_CMD="$CURL_CMD -d '$INPUTS'"
