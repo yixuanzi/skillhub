@@ -100,6 +100,11 @@ class GatewayService:
         return settings.GATEWAY_FORCE_PLAINTEXT
 
     @staticmethod
+    def _should_skip_verify() -> bool:
+        """Return whether outbound gateway requests should skip TLS certificate verification."""
+        return settings.SKIP_VERIFY
+
+    @staticmethod
     def _merge_request_headers(
         headers: Optional[Dict[str, str]] = None,
         auth_headers: Optional[Dict[str, str]] = None,
@@ -332,7 +337,7 @@ class GatewayService:
         # merged_headers["Authorization"] = f"Bearer {user.access_token}"
 
         # Make HTTP call
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, verify=not GatewayService._should_skip_verify()) as client:
             try:
                 if method.upper() == "GET":
                     response = await client.get(
@@ -432,7 +437,7 @@ class GatewayService:
         merged_headers = GatewayService._merge_request_headers(headers, auth_headers)
 
         # Make HTTP call
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, verify=not GatewayService._should_skip_verify()) as client:
             try:
                 if method.upper() == "GET":
                     response = await client.get(

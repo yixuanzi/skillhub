@@ -16,6 +16,7 @@ from models.resource import Resource, ResourceType
 from models.user import User
 from schemas.resource import MCPConfig, MCPServerType
 from core.exceptions import ValidationException, ExternalServiceException
+from config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +202,11 @@ class MCPService:
 
                 logger.info(f"Creating MCP client for resource: {resource_name}")
                 logger.debug(f"MCP config: {mcp_config}")
+
+                if settings.SKIP_VERIFY:
+                    import httpx
+                    for server_cfg in mcp_config.values():
+                        server_cfg["httpx_client_factory"] = lambda **kw: httpx.AsyncClient(verify=False, **kw)
 
                 client = MultiServerMCPClient(mcp_config)
 

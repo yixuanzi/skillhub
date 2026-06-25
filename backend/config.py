@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     ANTHROPIC_BASE_URL:str=""
     ANTHROPIC_AUTH_TOKEN:str=""
     GATEWAY_FORCE_PLAINTEXT: bool = False
+    SKIP_VERIFY: bool = False
 
     class Config:
         env_file = ".env"
