@@ -24,7 +24,8 @@ interface Props {
 }
 
 export const RoleManagerModal: React.FC<Props> = ({ user, open, onOpenChange }) => {
-  const { data: roles, isLoading } = useRoles();
+  const { data: rolesData, isLoading } = useRoles();
+  const roles = rolesData?.items;
   const assignRoles = useAssignRoles();
 
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>(

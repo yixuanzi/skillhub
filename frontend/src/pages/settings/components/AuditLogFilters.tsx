@@ -3,10 +3,13 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
 
-interface FilterOption {
-  value: string;
-  label: string;
-}
+const selectCls = cn(
+  'w-full px-3 py-2 font-mono text-sm rounded-lg border transition-all duration-200',
+  'bg-void-900/50 border-void-700 text-gray-100',
+  'focus:outline-none focus:border-cyber-primary'
+);
+
+const dateCls = '[color-scheme:dark]';
 
 interface AuditLogFiltersProps {
   filters: {
@@ -14,31 +17,35 @@ interface AuditLogFiltersProps {
     size: number;
     action?: string;
     resource_type?: string;
+    resource_id?: string;
     user_id?: string;
+    status?: string;
     start_date?: string;
     end_date?: string;
   };
   onFilterChange: (filters: Partial<{
     action?: string;
     resource_type?: string;
+    resource_id?: string;
     user_id?: string;
+    status?: string;
     start_date?: string;
     end_date?: string;
   }>) => void;
-  actionOptions: FilterOption[];
-  resourceTypeOptions: FilterOption[];
+  resourceTypes?: string[];
 }
 
 export const AuditLogFilters = ({
   filters,
   onFilterChange,
-  actionOptions,
-  resourceTypeOptions,
+  resourceTypes = [],
 }: AuditLogFiltersProps) => {
   const hasActiveFilters =
     filters.action ||
     filters.resource_type ||
+    filters.resource_id ||
     filters.user_id ||
+    filters.status ||
     filters.start_date ||
     filters.end_date;
 
@@ -46,7 +53,9 @@ export const AuditLogFilters = ({
     onFilterChange({
       action: '',
       resource_type: '',
+      resource_id: '',
       user_id: '',
+      status: '',
       start_date: '',
       end_date: '',
     });
@@ -77,30 +86,23 @@ export const AuditLogFilters = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Action Filter */}
+      {/* Row 1: User ID · Resource Type · Status · From · To */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* User ID / Username */}
         <div>
           <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase">
-            Action
+            User ID / Username
           </label>
-          <select
-            value={filters.action || ''}
-            onChange={(e) => onFilterChange({ action: e.target.value || undefined })}
-            className={cn(
-              'w-full px-3 py-2 font-mono text-sm rounded-lg border transition-all duration-200',
-              'bg-void-900/50 border-void-700 text-gray-100',
-              'focus:outline-none focus:border-cyber-primary'
-            )}
-          >
-            {actionOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <Input
+            type="text"
+            value={filters.user_id || ''}
+            onChange={(e) => onFilterChange({ user_id: e.target.value || undefined })}
+            placeholder="ID or username..."
+            className="font-mono text-sm"
+          />
         </div>
 
-        {/* Resource Type Filter */}
+        {/* Resource Type — dynamic dropdown */}
         <div>
           <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase">
             Resource Type
@@ -108,65 +110,96 @@ export const AuditLogFilters = ({
           <select
             value={filters.resource_type || ''}
             onChange={(e) => onFilterChange({ resource_type: e.target.value || undefined })}
-            className={cn(
-              'w-full px-3 py-2 font-mono text-sm rounded-lg border transition-all duration-200',
-              'bg-void-900/50 border-void-700 text-gray-100',
-              'focus:outline-none focus:border-cyber-primary'
-            )}
+            className={selectCls}
           >
-            {resourceTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+            <option value="">All Types</option>
+            {resourceTypes.map((rt) => (
+              <option key={rt} value={rt}>{rt}</option>
             ))}
           </select>
         </div>
 
-        {/* Start Date Filter */}
+        {/* Status — fixed dropdown */}
+        <div>
+          <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase">
+            Status
+          </label>
+          <select
+            value={filters.status || ''}
+            onChange={(e) => onFilterChange({ status: e.target.value || undefined })}
+            className={selectCls}
+          >
+            <option value="">All Statuses</option>
+            <option value="success">Success</option>
+            <option value="failure">Failure</option>
+          </select>
+        </div>
+
+        {/* From date */}
         <div>
           <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase">
             From
           </label>
           <div className="relative">
             <Input
-              type="date"
+              type="datetime-local"
               value={filters.start_date || ''}
               onChange={(e) => onFilterChange({ start_date: e.target.value || undefined })}
-              className="pl-10"
+              className={cn('pl-10', dateCls)}
             />
             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
           </div>
         </div>
 
-        {/* End Date Filter */}
+        {/* To date */}
         <div>
           <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase">
             To
           </label>
           <div className="relative">
             <Input
-              type="date"
+              type="datetime-local"
               value={filters.end_date || ''}
               onChange={(e) => onFilterChange({ end_date: e.target.value || undefined })}
-              className="pl-10"
+              className={cn('pl-10', dateCls)}
             />
             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
           </div>
         </div>
       </div>
 
-      {/* User ID Filter */}
-      <div>
-        <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase">
-          User ID
-        </label>
-        <Input
-          type="text"
-          value={filters.user_id || ''}
-          onChange={(e) => onFilterChange({ user_id: e.target.value || undefined })}
-          placeholder="Enter user ID to filter..."
-          className="font-mono text-sm"
-        />
+      {/* Row 2: Action (long) · Resource ID (short) */}
+      <div className="grid grid-cols-3 gap-4">
+        {/* Action — fuzzy search, takes 2/3 width */}
+        <div className="col-span-2">
+          <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase">
+            Action
+          </label>
+          <Input
+            type="text"
+            value={filters.action || ''}
+            onChange={(e) => onFilterChange({ action: e.target.value || undefined })}
+            placeholder="Search action, e.g. post /api/v1/skills..."
+            className="font-mono text-sm"
+          />
+        </div>
+
+        {/* Resource ID — exact match, takes 1/3 width */}
+        <div>
+          <label className="block text-xs font-mono text-gray-500 mb-1.5 uppercase">
+            Resource ID
+          </label>
+          <Input
+            type="text"
+            value={filters.resource_id || ''}
+            onChange={(e) => onFilterChange({ resource_id: e.target.value || undefined })}
+            placeholder="Resource ID..."
+            className="font-mono text-sm"
+          />
+          <p className="mt-1 text-xs text-gray-600 font-mono">
+            Filter gateway / resource call logs
+          </p>
+        </div>
       </div>
     </div>
   );

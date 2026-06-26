@@ -217,7 +217,15 @@ export const TokensPage = () => {
       {/* Tokens Table */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse table-fixed">
+            <colgroup>
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[40%]" />
+              <col className="w-[20%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-void-700 bg-void-900/30">
                 <th className="px-6 py-3 text-left text-xs font-mono font-semibold text-gray-400 uppercase tracking-wider">
@@ -270,13 +278,13 @@ export const TokensPage = () => {
                       <span className="text-sm text-gray-300">{token.key_name}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <code className="text-xs font-mono text-cyber-secondary bg-void-900/50 px-2 py-1 rounded">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <code className="text-xs font-mono text-cyber-secondary bg-void-900/50 px-2 py-1 rounded break-all min-w-0 flex-1">
                           {showTokenValue[token.id] ? token.value : maskTokenValue(token.value)}
                         </code>
                         <button
                           onClick={() => toggleTokenVisibility(token.id)}
-                          className="text-gray-500 hover:text-gray-300 transition-colors"
+                          className="text-gray-500 hover:text-gray-300 transition-colors flex-shrink-0 mt-0.5"
                           title={showTokenValue[token.id] ? 'Hide value' : 'Show value'}
                         >
                           {showTokenValue[token.id] ? (
@@ -288,7 +296,7 @@ export const TokensPage = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-sm text-gray-400">{token.desc || '-'}</span>
+                      <span className="text-sm text-gray-400 break-words">{token.desc || '-'}</span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-xs text-gray-500 font-mono">

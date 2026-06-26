@@ -22,7 +22,9 @@ export interface AuditLogsFilters {
   size?: number;
   action?: string;
   resource_type?: string;
+  resource_id?: string;
   user_id?: string;
+  status?: string;
   start_date?: string;
   end_date?: string;
 }
@@ -41,9 +43,11 @@ export const auditLogsApi = {
       size: filters.size || 20,
       ...(filters.action && { action: filters.action }),
       ...(filters.resource_type && { resource_type: filters.resource_type }),
+      ...(filters.resource_id && { resource_id: filters.resource_id }),
       ...(filters.user_id && { user_id: filters.user_id }),
-      ...(filters.start_date && { start_date: filters.start_date }),
-      ...(filters.end_date && { end_date: filters.end_date }),
+      ...(filters.status && { status: filters.status }),
+      ...(filters.start_date && { start_date: new Date(filters.start_date).toISOString() }),
+      ...(filters.end_date && { end_date: new Date(filters.end_date).toISOString() }),
     };
     const response = await apiClient.get<AuditLogsResponse>('/audit-logs', { params });
     return response.data;
@@ -51,6 +55,11 @@ export const auditLogsApi = {
 
   getById: async (id: string): Promise<ApiResponse<AuditLog>> => {
     const response = await apiClient.get<ApiResponse<AuditLog>>(`/audit-logs/${id}`);
+    return response.data;
+  },
+
+  listResourceTypes: async (): Promise<string[]> => {
+    const response = await apiClient.get<string[]>('/audit-logs/resource-types/');
     return response.data;
   },
 };

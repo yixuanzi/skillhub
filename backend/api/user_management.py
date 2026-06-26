@@ -72,7 +72,21 @@ class RoleCreate(BaseModel):
 
 class RoleAssignment(BaseModel):
     """Role assignment schema."""
-    role_ids: List[str] = Field(..., min_length=1)
+    role_ids: List[str] = Field(default_factory=list)
+
+
+class RoleUpdate(BaseModel):
+    """Role update schema."""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = None
+
+
+class RoleListResponse(BaseModel):
+    """Paginated role list response."""
+    items: List[RoleResponse]
+    total: int
+    page: int
+    size: int
 
 
 class PermissionResponse(BaseModel):
@@ -346,6 +360,32 @@ async def update_user(
     return UserResponse.model_validate(user)
 
 
+@router.delete("/{user_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Delete a user (admin-only)."""
+    require_admin(current_user)
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with id '{user_id}' not found"
+        )
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account"
+        )
+
+    db.delete(user)
+    db.commit()
+    return None
+
+
 @router.put("/{user_id}/roles/", response_model=UserResponse)
 async def assign_user_roles(
     user_id: str,
@@ -399,27 +439,30 @@ async def assign_user_roles(
 role_router = APIRouter(prefix="/admin/roles", tags=["Admin - Role Management"])
 
 
-@role_router.get("/list/", response_model=List[RoleResponse])
+@role_router.get("/list/", response_model=RoleListResponse)
 async def list_roles(
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None, description="Filter by role name (case-insensitive)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """List all roles (admin-only).
-
-    Args:
-        db: Database session
-        current_user: Authenticated user (must be admin)
-
-    Returns:
-        List of roles
-
-    Raises:
-        HTTPException 403: If user is not admin
-    """
+    """List roles with pagination and optional name search (admin-only)."""
     require_admin(current_user)
 
-    roles = db.query(Role).all()
-    return [RoleResponse.model_validate(r) for r in roles]
+    query = db.query(Role)
+    if search:
+        query = query.filter(Role.name.ilike(f"%{search}%"))
+
+    total = query.count()
+    roles = query.offset((page - 1) * size).limit(size).all()
+
+    return RoleListResponse(
+        items=[RoleResponse.model_validate(r) for r in roles],
+        total=total,
+        page=page,
+        size=size,
+    )
 
 
 @role_router.post("/", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
@@ -493,6 +536,67 @@ async def get_role(
         )
 
     return RoleResponse.model_validate(role)
+
+
+@role_router.put("/{role_id}/", response_model=RoleResponse)
+async def update_role(
+    role_id: str,
+    role_data: RoleUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Update a role (admin-only)."""
+    require_admin(current_user)
+
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Role with id '{role_id}' not found"
+        )
+
+    if role_data.name is not None and role_data.name != role.name:
+        existing = db.query(Role).filter(Role.name == role_data.name).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Role with name '{role_data.name}' already exists"
+            )
+        role.name = role_data.name
+
+    if role_data.description is not None:
+        role.description = role_data.description
+
+    db.commit()
+    db.refresh(role)
+    return RoleResponse.model_validate(role)
+
+
+@role_router.delete("/{role_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_role(
+    role_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Delete a role (admin-only). Fails if any users have this role assigned."""
+    require_admin(current_user)
+
+    role = db.query(Role).filter(Role.id == role_id).first()
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Role with id '{role_id}' not found"
+        )
+
+    if role.users:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete role '{role.name}': {len(role.users)} user(s) still assigned"
+        )
+
+    db.delete(role)
+    db.commit()
+    return None
 
 
 @role_router.get("/{role_id}/permissions/", response_model=List[PermissionResponse])

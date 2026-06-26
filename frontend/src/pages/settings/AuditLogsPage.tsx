@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AlertCircle, FileText, Download } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
-import { useAuditLogs } from '@/hooks/use-audit-logs';
+import { useAuditLogs, useAuditLogResourceTypes } from '@/hooks/use-audit-logs';
 import { AuditLogTable } from './components/AuditLogTable';
 import { AuditLogFilters } from './components/AuditLogFilters';
 import { AuditLogDetailModal } from './components/AuditLogDetailModal';
@@ -13,35 +13,12 @@ interface Filters {
   size: number;
   action?: string;
   resource_type?: string;
+  resource_id?: string;
   user_id?: string;
+  status?: string;
   start_date?: string;
   end_date?: string;
 }
-
-const ACTION_OPTIONS = [
-  { value: '', label: 'All Actions' },
-  { value: 'login', label: 'Login' },
-  { value: 'logout', label: 'Logout' },
-  { value: 'login_failed', label: 'Login Failed' },
-  { value: 'resource.create', label: 'Resource Create' },
-  { value: 'resource.update', label: 'Resource Update' },
-  { value: 'resource.delete', label: 'Resource Delete' },
-  { value: 'resource.read', label: 'Resource Read' },
-  { value: 'skill.call', label: 'Skill Call' },
-  { value: 'skill.create', label: 'Skill Create' },
-  { value: 'acl.create', label: 'ACL Create' },
-  { value: 'api_key.create', label: 'API Key Create' },
-  { value: 'api_key.delete', label: 'API Key Delete' },
-];
-
-const RESOURCE_TYPE_OPTIONS = [
-  { value: '', label: 'All Resources' },
-  { value: 'resource', label: 'Resource' },
-  { value: 'skill', label: 'Skill' },
-  { value: 'user', label: 'User' },
-  { value: 'acl', label: 'ACL' },
-  { value: 'api_key', label: 'API Key' },
-];
 
 export const AuditLogsPage = () => {
   const [filters, setFilters] = useState<Filters>({
@@ -54,6 +31,7 @@ export const AuditLogsPage = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const { data: logsData, isLoading, error, refetch } = useAuditLogs(filters);
+  const { data: resourceTypes = [] } = useAuditLogResourceTypes();
 
   const logs = logsData?.items || [];
   const total = logsData?.total || 0;
@@ -105,8 +83,7 @@ export const AuditLogsPage = () => {
       <AuditLogFilters
         filters={filters}
         onFilterChange={handleFilterChange}
-        actionOptions={ACTION_OPTIONS}
-        resourceTypeOptions={RESOURCE_TYPE_OPTIONS}
+        resourceTypes={resourceTypes}
       />
 
       {/* Results Info */}
@@ -182,7 +159,7 @@ export const AuditLogsPage = () => {
             <FileText className="w-12 h-12 text-gray-700 mx-auto mb-4" />
             <p className="text-gray-500 font-mono text-sm mb-2">No audit logs found</p>
             <p className="text-xs text-gray-600">
-              {filters.action || filters.resource_type
+              {filters.action || filters.resource_type || filters.resource_id || filters.user_id || filters.status || filters.start_date || filters.end_date
                 ? 'Try adjusting your filters'
                 : 'Logs will appear here once users interact with the system'}
             </p>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useRegister } from '@/hooks/useAuth';
 import { Button, Input, Alert } from '@/components/ui';
-import { Box } from 'lucide-react';
+import { Box, Clock, CheckCircle } from 'lucide-react';
 import type { AxiosError } from 'axios';
 
 interface ApiError {
@@ -71,75 +71,106 @@ export const RegisterPage = () => {
         </div>
 
         <div className="cyber-card rounded-xl border border-void-700 p-8">
-          <h2 className="font-display text-xl font-semibold text-gray-100 mb-6">
-            Create Account
-          </h2>
+          {register.isSuccess ? (
+            <div className="space-y-6 text-center animate-fade-in">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-14 h-14 rounded-full bg-cyber-primary/10 border border-cyber-primary/30 flex items-center justify-center">
+                  <CheckCircle className="w-7 h-7 text-cyber-primary" />
+                </div>
+                <h2 className="font-display text-xl font-semibold text-gray-100">
+                  Account Created
+                </h2>
+              </div>
 
-          {error && (
-            <Alert variant="danger" className="mb-6">
-              {error}
-            </Alert>
-          )}
+              <div className="flex items-start gap-3 p-4 rounded-lg border border-cyber-warning/30 bg-cyber-warning/5 text-left">
+                <Clock className="w-5 h-5 text-cyber-warning flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-cyber-warning">Pending Activation</p>
+                  <p className="text-xs text-gray-400">
+                    Your account has been created but is not yet active. Please contact an administrator to activate your account before logging in.
+                  </p>
+                </div>
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <Input
-              label="Username"
-              type="text"
-              placeholder="Choose a username"
-              value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-              required
-            />
-
-            <Input
-              label="Email"
-              type="email"
-              placeholder="your@email.com"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
-
-            <Input
-              label="Password"
-              type="password"
-              placeholder="Min 6 characters"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              required
-            />
-
-            <Input
-              label="Confirm Password"
-              type="password"
-              placeholder="Confirm password"
-              value={formData.confirmPassword}
-              onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-              required
-            />
-
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              className="w-full"
-              disabled={register.isPending}
-            >
-              {register.isPending ? 'Creating Account...' : 'Request Access'}
-            </Button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
-              Already have an account?{' '}
-              <Link
-                to="/login"
-                className="text-cyber-primary hover:text-cyber-secondary transition-colors font-mono"
-              >
-                Login
+              <Link to="/login">
+                <Button variant="primary" size="lg" className="w-full">
+                  Go to Login
+                </Button>
               </Link>
-            </p>
-          </div>
+            </div>
+          ) : (
+            <>
+              <h2 className="font-display text-xl font-semibold text-gray-100 mb-6">
+                Create Account
+              </h2>
+
+              {error && (
+                <Alert variant="danger" className="mb-6">
+                  {error}
+                </Alert>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <Input
+                  label="Username"
+                  type="text"
+                  placeholder="Choose a username"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  required
+                />
+
+                <Input
+                  label="Email"
+                  type="email"
+                  placeholder="your@email.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+
+                <Input
+                  label="Password"
+                  type="password"
+                  placeholder="Min 8 characters"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                />
+
+                <Input
+                  label="Confirm Password"
+                  type="password"
+                  placeholder="Confirm password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  required
+                />
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  className="w-full"
+                  disabled={register.isPending}
+                >
+                  {register.isPending ? 'Creating Account...' : 'Request Access'}
+                </Button>
+              </form>
+
+              <div className="mt-6 text-center">
+                <p className="text-sm text-gray-500">
+                  Already have an account?{' '}
+                  <Link
+                    to="/login"
+                    className="text-cyber-primary hover:text-cyber-secondary transition-colors font-mono"
+                  >
+                    Login
+                  </Link>
+                </p>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

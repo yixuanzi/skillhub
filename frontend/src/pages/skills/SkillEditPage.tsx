@@ -220,7 +220,7 @@ export const SkillEditPage = () => {
               className="bg-void-800/50 text-gray-500"
             />
             <p className="text-xs text-gray-500 font-mono -mt-3">
-              Skill name cannot be modified
+              Skill name cannot be modified directly. To rename this skill, update the skill name inside the Content area and re-save.
             </p>
 
             <Textarea

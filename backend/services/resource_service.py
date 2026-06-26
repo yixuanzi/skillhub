@@ -85,6 +85,16 @@ class ResourceService:
         db.commit()
         db.refresh(new_resource)
 
+        # 默认创建 RBAC 空 ACL 策略，禁止所有未授权访问
+        acl_rule = ACLRule(
+            resource_id=new_resource.id,
+            resource_name=new_resource.name,
+            access_mode=AccessMode.RBAC,
+            conditions=None
+        )
+        db.add(acl_rule)
+        db.commit()
+
         return ResourceResponse.model_validate(new_resource)
 
     @staticmethod
@@ -601,10 +611,16 @@ class ResourceService:
         if not resource:
             raise NotFoundException(f"Resource with id '{resource_id}' not found")
 
-        # Only owner can delete (admin users cannot delete other users' resources)
-        if resource.owner_id:
-            if not user or resource.owner_id != user.id:
-                raise ValidationException("You do not have permission to delete this resource")
+        # Admin/super_admin can delete any resource; otherwise only the owner can
+        if not _is_admin_user(user):
+            if resource.owner_id:
+                if not user or resource.owner_id != user.id:
+                    raise ValidationException("You do not have permission to delete this resource")
+
+        # 级联删除对应 ACL 记录
+        acl_rule = db.query(ACLRule).filter(ACLRule.resource_id == resource_id).first()
+        if acl_rule:
+            db.delete(acl_rule)
 
         db.delete(resource)
         db.commit()

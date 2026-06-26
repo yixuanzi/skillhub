@@ -28,15 +28,8 @@ export const useLogin = () => {
 };
 
 export const useRegister = () => {
-  const navigate = useNavigate();
-
   return useMutation({
     mutationFn: (data: RegisterRequest) => authApi.register(data),
-    onSuccess: () => {
-      // Backend returns user info, but no tokens
-      // Navigate to login with success message
-      navigate('/login');
-    },
   });
 };
 

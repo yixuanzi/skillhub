@@ -1,6 +1,6 @@
 """Pydantic schemas for System Audit Log operations."""
-from pydantic import BaseModel
-from datetime import datetime
+from pydantic import BaseModel, field_validator
+from datetime import datetime, timezone
 from typing import Optional, Any, List
 from enum import Enum
 
@@ -67,6 +67,13 @@ class SystemAuditLogResponse(BaseModel):
     status: str
     error_message: Optional[str]
     created_at: datetime
+
+    @field_validator('created_at', mode='before')
+    @classmethod
+    def ensure_utc(cls, v):
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
 
     class Config:
         from_attributes = True

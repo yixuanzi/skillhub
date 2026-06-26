@@ -21,8 +21,10 @@ export const AuditLogTable = ({ logs, onDetailClick }: AuditLogTableProps) => {
     return 'text-gray-300';
   };
 
+  const toUTCDate = (ts: string) => new Date(/[Z+]/.test(ts) ? ts : ts + 'Z');
+
   const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
+    const date = toUTCDate(timestamp);
     return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -34,7 +36,7 @@ export const AuditLogTable = ({ logs, onDetailClick }: AuditLogTableProps) => {
   };
 
   const getRelativeTime = (timestamp: string) => {
-    const date = new Date(timestamp);
+    const date = toUTCDate(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffSecs = Math.floor(diffMs / 1000);

@@ -24,6 +24,7 @@ interface Role {
   id: string;
   name: string;
   description?: string;
+  created_at: string;
 }
 
 interface UserListResponse {
@@ -107,13 +108,81 @@ export const useDeactivateUser = () => {
   });
 };
 
-export const useRoles = () => {
+export const useDeleteUser = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiClient.delete(`/admin/users/${userId}/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+};
+
+interface RoleFilters {
+  page?: number;
+  size?: number;
+  search?: string;
+}
+
+interface RoleListResponse {
+  items: Role[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export const useRoles = (filters: RoleFilters = {}) => {
   return useQuery({
-    queryKey: ['roles'],
+    queryKey: ['roles', filters],
     queryFn: async () => {
-      // Backend uses /admin/roles/list path
-      const response = await apiClient.get<Role[]>('/admin/roles/list/');
+      const params = new URLSearchParams();
+      if (filters.page) params.append('page', String(filters.page));
+      if (filters.size) params.append('size', String(filters.size));
+      if (filters.search) params.append('search', filters.search);
+      const qs = params.toString();
+      const response = await apiClient.get<RoleListResponse>(
+        `/admin/roles/list/${qs ? `?${qs}` : ''}`
+      );
       return response.data;
+    },
+  });
+};
+
+export const useCreateRole = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { name: string; description?: string }) =>
+      apiClient.post<Role>('/admin/roles/', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+    },
+  });
+};
+
+export const useUpdateRole = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ roleId, data }: { roleId: string; data: { name?: string; description?: string } }) =>
+      apiClient.put<Role>(`/admin/roles/${roleId}/`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+    },
+  });
+};
+
+export const useDeleteRole = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (roleId: string) =>
+      apiClient.delete(`/admin/roles/${roleId}/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
     },
   });
 };

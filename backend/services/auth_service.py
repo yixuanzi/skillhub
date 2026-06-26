@@ -61,7 +61,7 @@ class AuthService:
             username=user_data.username,
             email=user_data.email,
             hashed_password=hashed_password,
-            is_active=True
+            is_active=False
         )
 
         db.add(new_user)

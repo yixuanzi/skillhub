@@ -67,10 +67,11 @@ class SystemAuditLogService:
         limit: int = 100,
         action: Optional[str] = None,
         resource_type: Optional[str] = None,
+        resource_id: Optional[str] = None,
         user_id: Optional[str] = None,
         status: Optional[str] = None,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> tuple[List[SystemAuditLog], int]:
         """List audit logs with filters.
 
@@ -80,6 +81,7 @@ class SystemAuditLogService:
             limit: Maximum number of records to return
             action: Filter by action
             resource_type: Filter by resource type
+            resource_id: Filter by resource ID (exact)
             user_id: Filter by user ID
             status: Filter by status
             start_date: Filter by start date
@@ -92,9 +94,11 @@ class SystemAuditLogService:
         query = db.query(SystemAuditLog).options(joinedload(SystemAuditLog.user))
 
         if action:
-            query = query.filter(SystemAuditLog.action == action)
+            query = query.filter(SystemAuditLog.action.ilike(f"%{action}%"))
         if resource_type:
             query = query.filter(SystemAuditLog.resource_type == resource_type)
+        if resource_id:
+            query = query.filter(SystemAuditLog.resource_id == resource_id)
         if user_id:
             query = query.filter(SystemAuditLog.user_id == user_id)
         if status:
@@ -110,6 +114,18 @@ class SystemAuditLogService:
         ).offset(skip).limit(limit).all()
 
         return logs, total
+
+    @staticmethod
+    def list_resource_types(db: Session) -> List[str]:
+        """Return distinct non-null resource_type values from audit logs."""
+        rows = (
+            db.query(SystemAuditLog.resource_type)
+            .filter(SystemAuditLog.resource_type.isnot(None))
+            .distinct()
+            .order_by(SystemAuditLog.resource_type)
+            .all()
+        )
+        return [row[0] for row in rows]
 
     @staticmethod
     def get_by_id(db: Session, log_id: str) -> Optional[SystemAuditLog]:

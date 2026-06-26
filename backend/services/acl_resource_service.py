@@ -65,14 +65,14 @@ def _check_acl_permission(db: Session, resource_id: str, user: Optional[User]) -
         ValidationException: If user lacks permission
         NotFoundException: If resource is not found
     """
+    # Admin users bypass all checks
+    if _is_admin_user(user):
+        return True
+
     # Get resource with owner info
     resource = db.query(Resource).filter(Resource.id == resource_id).first()
     if not resource:
         raise NotFoundException(f"Resource with id '{resource_id}' not found")
-
-    # Admin users can modify any ACL
-    if _is_admin_user(user):
-        return True
 
     # Owner can modify their resource's ACL
     if user and resource.owner_id == user.id:
@@ -725,10 +725,13 @@ class ACLResourceService:
             role = db.query(Role).filter(Role.id == binding.role_id).first()
             role_bindings.append(ACLResourceService._to_binding_response(binding, role.name if role else None))
 
+        resource = db.query(Resource).filter(Resource.id == acl_rule.resource_id).first()
+        resource_name = resource.name if resource else acl_rule.resource_name
+
         return ACLRuleResponse(
             id=acl_rule.id,
             resource_id=acl_rule.resource_id,
-            resource_name=acl_rule.resource_name,
+            resource_name=resource_name,
             access_mode=acl_rule.access_mode,
             conditions=acl_rule.conditions,
             created_at=acl_rule.created_at,

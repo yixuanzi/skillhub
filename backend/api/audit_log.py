@@ -9,14 +9,14 @@ Security Policy:
 """
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 from database import get_db
 from schemas.audit_log import SystemAuditLogResponse, SystemAuditLogListResponse
 from services.system_audit_log_service import SystemAuditLogService
 from core.deps import get_current_active_user
-from models.user import User
+from models.user import User as UserModel
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit Logs"])
 
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/audit-logs", tags=["Audit Logs"])
 ADMIN_ROLES = {"admin", "super_admin"}
 
 
-def _is_admin_user(user: User) -> bool:
+def _is_admin_user(user: UserModel) -> bool:
     """Check if user has admin or super_admin role.
 
     Args:
@@ -45,12 +45,13 @@ async def list_audit_logs(
     size: int = Query(20, ge=1, le=100, description="Page size (max 100)"),
     action: Optional[str] = Query(None, description="Filter by action"),
     resource_type: Optional[str] = Query(None, description="Filter by resource type"),
-    user_id: Optional[str] = Query(None, description="Filter by user ID"),
+    resource_id: Optional[str] = Query(None, description="Filter by resource ID (exact)"),
+    user_id: Optional[str] = Query(None, description="Filter by user ID/username"),
     status_filter: Optional[str] = Query(None, alias="status", description="Filter by status"),
     start_date: Optional[datetime] = Query(None, description="Filter by start date"),
     end_date: Optional[datetime] = Query(None, description="Filter by end date"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_active_user)
 ):
     """List audit logs with filters.
 
@@ -77,15 +78,22 @@ async def list_audit_logs(
     """
     is_admin = _is_admin_user(current_user)
 
+    # Resolve user_id: accept UUID or username
+    if user_id:
+        if len(user_id) < 36:
+            # Treat as username — look up the actual user_id
+            matched = db.query(UserModel).filter(UserModel.username == user_id).first()
+            user_id = str(matched.id) if matched else None
+        else:
+            user_id = user_id
+
     # Non-admin users can only view their own logs
     if not is_admin:
-        # Non-admin users cannot use filters that would let them see other users' logs
         if user_id and user_id != str(current_user.id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="You can only view your own audit logs"
             )
-        # Force filter to current user's logs
         user_id = str(current_user.id)
 
     skip = (page - 1) * size
@@ -95,10 +103,11 @@ async def list_audit_logs(
         limit=size,
         action=action,
         resource_type=resource_type,
+        resource_id=resource_id,
         user_id=user_id,
         status=status_filter,
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
     )
 
     return SystemAuditLogListResponse(
@@ -109,11 +118,26 @@ async def list_audit_logs(
     )
 
 
+@router.get("/resource-types/", response_model=List[str])
+async def list_resource_types(
+    db: Session = Depends(get_db),
+    _: UserModel = Depends(get_current_active_user)
+):
+    """List all distinct resource_type values present in audit logs.
+
+    Admin-only endpoint.
+
+    Returns:
+        Sorted list of resource_type strings
+    """
+    return SystemAuditLogService.list_resource_types(db)
+
+
 @router.get("/{log_id}/", response_model=SystemAuditLogResponse)
 async def get_audit_log(
     log_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: UserModel = Depends(get_current_active_user)
 ):
     """Get audit log details by ID.
 

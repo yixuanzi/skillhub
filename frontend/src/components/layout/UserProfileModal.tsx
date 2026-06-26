@@ -13,14 +13,19 @@ interface UserProfileModalProps {
   onLogout?: () => void;
 }
 
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  return date.toLocaleString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
+const toUTCDate = (ts: string) => new Date(/[Z+]/.test(ts) ? ts : ts + 'Z');
+const formatDate = (ts: string) =>
+  toUTCDate(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+const Row = ({ icon: Icon, label, children }: { icon: React.ElementType; label: string; children: React.ReactNode }) => (
+  <div className="flex items-start gap-3 py-1.5 border-b border-void-700/40 last:border-0">
+    <div className="flex items-center gap-1.5 w-28 shrink-0 pt-0.5">
+      <Icon className="w-3.5 h-3.5 text-gray-500" />
+      <span className="text-xs font-mono text-gray-500 uppercase">{label}</span>
+    </div>
+    <span className="flex-1 min-w-0">{children}</span>
+  </div>
+);
 
 export const UserProfileModal = ({ isOpen, onClose, user, onLogout }: UserProfileModalProps) => {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
@@ -30,124 +35,68 @@ export const UserProfileModal = ({ isOpen, onClose, user, onLogout }: UserProfil
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="User Profile" size="md">
-        <div className="space-y-6">
-          {/* User Avatar & Basic Info */}
-          <div className="flex items-center gap-4 pb-6 border-b border-void-700">
-            <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-cyber-primary to-cyber-secondary flex items-center justify-center text-void-950 font-display font-bold text-2xl">
+      <Modal isOpen={isOpen} onClose={onClose} title="Profile">
+        <div className="space-y-4 text-sm">
+          {/* Header */}
+          <div className="flex items-center gap-3 pb-3 border-b border-void-700">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyber-primary to-cyber-secondary flex items-center justify-center text-void-950 font-display font-bold text-base shrink-0">
               {user.username[0]?.toUpperCase()}
             </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-display font-semibold text-gray-200">{user.username}</h3>
-              <p className="text-sm text-gray-500 font-mono mt-1">ID: {user.id.slice(0, 8)}...</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-gray-100 font-semibold truncate">{user.username}</p>
+              <p className="text-xs text-gray-500 font-mono">#{user.id.slice(0, 8)}</p>
             </div>
           </div>
 
-          {/* User Details */}
-          <div className="space-y-4">
-            {/* Email */}
-            <div className="bg-void-900/50 rounded-lg p-4 border border-void-700">
-              <div className="flex items-center gap-2 mb-2">
-                <Mail className="w-4 h-4 text-gray-500" />
-                <span className="text-xs font-mono text-gray-500 uppercase tracking-wider">Email</span>
-              </div>
-              <p className="text-gray-300 font-mono text-sm">{user.email}</p>
-            </div>
+          {/* Details */}
+          <div className="bg-void-900/50 rounded-lg px-3 py-1 border border-void-700">
+            <Row icon={Mail} label="Email">
+              <span className="font-mono text-gray-300 text-xs">{user.email}</span>
+            </Row>
+            <Row icon={Calendar} label="Since">
+              <span className="text-gray-400 text-xs">{formatDate(user.createdAt)}</span>
+            </Row>
+          </div>
 
-            {/* Account Created */}
-            <div className="bg-void-900/50 rounded-lg p-4 border border-void-700">
-              <div className="flex items-center gap-2 mb-2">
-                <Calendar className="w-4 h-4 text-gray-500" />
-                <span className="text-xs font-mono text-gray-500 uppercase tracking-wider">Member Since</span>
-              </div>
-              <p className="text-gray-300 text-sm">{formatDate(user.createdAt)}</p>
+          {/* Roles */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <Shield className="w-3.5 h-3.5 text-gray-500" />
+              <span className="text-xs font-mono text-gray-500 uppercase tracking-wider">Roles</span>
             </div>
-
-            {/* Roles & Permissions */}
-            <div className="bg-void-900/50 rounded-lg p-4 border border-void-700">
-              <div className="flex items-center gap-2 mb-3">
-                <Shield className="w-4 h-4 text-gray-500" />
-                <span className="text-xs font-mono text-gray-500 uppercase tracking-wider">Roles & Permissions</span>
-              </div>
-              <div className="space-y-3">
+            {user.roles.length === 0 ? (
+              <p className="text-xs text-gray-500 italic px-1">No roles assigned</p>
+            ) : (
+              <div className="bg-void-900/50 rounded-lg px-3 py-1 border border-void-700">
                 {user.roles.map((role) => (
-                  <div key={role.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-300 font-medium text-sm">{role.name}</span>
-                      <Badge className="bg-cyber-primary/10 border-cyber-primary/30 text-cyber-primary">
-                        {role.permissions.length} {role.permissions.length === 1 ? 'permission' : 'permissions'}
-                      </Badge>
-                    </div>
-                    {role.permissions.length > 0 && (
-                      <div className="pl-3 border-l-2 border-void-700 space-y-1">
-                        {role.permissions.map((permission) => (
-                          <div key={permission.id} className="text-xs text-gray-500 flex items-center gap-2">
-                            <span className="text-cyber-secondary">›</span>
-                            <span className="font-mono">
-                              {permission.resource}:{permission.action}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div key={role.id} className="flex items-center justify-between py-1.5 border-b border-void-700/40 last:border-0">
+                    <span className="text-gray-300 text-xs font-mono">{role.name}</span>
+                    <Badge className="text-xs bg-cyber-primary/10 border-cyber-primary/30 text-cyber-primary">
+                      {role.permissions.length} perms
+                    </Badge>
                   </div>
                 ))}
-                {user.roles.length === 0 && (
-                  <p className="text-gray-500 text-sm italic">No roles assigned</p>
-                )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Actions */}
-          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-void-700">
-            <Button
-              variant="secondary"
-              className="flex items-center justify-center gap-2"
-              onClick={() => {
-                setIsEditProfileOpen(true);
-              }}
-            >
-              <Edit className="w-4 h-4" />
-              <span>Edit Profile</span>
+          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-void-700">
+            <Button variant="secondary" size="sm" className="flex items-center justify-center gap-1.5" onClick={() => setIsEditProfileOpen(true)}>
+              <Edit className="w-3.5 h-3.5" /> Edit
             </Button>
-            <Button
-              variant="secondary"
-              className="flex items-center justify-center gap-2"
-              onClick={() => {
-                setIsChangePasswordOpen(true);
-              }}
-            >
-              <Key className="w-4 h-4" />
-              <span>Password</span>
+            <Button variant="secondary" size="sm" className="flex items-center justify-center gap-1.5" onClick={() => setIsChangePasswordOpen(true)}>
+              <Key className="w-3.5 h-3.5" /> Password
             </Button>
-            <Button
-              variant="danger"
-              className="flex items-center justify-center gap-2"
-              onClick={() => {
-                onClose();
-                onLogout?.();
-              }}
-            >
-              <LogOut className="w-4 h-4" />
-              <span>Logout</span>
+            <Button variant="danger" size="sm" className="flex items-center justify-center gap-1.5" onClick={() => { onClose(); onLogout?.(); }}>
+              <LogOut className="w-3.5 h-3.5" /> Logout
             </Button>
           </div>
         </div>
       </Modal>
 
-      {/* Edit Profile Modal */}
-      <EditProfileModal
-        isOpen={isEditProfileOpen}
-        onClose={() => setIsEditProfileOpen(false)}
-        user={user}
-      />
-
-      {/* Change Password Modal */}
-      <ChangePasswordModal
-        isOpen={isChangePasswordOpen}
-        onClose={() => setIsChangePasswordOpen(false)}
-      />
+      <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setIsEditProfileOpen(false)} user={user} />
+      <ChangePasswordModal isOpen={isChangePasswordOpen} onClose={() => setIsChangePasswordOpen(false)} />
     </>
   );
 };

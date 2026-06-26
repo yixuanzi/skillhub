@@ -15,3 +15,11 @@ export const useAuditLog = (id: string) => {
     enabled: !!id,
   });
 };
+
+export const useAuditLogResourceTypes = () => {
+  return useQuery({
+    queryKey: ['audit-log-resource-types'],
+    queryFn: () => auditLogsApi.listResourceTypes(),
+    staleTime: 5 * 60 * 1000,
+  });
+};

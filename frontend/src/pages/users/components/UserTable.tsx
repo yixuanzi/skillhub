@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import { Shield, ChevronLeft, ChevronRight, Info, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
@@ -29,6 +29,8 @@ interface Props {
   onPageChange: (page: number) => void;
   onManageRoles: (user: User) => void;
   onViewDetails: (user: User) => void;
+  onDelete?: (user: User) => void;
+  deleteConfirm?: string | null;
 }
 
 export const UserTable: React.FC<Props> = ({
@@ -38,7 +40,9 @@ export const UserTable: React.FC<Props> = ({
   size,
   onPageChange,
   onManageRoles,
-  onViewDetails
+  onViewDetails,
+  onDelete,
+  deleteConfirm,
 }) => {
   const totalPages = Math.ceil(total / size);
 
@@ -81,7 +85,7 @@ export const UserTable: React.FC<Props> = ({
               <TableHead>Roles</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Created</TableHead>
-              <TableHead className="w-32">Actions</TableHead>
+              <TableHead className="w-36">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -151,6 +155,25 @@ export const UserTable: React.FC<Props> = ({
                     >
                       <Shield className="w-4 h-4" />
                     </Button>
+                    {onDelete && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDelete(user)}
+                        className={cn(
+                          'p-1.5 transition-all duration-200',
+                          deleteConfirm === user.id
+                            ? 'bg-cyber-accent/20 border border-cyber-accent text-cyber-accent animate-pulse'
+                            : 'text-cyber-accent hover:text-cyber-accent'
+                        )}
+                        title={deleteConfirm === user.id ? 'Confirm delete' : 'Delete user'}
+                      >
+                        {deleteConfirm === user.id
+                          ? <AlertTriangle className="w-4 h-4" />
+                          : <Trash2 className="w-4 h-4" />
+                        }
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

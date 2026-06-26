@@ -170,6 +170,12 @@ async def audit_middleware(request: Request, call_next):
     # Determine action
     action = f"{request.method.lower()} {request.url.path}"
 
+    # Extract resource_type from 3rd path segment (after /api/v1/)
+    path_parts = request.url.path.split("/")
+    # /api/v1/<resource_type>/... → parts: ['', 'api', 'v1', '<resource_type>', ...]
+    resource_type = path_parts[3] if len(path_parts) > 3 and path_parts[3] else "unknown"
+    resource_id = path_parts[4] if len(path_parts) > 4 and path_parts[3]=="gateway" else "unknown"
+
     # Get database session
     db_gen = get_db()
     db: Session = next(db_gen)
@@ -184,8 +190,7 @@ async def audit_middleware(request: Request, call_next):
             "path": request.url.path,
             "query_params": dict(request.query_params) if request.query_params else {},
             "status_code": response.status_code,
-            "duration_ms": round(duration * 1000, 2),
-            "auth_method": getattr(request.state, "auth_method", None)
+            "duration_ms": round(duration * 1000, 2)
         }
 
         # Add body info
@@ -197,7 +202,8 @@ async def audit_middleware(request: Request, call_next):
             db=db,
             user_id=user_id,
             action=action,
-            resource_type="http_request",
+            resource_type=resource_type,
+            resource_id=resource_id,
             details=details,
             ip_address=ip_address,
             user_agent=user_agent,

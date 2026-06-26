@@ -103,7 +103,10 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
           {resources.map((resource) => (
             <TableRow key={resource.id}>
               <TableCell>
-                <span className="font-mono font-medium text-gray-200">{resource.name}</span>
+                <div className="flex flex-col gap-1">
+                  <code className="text-sm font-mono text-cyber-primary">{resource.name}</code>
+                  <code className="text-xs font-mono text-gray-600">{resource.id}</code>
+                </div>
               </TableCell>
               <TableCell>
                 <Badge variant={getTypeBadgeVariant(resource.type)}>{resource.type}</Badge>
