@@ -1,4 +1,4 @@
-import { Clock, User, Server, Globe, CheckCircle, XCircle, AlertCircle, FileText } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, FileText } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { AuditLog } from '@/api/audit-logs';

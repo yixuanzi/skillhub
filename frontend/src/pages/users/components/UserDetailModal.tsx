@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Calendar, Shield, User, Edit, Eye, EyeOff, Loader2, Check, X, CheckCircle } from 'lucide-react';
+import { Shield, User, Edit, Eye, EyeOff, Loader2, Check, X, CheckCircle } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
