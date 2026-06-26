@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+import asyncio
 import sys
 import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -18,6 +19,7 @@ from api.user_management import router as user_management_router, role_router, p
 from api.skill_creator import router as skill_creator_router
 from api.script import router as script_router
 from middleware.audit_middleware import audit_middleware
+from tasks.audit_cleanup import audit_log_cleanup_task
 
 
 @asynccontextmanager
@@ -25,9 +27,14 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
     init_db()
+    cleanup_task = asyncio.create_task(audit_log_cleanup_task())
     yield
-    # Shutdown (if needed)
-    pass
+    # Shutdown
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(

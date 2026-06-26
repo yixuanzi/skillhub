@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     ANTHROPIC_AUTH_TOKEN:str=""
     GATEWAY_FORCE_PLAINTEXT: bool = False
     SKIP_VERIFY: bool = False
+    AUDIT_LOG_RETENTION_DAYS: int = 120
 
     class Config:
         env_file = ".env"

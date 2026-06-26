@@ -5,7 +5,7 @@ including creating logs and querying with filters.
 """
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional, Any, List
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from models.system_audit_log import SystemAuditLog
 from models.user import User
@@ -114,6 +114,14 @@ class SystemAuditLogService:
         ).offset(skip).limit(limit).all()
 
         return logs, total
+
+    @staticmethod
+    def delete_old_logs(db: Session, retention_days: int) -> int:
+        """Delete audit logs older than retention_days. Returns deleted count."""
+        cutoff = datetime.utcnow() - timedelta(days=retention_days)
+        result = db.query(SystemAuditLog).filter(SystemAuditLog.created_at < cutoff).delete(synchronize_session=False)
+        db.commit()
+        return result
 
     @staticmethod
     def list_resource_types(db: Session) -> List[str]:
