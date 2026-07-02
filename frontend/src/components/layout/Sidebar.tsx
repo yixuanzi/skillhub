@@ -9,6 +9,7 @@ import {
   Database,
   Shield,
   Settings,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -28,6 +29,7 @@ const navItems: NavItem[] = [
   { path: '/tokens', label: 'Tokens', icon: Key },
   { path: '/acl', label: 'ACL Rules', icon: Shield },
   { path: '/settings', label: 'Settings', icon: Settings },
+  { path: '/user-manual', label: 'User Manual', icon: BookOpen },
 ];
 
 const adminNavItems: NavItem[] = [

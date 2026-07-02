@@ -17,7 +17,6 @@ from typing import Dict, Optional, Tuple
 
 
 SKILLHUB_URL = "{PLACEHOLDER_SKILLHUB_URL}"
-SKILLHUB_URL="http://172.18.40.74:8015"
 
 # Colors for output
 RED = "\033[0;31m"

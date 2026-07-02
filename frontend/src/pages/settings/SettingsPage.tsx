@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Settings, Key, FileText } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -14,10 +15,18 @@ const tabs: TabType[] = [
   { id: 'api-keys', label: 'API Keys', icon: Key },
   { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
 ];
+const validTabIds = tabs.map((tab) => tab.id);
 
 export const SettingsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const currentTab = searchParams.get('tab') || 'api-keys';
+  const tabFromQuery = searchParams.get('tab');
+  const currentTab = validTabIds.includes(tabFromQuery || '') ? tabFromQuery || 'api-keys' : 'api-keys';
+
+  useEffect(() => {
+    if (tabFromQuery && !validTabIds.includes(tabFromQuery)) {
+      setSearchParams({ tab: 'api-keys' }, { replace: true });
+    }
+  }, [setSearchParams, tabFromQuery, validTabIds]);
 
   const setTab = (tabId: string) => {
     setSearchParams({ tab: tabId });
@@ -32,7 +41,7 @@ export const SettingsPage = () => {
           <h1 className="font-display text-3xl font-bold text-gray-100">Settings</h1>
         </div>
         <p className="font-mono text-sm text-gray-500">
-          Manage your API keys and view audit logs
+          Manage your API keys and review audit logs
         </p>
       </div>
 
@@ -101,4 +110,3 @@ export const SettingsTabs: React.FC<{
     })}
   </div>
 );
-

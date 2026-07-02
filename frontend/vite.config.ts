@@ -10,6 +10,9 @@ export default defineConfig({
     },
   },
   server: {
+    fs: {
+      allow: [path.resolve(__dirname, '..')],
+    },
     port: 5173,
     proxy: {
       // Proxy all API requests to backend
