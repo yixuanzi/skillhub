@@ -12,6 +12,8 @@ import os
 import json
 from typing import Any, Dict
 
+import hashlib
+
 from database import get_db
 from services.system_audit_log_service import SystemAuditLogService
 from core.security import verify_token
@@ -100,15 +102,35 @@ async def audit_middleware(request: Request, call_next):
 
     # Extract user info
     user_id = getattr(request.state, "user_id", None)
-    #username = None
     if not user_id:
         auth_header = request.headers.get("authorization")
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header[7:]
-            payload = verify_token(token)
-            if payload:
-                user_id = payload.get("sub")
-                #username = payload.get("username")
+            if token.startswith("sk_"):
+                # API key: resolve user_id via a read-only hash lookup
+                try:
+                    from models.api_key import APIKey
+                    key_hash = hashlib.sha256(token.encode()).hexdigest()
+                    db_gen_key = get_db()
+                    db_key: Session = next(db_gen_key)
+                    try:
+                        api_key = db_key.query(APIKey).filter(
+                            APIKey.key_hash == key_hash,
+                            APIKey.is_active == True
+                        ).first()
+                        if api_key:
+                            user_id = str(api_key.user_id)
+                    finally:
+                        try:
+                            db_gen_key.close()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            else:
+                payload = verify_token(token)
+                if payload:
+                    user_id = payload.get("sub")
 
     ip_address = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
