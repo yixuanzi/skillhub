@@ -25,7 +25,16 @@ services:
 
       # CORS Origins
       - CORS_ORIGINS=["http://localhost","http://localhost:80"]
-
+      # Aegis Portal OIDC client configuration. Keep the secret in a local
+      # untracked .env file or an external runtime secret store.
+      - OIDC_ISSUER=${OIDC_ISSUER:-http://127.0.0.1:8080}
+      - OIDC_BACKCHANNEL_URL=${OIDC_BACKCHANNEL_URL:-http://host.docker.internal:8000}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
+      - OIDC_REDIRECT_URI=${OIDC_REDIRECT_URI:-http://127.0.0.1/api/v1/sso/callback}
+      - OIDC_POST_LOGIN_REDIRECT=${OIDC_POST_LOGIN_REDIRECT:-/sso/callback}
+      - OIDC_SECURE_COOKIE=${OIDC_SECURE_COOKIE:-false}
+      
       # Python settings
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1

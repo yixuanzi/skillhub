@@ -2,7 +2,7 @@ import apiClient from './client';
 import { LoginRequest, RegisterRequest } from '@/types';
 
 // Backend token response format (no wrapper)
-interface BackendTokenResponse {
+export interface BackendTokenResponse {
   access_token: string;
   refresh_token: string;
   token_type: string;
@@ -32,7 +32,7 @@ interface BackendRoleResponse {
   permissions: BackendPermissionResponse[];
 }
 
-interface BackendUserResponse {
+export interface BackendUserResponse {
   id: string;
   username: string;
   email: string;
@@ -75,5 +75,10 @@ export const authApi = {
 
   changePassword: async (data: { old_password: string; new_password: string }): Promise<void> => {
     await apiClient.post('/auth/change-password/', data);
+  },
+
+  exchangeSsoTicket: async (): Promise<BackendTokenResponse> => {
+    const response = await apiClient.post<BackendTokenResponse>('/sso/exchange');
+    return response.data;
   },
 };

@@ -62,7 +62,8 @@ backend/
 │   ├── api_key.py              # API 密钥管理端点
 │   ├── mtoken.py               # Token 托管端点
 │   ├── audit_log.py            # 审计日志端点
-│   └── user_management.py      # 用户/角色/权限管理端点
+│   ├── user_management.py      # 用户/角色/权限管理端点
+│   └── sso.py                  # Aegis Portal OIDC 客户端端点
 │
 ├── services/                   # 业务逻辑层
 │   ├── resource_service.py     # 资源服务
@@ -116,6 +117,17 @@ backend/
 - Token 刷新
 - 用户登出
 - 获取当前用户信息
+
+### 2. Aegis Portal OIDC (`/api/v1/sso/`)
+
+- `GET /sso/start?organization_id=...&client_id=...`：Portal 服务入口登录。
+- `GET /sso/start?sso=1`：SkillHub 登录页 SSO，使用 `client_id + sso=1`。
+- `GET /sso/callback`：接收 Portal Authorization Code，完成服务端校验。
+- `POST /sso/exchange`：使用 HttpOnly 一次性票据兑换本地 JWT。
+
+Portal 多组织选择由 Portal 提供；SkillHub 不接收或传递
+`subscription_id`。OIDC 用户按 `users.oidc_subject` 绑定，未匹配时自动创建 active
+`viewer` 用户；本地已有角色不会被 Portal roles 直接提权。
 
 ### 2. 资源管理模块 (`/api/v1/resources/`)
 - 创建资源（gateway、third、mcp）
@@ -246,7 +258,22 @@ SKILLHUB_URL=http://localhost:8000
 # Server Config
 SKILL_HOST=0.0.0.0
 SKILL_PORT=8000
+
+# Aegis Portal OIDC
+OIDC_ISSUER=http://127.0.0.1:8080
+OIDC_BACKCHANNEL_URL=http://127.0.0.1:8000
+OIDC_CLIENT_ID=<Portal client_id>
+OIDC_CLIENT_SECRET=<server-side secret>
+OIDC_REDIRECT_URI=http://127.0.0.1/api/v1/sso/callback
+OIDC_POST_LOGIN_REDIRECT=/sso/callback
 ```
+
+| 配置 | 作用 | 当前示例 |
+|---|---|---|
+| `OIDC_ISSUER` | 浏览器访问 Portal 的地址，用于跳转 `/oauth/authorize`，同时用于校验 ID Token 的 `iss` | `http://127.0.0.1:8080` |
+| `OIDC_BACKCHANNEL_URL` | SkillHub 后端访问 Portal API 的地址，用于 Token Exchange、JWKS、UserInfo | `http://host.docker.internal:8000` |
+| `OIDC_REDIRECT_URI` | Portal 授权完成后回调 SkillHub 后端的地址 | `http://127.0.0.1/api/v1/sso/callback` |
+| `OIDC_POST_LOGIN_REDIRECT` | SkillHub 后端处理完 OIDC 后，跳转到前端继续兑换登录票据的页面 | `/sso/callback` |
 
 ### 5. 初始化数据库
 
@@ -285,6 +312,12 @@ python main.py
 | `SKILLHUB_URL` | SkillHub API 地址 | `http://localhost:8000` |
 | `SKILL_HOST` | 服务器监听地址 | `0.0.0.0` |
 | `SKILL_PORT` | 服务器端口 | 8000 |
+| `OIDC_ISSUER` | 浏览器访问的 Portal issuer | `http://127.0.0.1:8080` |
+| `OIDC_BACKCHANNEL_URL` | SkillHub 容器访问 Portal API 的地址 | `http://127.0.0.1:8000` |
+| `OIDC_CLIENT_ID` | Portal 分配的客户端 ID | 空 |
+| `OIDC_CLIENT_SECRET` | Portal 客户端密钥，仅服务端使用 | 空 |
+| `OIDC_REDIRECT_URI` | Portal 注册的精确回调地址 | `http://127.0.0.1/api/v1/sso/callback` |
+| `OIDC_POST_LOGIN_REDIRECT` | OIDC 成功后的前端回调路由 | `/sso/callback` |
 
 ---
 
@@ -304,6 +337,11 @@ python main.py
 - `POST /auth/refresh/` - 刷新 Access Token
 - `POST /auth/logout/` - 用户登出
 - `GET /auth/me/` - 获取当前用户信息
+
+#### Aegis Portal OIDC
+- `GET /sso/start` - 发起 Portal 服务入口或登录页 SSO
+- `GET /sso/callback` - 接收授权码并创建一次性登录票据
+- `POST /sso/exchange` - 兑换 SkillHub 本地 JWT 会话
 
 #### 资源管理
 - `POST /resources/` - 创建资源

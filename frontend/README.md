@@ -84,7 +84,7 @@ src/
 
 ## Features
 
-- **Authentication**: JWT-based login/register
+- **Authentication**: JWT-based login/register plus Aegis Portal OIDC SSO
 - **Dashboard**: System overview with stats
 - **Skills Management**: Create, build, publish, and test skills
 - **Users & Roles**: User management with RBAC
@@ -96,3 +96,16 @@ src/
 ```env
 VITE_API_BASE_URL=/api/v1
 ```
+
+## Aegis Portal OIDC
+
+The login page includes an `SSO 认证登录` action that calls the SkillHub
+backend at `/api/v1/sso/start?sso=1`. Portal service launches are detected from
+`organization_id + client_id` on the root URL and redirected to the same
+server-side OIDC start endpoint. The frontend never reads or forwards
+`subscription_id`.
+
+The public `/sso/callback` route exchanges the HttpOnly one-time ticket set by
+the backend callback, stores the returned local JWT pair in the existing auth
+store, loads the current user, and navigates to `/dashboard`. Portal remains
+responsible for authentication and multi-organization selection.

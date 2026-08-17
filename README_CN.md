@@ -106,6 +106,19 @@ docker-compose -f docker-compose-dev.yml up -d
 # API 文档: http://localhost:8000/docs
 ```
 
+### Aegis Portal OIDC 接入
+
+SkillHub 支持作为 Aegis Portal 的 OIDC 客户端运行。请参考 `.env.example`
+在本地未跟踪的 `.env` 中配置参数，client secret 不得提交到代码仓库。
+
+- Portal 服务入口：访问 `/?organization_id=<id>&client_id=<client_id>` 后，自动调用服务端 `/api/v1/sso/start`，通过 Authorization Code + S256 PKCE 登录。
+- SkillHub 登录页 SSO：调用 `/api/v1/sso/start?sso=1`，只向 Portal 发送 `client_id` 和 `sso=1`，不发送 `organization_id` 或 `subscription_id`；Portal 负责登录和多组织选择。
+- Portal 回调 `/api/v1/sso/callback` 后，SkillHub 校验 ID Token/UserInfo，再通过短时 HttpOnly 登录票据兑换现有本地 JWT 会话。
+- 浏览器 URL 不包含 `subscription_id`、access token 或 refresh token。OIDC 用户按 `oidc_subject` 绑定，首次登录按可信 email 绑定同邮箱账号，否则自动创建 `viewer` 用户。
+
+本地 Compose 推荐配置 `OIDC_ISSUER=http://127.0.0.1:8080`、
+`OIDC_BACKCHANNEL_URL=http://host.docker.internal:8000`。后者仅用于容器访问宿主机上的 Portal API，不能作为浏览器 issuer。
+
 ### 手动安装
 
 #### 1. 后端服务

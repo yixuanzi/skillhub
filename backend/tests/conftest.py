@@ -8,6 +8,7 @@ from models.skill_list import SkillList
 from models.api_key import APIKey
 from models.mtoken import MToken
 from models.system_audit_log import SystemAuditLog
+from models.oidc import OidcLoginTransaction, SsoLoginTicket
 from schemas.auth import UserCreate
 from services.auth_service import AuthService
 from main import app
@@ -41,6 +42,8 @@ def db():
         cleanup_session = SessionLocal()
         try:
             cleanup_session.query(SystemAuditLog).delete()
+            cleanup_session.query(SsoLoginTicket).delete()
+            cleanup_session.query(OidcLoginTransaction).delete()
             cleanup_session.query(SkillList).delete()
             cleanup_session.query(Resource).delete()
             cleanup_session.query(RefreshToken).delete()

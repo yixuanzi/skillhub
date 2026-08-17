@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Layout } from './components/layout/Layout';
-import { LoginPage, RegisterPage } from './pages/auth';
+import { LoginPage, RegisterPage, SsoCallbackPage } from './pages/auth';
 import { DashboardPage } from './pages/dashboard';
 import { SkillsPage, SkillDetailPage, SkillCreatePage, SkillEditPage } from './pages/skills';
 import { UsersPage } from './pages/users';
@@ -25,12 +26,34 @@ const queryClient = new QueryClient({
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const token = localStorage.getItem('access_token');
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const organizationId = params.get('organization_id');
+  const clientId = params.get('client_id');
+
+  if (location.pathname === '/' && organizationId && clientId) {
+    return <PortalLaunchRedirect organizationId={organizationId} clientId={clientId} />;
+  }
 
   if (!isAuthenticated && !token) {
     return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
+};
+
+const PortalLaunchRedirect = ({ organizationId, clientId }: { organizationId: string; clientId: string }) => {
+  const launchQuery = new URLSearchParams({ organization_id: organizationId, client_id: clientId }).toString();
+
+  useEffect(() => {
+    window.location.replace(`/api/v1/sso/start?${launchQuery}`);
+  }, [launchQuery]);
+
+  return (
+    <div className="min-h-screen bg-void-950 bg-grid flex items-center justify-center p-4">
+      <p className="font-mono text-sm text-gray-400">正在跳转到 Aegis Portal…</p>
+    </div>
+  );
 };
 
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
@@ -88,6 +111,7 @@ function App() {
               </PublicRoute>
             }
           />
+          <Route path="/sso/callback" element={<SsoCallbackPage />} />
 
           {/* Protected Routes */}
           <Route

@@ -98,13 +98,37 @@ git clone https://github.com/yixuanzi/skillhub.git
 cd skillhub
 
 # Start services (includes frontend and backend)
-docker-compose -f docker-compose-dev.yml up -d
+docker-compose -f docker-compose-running.yml up -d
 
 # Access the application
 # Frontend: http://localhost
 # Backend API: http://localhost:8000
 # API Docs: http://localhost:8000/docs
 ```
+
+### Aegis Portal OIDC
+
+SkillHub can be connected to Aegis Portal as an OIDC client. Configure the
+values in a local untracked `.env` file (see `.env.example`); never commit the
+client secret.
+
+- Portal service launch: `/?organization_id=<id>&client_id=<client_id>` is
+  converted to a server-side `/api/v1/sso/start` request and automatically
+  starts Authorization Code + S256 PKCE.
+- SkillHub login-page SSO: `/api/v1/sso/start?sso=1` sends `client_id` and
+  `sso=1` without `organization_id` or `subscription_id`. Portal handles
+  login and multi-organization selection.
+- Portal returns to `/api/v1/sso/callback`; SkillHub validates the ID Token
+  and UserInfo, then exchanges a short-lived HttpOnly login ticket for the
+  existing local JWT session.
+- The browser never receives a `subscription_id`, access token, or refresh
+  token in the OIDC redirect URL. OIDC users are linked by `oidc_subject` or
+  provisioned as active `viewer` users.
+
+For the local Compose setup, use `OIDC_ISSUER=http://127.0.0.1:8080` and
+`OIDC_BACKCHANNEL_URL=http://host.docker.internal:8000`. The latter is the
+container-to-host path to the Portal API and must not be used as the browser
+issuer.
 
 ### Manual Installation
 

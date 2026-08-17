@@ -17,6 +17,18 @@ class Settings(BaseSettings):
     SKIP_VERIFY: bool = False
     AUDIT_LOG_RETENTION_DAYS: int = 120
 
+    # Aegis Portal OIDC client settings. The browser-facing issuer and the
+    # container-reachable backchannel can be different in Docker deployments.
+    OIDC_ISSUER: str = "http://127.0.0.1:8080"
+    OIDC_BACKCHANNEL_URL: str = "http://127.0.0.1:8000"
+    OIDC_CLIENT_ID: str = ""
+    OIDC_CLIENT_SECRET: str = ""
+    OIDC_REDIRECT_URI: str = "http://127.0.0.1/api/v1/sso/callback"
+    OIDC_POST_LOGIN_REDIRECT: str = "/sso/callback"
+    OIDC_TRANSACTION_TTL_SECONDS: int = 300
+    OIDC_TICKET_TTL_SECONDS: int = 60
+    OIDC_SECURE_COOKIE: bool = False
+
     class Config:
         env_file = ".env"
         extra = "ignore"

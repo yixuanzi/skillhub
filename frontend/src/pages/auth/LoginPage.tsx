@@ -96,6 +96,18 @@ export const LoginPage = () => {
             </Button>
           </form>
 
+          <div className="mt-5">
+            <a
+              href="/api/v1/sso/start?sso=1"
+              className="flex w-full items-center justify-center border border-cyber-secondary/70 px-6 py-3 font-mono text-base text-cyber-secondary transition-all duration-200 hover:bg-cyber-secondary/10 hover:border-cyber-secondary"
+            >
+              SSO 认证登录
+            </a>
+            <p className="mt-2 text-center text-xs text-gray-600">
+              使用 Aegis Portal 账号完成统一登录
+            </p>
+          </div>
+
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-500">
               Don't have an account?{' '}
