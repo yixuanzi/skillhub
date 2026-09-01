@@ -651,8 +651,9 @@ MCP 典型示例：
 - 说明卡片
 - `Create New Key`
 - Key 列表
+- `Enable / Disable`
 - `Rotate`
-- `Revoke`
+- `Delete`
 - 创建或轮换成功后的展示弹窗
 
 ### 9.3 创建 API Key
@@ -743,18 +744,21 @@ API key 列表中常见字段如下：
 | `last_used_at` | 最近使用时间 |
 | `is_active` | 当前是否有效 |
 
-### 9.6 Revoke 与 Rotate 的区别
+### 9.6 Enable、Disable、Delete 与 Rotate 的区别
 
-这两个按钮容易混淆，建议明确区分：
+这些操作的生命周期语义不同，建议明确区分：
 
 | 操作 | 含义 | 结果 |
 | --- | --- | --- |
-| `Revoke` | 使当前 key 失效 | key 不再可用，但不等同于物理删除记录 |
+| `Disable` | 暂时停用当前 key | key 不再可用，但仍保留在列表中，可以再次 `Enable` |
+| `Enable` | 恢复使用当前 key | key 重新生效 |
+| `Delete` | 永久删除当前 key | 物理删除记录，不能再次恢复或启用 |
 | `Rotate` | 生成新 key，并废弃旧 key | 会返回新的完整 key，旧 key 立即作废 |
 
 使用建议：
 
-- 不再需要的 key 使用 `Revoke`。
+- 暂时不使用但后续可能恢复的 key 使用 `Disable`。
+- 确定不再需要的 key 使用 `Delete`。
 - 怀疑泄露、到期更替或例行轮换时使用 `Rotate`。
 
 ## 10. Audit Logs 查询

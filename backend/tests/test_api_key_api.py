@@ -5,7 +5,7 @@ This test suite covers:
 - GET /api-keys/ - List API keys
 - GET /api-keys/{id}/ - Get API key by ID
 - PUT /api-keys/{id}/ - Update API key
-- DELETE /api-keys/{id}/ - Revoke API key
+- DELETE /api-keys/{id}/ - Delete API key
 - POST /api-keys/{id}/rotate - Rotate API key
 """
 import pytest
@@ -15,8 +15,15 @@ from sqlalchemy.orm import Session
 
 from models.user import User
 from models.api_key import APIKey
-from schemas.api_key import APIScope
+from schemas.api_key import APIKeyCreate, APIScope
 from services.api_key_service import APIKeyService
+from core.security import create_access_token
+
+
+def active_user_headers(user: User) -> dict[str, str]:
+    """Build JWT headers for an active test user."""
+    token = create_access_token(data={"sub": user.id, "username": user.username})
+    return {"Authorization": f"Bearer {token}"}
 
 
 class TestAPIKeyCreateEndpoint:
@@ -364,41 +371,62 @@ class TestAPIKeyUpdateEndpoint:
         assert response.status_code == 404
 
 
-class TestAPIKeyRevokeEndpoint:
+class TestAPIKeyToggleEndpoint:
+    """Test suite for enabling and disabling API keys."""
+
+    def test_toggle_api_key_active_state(self, client: TestClient, create_user, db: Session):
+        """Test disabling a key and enabling it again through the API."""
+        user = create_user("api-key-toggle", "api-key-toggle@example.com")
+        created_key, _ = APIKeyService.create(
+            db, user,
+            APIKeyCreate(name="Toggle Key", scopes=[APIScope.SKILLS_READ])
+        )
+        headers = active_user_headers(user)
+
+        disable_response = client.put(
+            f"/api/v1/api-keys/{created_key.id}/",
+            json={"is_active": False},
+            headers=headers
+        )
+        enable_response = client.put(
+            f"/api/v1/api-keys/{created_key.id}/",
+            json={"is_active": True},
+            headers=headers
+        )
+
+        assert disable_response.status_code == 200
+        assert disable_response.json()["is_active"] is False
+        assert enable_response.status_code == 200
+        assert enable_response.json()["is_active"] is True
+
+
+class TestAPIKeyDeleteEndpoint:
     """Test suite for DELETE /api-keys/{id}/ endpoint."""
 
-    def test_revoke_api_key(self, client: TestClient, test_user: User, db: Session):
-        """Test revoking an API key."""
+    def test_delete_api_key(self, client: TestClient, create_user, db: Session):
+        """Test permanently deleting an API key."""
+        user = create_user("api-key-delete", "api-key-delete@example.com")
         created_key, _ = APIKeyService.create(
-            db, test_user,
+            db, user,
             APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
         )
 
-        login_response = client.post("/api/v1/auth/login", json={
-            "username": "testuser",
-            "password": "testpassword123"
-        })
-        token = login_response.json()["access_token"]
-
         response = client.delete(
             f"/api/v1/api-keys/{created_key.id}/",
-            headers={"Authorization": f"Bearer {token}"}
+            headers=active_user_headers(user)
         )
 
-        assert response.status_code == 200
-        assert response.json()["is_active"] is False
+        assert response.status_code == 204
+        assert response.content == b""
+        assert db.query(APIKey).filter(APIKey.id == created_key.id).first() is None
 
-    def test_revoke_api_key_not_found(self, client: TestClient, test_user: User):
-        """Test revoking non-existent API key returns 404."""
-        login_response = client.post("/api/v1/auth/login", json={
-            "username": "testuser",
-            "password": "testpassword123"
-        })
-        token = login_response.json()["access_token"]
+    def test_delete_api_key_not_found(self, client: TestClient, create_user):
+        """Test deleting a non-existent API key returns 404."""
+        user = create_user("api-key-delete-missing", "api-key-delete-missing@example.com")
 
         response = client.delete(
             "/api/v1/api-keys/non-existent-id/",
-            headers={"Authorization": f"Bearer {token}"}
+            headers=active_user_headers(user)
         )
 
         assert response.status_code == 404
@@ -495,8 +523,8 @@ class TestAPIKeyUserIsolation:
 
         assert response.status_code == 404
 
-    def test_user_cannot_revoke_others_keys(self, client: TestClient, test_user: User, admin_user: User, db: Session):
-        """Test users cannot revoke other users' API keys."""
+    def test_user_cannot_delete_others_keys(self, client: TestClient, test_user: User, admin_user: User, db: Session):
+        """Test users cannot delete other users' API keys."""
         admin_key, _ = APIKeyService.create(
             db, admin_user,
             APIKeyCreate(name="Admin Key", scopes=[APIScope.SKILLS_READ])

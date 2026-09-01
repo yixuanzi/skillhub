@@ -1,4 +1,4 @@
-import { Trash2, RefreshCw, Calendar, Clock } from 'lucide-react';
+import { Trash2, RefreshCw, Calendar, Clock, ToggleLeft, ToggleRight } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
@@ -6,12 +6,19 @@ import { APIKey } from '@/api/api-keys';
 
 interface APIKeyTableProps {
   apiKeys: APIKey[];
-  onRevoke: (id: string) => void;
+  onDelete: (id: string) => void;
+  onToggleActive: (key: APIKey) => void;
   onRotate: (id: string) => void;
   deleteConfirm: string | null;
 }
 
-export const APIKeyTable = ({ apiKeys, onRevoke, onRotate, deleteConfirm }: APIKeyTableProps) => {
+export const APIKeyTable = ({
+  apiKeys,
+  onDelete,
+  onToggleActive,
+  onRotate,
+  deleteConfirm,
+}: APIKeyTableProps) => {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -88,7 +95,9 @@ export const APIKeyTable = ({ apiKeys, onRevoke, onRotate, deleteConfirm }: APIK
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-gray-100">{key.name}</span>
                     {expiringSoon && (
-                      <Badge variant="danger" className="text-xs">Expiring Soon</Badge>
+                      <Badge variant="danger" className="text-xs">
+                        Expiring Soon
+                      </Badge>
                     )}
                   </div>
                 </td>
@@ -109,10 +118,7 @@ export const APIKeyTable = ({ apiKeys, onRevoke, onRotate, deleteConfirm }: APIK
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-2 text-sm">
                     <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                    <span className={cn(
-                      'text-gray-400',
-                      expiringSoon && 'text-cyber-accent'
-                    )}>
+                    <span className={cn('text-gray-400', expiringSoon && 'text-cyber-accent')}>
                       {formatDate(key.expires_at)}
                     </span>
                   </div>
@@ -133,31 +139,49 @@ export const APIKeyTable = ({ apiKeys, onRevoke, onRotate, deleteConfirm }: APIK
                       key.is_active && 'bg-cyber-primary/10 border-cyber-primary/30'
                     )}
                   >
-                    {key.is_active ? 'Active' : 'Revoked'}
+                    {key.is_active ? 'Active' : 'Disabled'}
                   </Badge>
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onToggleActive(key)}
+                      title={key.is_active ? 'Disable key' : 'Enable key'}
+                      aria-label={key.is_active ? `Disable ${key.name}` : `Enable ${key.name}`}
+                      className={cn(
+                        key.is_active
+                          ? 'text-cyber-primary hover:text-cyber-primary'
+                          : 'text-gray-500 hover:text-cyber-secondary'
+                      )}
+                    >
+                      {key.is_active ? (
+                        <ToggleRight className="w-4 h-4" />
+                      ) : (
+                        <ToggleLeft className="w-4 h-4" />
+                      )}
+                    </Button>
                     {key.is_active && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onRotate(key.id)}
-                          title="Rotate key"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant={isDeleting ? 'danger' : 'ghost'}
-                          size="sm"
-                          onClick={() => onRevoke(key.id)}
-                          title={isDeleting ? 'Confirm revoke' : 'Revoke key'}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onRotate(key.id)}
+                        title="Rotate key"
+                        aria-label={`Rotate ${key.name}`}
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </Button>
                     )}
+                    <Button
+                      variant={isDeleting ? 'danger' : 'ghost'}
+                      size="sm"
+                      onClick={() => onDelete(key.id)}
+                      title={isDeleting ? 'Confirm delete' : 'Delete key'}
+                      aria-label={isDeleting ? `Confirm delete ${key.name}` : `Delete ${key.name}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </td>
               </tr>

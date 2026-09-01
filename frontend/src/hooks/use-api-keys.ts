@@ -31,20 +31,26 @@ export const useUpdateAPIKey = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: APIKeyUpdate }) =>
-      apiKeysApi.update(id, data),
-    onSuccess: () => {
+    mutationFn: ({ id, data }: { id: string; data: APIKeyUpdate }) => apiKeysApi.update(id, data),
+    onSuccess: (updatedKey) => {
+      queryClient.setQueriesData<APIKey[]>({ queryKey: ['api-keys'] }, (keys) =>
+        keys?.map((key) => (key.id === updatedKey.id ? updatedKey : key))
+      );
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
     },
   });
 };
 
-export const useRevokeAPIKey = () => {
+export const useDeleteAPIKey = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => apiKeysApi.revoke(id),
-    onSuccess: () => {
+    mutationFn: (id: string) => apiKeysApi.delete(id),
+    onSuccess: (_, id) => {
+      queryClient.setQueriesData<APIKey[]>({ queryKey: ['api-keys'] }, (keys) =>
+        keys?.filter((key) => key.id !== id)
+      );
+      queryClient.removeQueries({ queryKey: ['api-key', id] });
       queryClient.invalidateQueries({ queryKey: ['api-keys'] });
     },
   });

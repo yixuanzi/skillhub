@@ -271,6 +271,47 @@ class TestAPIKeyUpdate:
 
         assert updated_key.is_active is False
 
+    def test_update_reactivate(self, db: Session, test_user: User):
+        """Test re-enabling a previously disabled API key."""
+        created_key, _ = APIKeyService.create(
+            db, test_user,
+            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+        )
+
+        APIKeyService.update(
+            db, created_key.id, str(test_user.id), APIKeyUpdate(is_active=False)
+        )
+        updated_key = APIKeyService.update(
+            db, created_key.id, str(test_user.id), APIKeyUpdate(is_active=True)
+        )
+
+        assert updated_key.is_active is True
+
+    def test_update_reactivate_respects_active_key_limit(
+        self, db: Session, test_user: User, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Test re-enabling a key cannot exceed the active-key limit."""
+        monkeypatch.setattr(APIKeyService, "MAX_ACTIVE_KEYS", 1)
+
+        first_key, _ = APIKeyService.create(
+            db, test_user,
+            APIKeyCreate(name="First Key", scopes=[APIScope.SKILLS_READ])
+        )
+        APIKeyService.update(
+            db, first_key.id, str(test_user.id), APIKeyUpdate(is_active=False)
+        )
+        APIKeyService.create(
+            db, test_user,
+            APIKeyCreate(name="Second Key", scopes=[APIScope.SKILLS_READ])
+        )
+
+        with pytest.raises(ValidationException) as exc:
+            APIKeyService.update(
+                db, first_key.id, str(test_user.id), APIKeyUpdate(is_active=True)
+            )
+
+        assert "Maximum 1 active API keys allowed" in str(exc.value)
+
     def test_update_invalid_scopes(self, db: Session, test_user: User):
         """Test update with invalid scopes raises error."""
         created_key, _ = APIKeyService.create(
@@ -315,6 +356,25 @@ class TestAPIKeyRevoke:
         # Revoke again - should work but key remains inactive
         revoked_key = APIKeyService.revoke(db, created_key.id, str(test_user.id))
         assert revoked_key.is_active is False
+
+
+class TestAPIKeyDelete:
+    """Test suite for permanent API key deletion."""
+
+    def test_delete_api_key_removes_record(self, db: Session, test_user: User):
+        """Deleting an API key permanently removes it from storage."""
+        created_key, full_key = APIKeyService.create(
+            db, test_user,
+            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+        )
+
+        APIKeyService.delete(db, created_key.id, str(test_user.id))
+
+        assert db.query(APIKey).filter(APIKey.id == created_key.id).first() is None
+        assert APIKeyService.list_by_user(db, str(test_user.id)) == []
+        assert APIKeyService.authenticate(db, full_key) is None
+        with pytest.raises(NotFoundException):
+            APIKeyService.get_by_id(db, created_key.id, str(test_user.id))
 
 
 class TestAPIKeyRotate:

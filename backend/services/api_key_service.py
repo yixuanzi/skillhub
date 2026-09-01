@@ -1,7 +1,7 @@
 """API Key service for API key management operations.
 
 This module provides the business logic layer for API key CRUD operations,
-including creation, authentication, rotation, and revocation.
+including creation, authentication, rotation, deletion, and activation state.
 """
 import hashlib
 import secrets
@@ -153,6 +153,20 @@ class APIKeyService:
             raise ValidationException(str(e))
 
         update_data = data.model_dump(exclude_unset=True)
+
+        # Re-enabling a key should respect the same per-user active-key limit
+        # as creating a new key. Updating an already active key to active is a
+        # no-op and must not count the key twice.
+        if data.is_active is True and not api_key.is_active:
+            active_count = db.query(APIKey).filter(
+                APIKey.user_id == user_id,
+                APIKey.is_active == True
+            ).count()
+            if active_count >= APIKeyService.MAX_ACTIVE_KEYS:
+                raise ValidationException(
+                    f"Maximum {APIKeyService.MAX_ACTIVE_KEYS} active API keys allowed"
+                )
+
         for field, value in update_data.items():
             setattr(api_key, field, value)
 
@@ -179,6 +193,22 @@ class APIKeyService:
         api_key.is_active = False
         db.commit()
         return api_key
+
+    @staticmethod
+    def delete(db: Session, key_id: str, user_id: str) -> None:
+        """Permanently delete an API key owned by the user.
+
+        Args:
+            db: Database session
+            key_id: API key UUID
+            user_id: ID of the user who owns the key
+
+        Raises:
+            NotFoundException: If the key is not found or not owned by user
+        """
+        api_key = APIKeyService.get_by_id(db, key_id, user_id)
+        db.delete(api_key)
+        db.commit()
 
     @staticmethod
     def rotate(db: Session, key_id: str, user_id: str) -> tuple[APIKey, str]:

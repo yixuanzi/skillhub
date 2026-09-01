@@ -51,9 +51,8 @@ export const apiKeysApi = {
     return response.data;
   },
 
-  revoke: async (id: string): Promise<APIKey> => {
-    const response = await apiClient.delete<APIKey>(`/api-keys/${id}/`);
-    return response.data;
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete<void>(`/api-keys/${id}/`);
   },
 
   rotate: async (id: string): Promise<APIKeyCreateResponse> => {

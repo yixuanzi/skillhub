@@ -5,7 +5,7 @@ This module provides FastAPI endpoints for API key CRUD operations including:
 - List API keys
 - Get API key by ID
 - Update API key
-- Revoke API key
+- Delete API key
 - Rotate API key
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -155,15 +155,16 @@ async def update_api_key(
         )
 
 
-@router.delete("/{key_id}/", response_model=APIKeyResponse)
-async def revoke_api_key(
+@router.delete("/{key_id}/", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_api_key(
     key_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Revoke (deactivate) an API key.
+    """Permanently delete an API key.
 
-    The key is marked as inactive but not deleted.
+    Use the update endpoint with ``is_active=false`` to temporarily disable a
+    key while keeping it available for re-enabling later.
 
     Args:
         key_id: API key UUID
@@ -171,14 +172,14 @@ async def revoke_api_key(
         current_user: Authenticated user
 
     Returns:
-        Revoked API key response
+        None (204 No Content)
 
     Raises:
         HTTPException 404: If key not found
     """
     try:
-        api_key = APIKeyService.revoke(db, key_id, str(current_user.id))
-        return APIKeyResponse.model_validate(api_key)
+        APIKeyService.delete(db, key_id, str(current_user.id))
+        return None
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

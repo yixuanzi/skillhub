@@ -9,7 +9,8 @@ API keys provide programmatic access to the SkillHub API without requiring inter
 - **User-scoped**: Belongs to a specific user
 - **Secure**: SHA256 hashed, only shown once during creation
 - **Scoped**: Limited to specific permissions based on configured scopes
-- **Revocable**: Can be deactivated at any time
+- **Temporarily disableable**: Can be disabled and re-enabled at any time
+- **Deletable**: Can be permanently removed when no longer needed
 - **Rotatable**: Can be regenerated without changing settings
 
 ## Creating an API Key
@@ -98,7 +99,7 @@ The API key format is: `sk_` followed by 43 characters (URL-safe base64).
 
 ### 4. Monitoring
 - Monitor the `last_used_at` timestamp to detect unused keys
-- Revoke keys that are no longer needed
+- Disable keys temporarily when they are not needed, or delete them permanently when they are no longer needed
 - Check audit logs for suspicious activity
 
 ### 5. Expiration
@@ -136,12 +137,28 @@ curl -X POST "https://api.skillhub.com/api/v1/api-keys/{key_id}/rotate" \
 
 This invalidates the old key and returns a new one.
 
-### Revoke a Key
+### Disable or enable a key
+
+Temporarily disable a key with the update endpoint. A disabled key remains in
+the API key list and can be enabled again later:
+
+```bash
+curl -X PUT "https://api.skillhub.com/api/v1/api-keys/{key_id}/" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"is_active": false}'
+```
+
+Set `is_active` to `true` to enable it again.
+
+### Delete a Key
 
 ```bash
 curl -X DELETE "https://api.skillhub.com/api/v1/api-keys/{key_id}/" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
+
+Deletion permanently removes the API key and it cannot be enabled again.
 
 ## Limits
 
