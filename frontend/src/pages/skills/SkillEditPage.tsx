@@ -25,7 +25,7 @@ export const SkillEditPage = () => {
 
   // Fetch resources and skills for AI generation (excluding current skill)
   const { data: resourcesData } = useResources({ page: 1, pageSize: 100 });
-  const { data: skillsData } = useSkills({ page: 1, pageSize: 100 });
+  const { data: skillsData } = useSkills({ page: 1, size: 100 });
 
   const resources = resourcesData?.items || [];
   const otherSkills = skillsData?.items.filter(s => s.id !== id) || [];

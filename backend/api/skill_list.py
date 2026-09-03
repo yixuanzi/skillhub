@@ -7,10 +7,9 @@ This module provides FastAPI endpoints for skill CRUD operations including:
 - Update skill
 - Delete skill
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
-from typing import Annotated
 
 from database import get_db
 from schemas.skill_list import (
@@ -60,10 +59,11 @@ async def create_skill(
 
 @router.get("/", response_model=SkillListListResponse)
 async def list_skills(
+    request: Request,
     page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     size: int = Query(20, ge=1, le=100, description="Page size (max 100)"),
     category: str | None = Query(None, description="Filter by category"),
-    tags: str | None = Query(None, description="Filter by tags (comma-separated)"),
+    tags: str | None = Query("published", description="Filter by tags (comma-separated)"),
     author: str | None = Query(None, description="Filter by creator username"),
     search: str | None = Query(None, description="Fuzzy search by skill name"),
     db: Session = Depends(get_db),
@@ -71,11 +71,19 @@ async def list_skills(
 ):
     """List all skills with optional filtering.
 
-    Multiple filters are combined using AND logic:
+    Multiple business filters are combined using AND logic:
     - category: Exact match
     - author: Exact match on created_by field
     - search: Fuzzy match on skill name (case-insensitive)
-    - tags: Matches ANY tag within the comma-separated list
+    - tags: Matches ANY complete tag within the comma-separated list
+
+    Visibility rules:
+    - Unauthenticated users see only skills with the ``public`` tag; any
+      client-provided tags value is ignored.
+    - Authenticated non-admin users see published skills or skills created by
+      themselves. If tags is explicitly provided, that filter is combined with
+      the visibility rule.
+    - Admin and super_admin users bypass the visibility rule.
 
     Example: ?category=data&tags=python,ai&search=weather returns skills in 'data' category
     that have either 'python' OR 'ai' tags AND name contains 'weather'.
@@ -84,7 +92,7 @@ async def list_skills(
         page: Page number (starts from 1)
         size: Number of items per page (max 100)
         category: Optional category filter
-        tags: Optional comma-separated tags filter (matches ANY tag)
+        tags: Optional comma-separated tags filter (matches ANY complete tag)
         author: Optional creator username filter (maps to created_by)
         search: Optional fuzzy search term for skill name
         db: Database session
@@ -94,18 +102,35 @@ async def list_skills(
         Paginated list of skill summaries (without content field)
     """
     skip = (page - 1) * size
+    tags_was_provided = "tags" in request.query_params
 
-    # For unauthenticated users, only show public skills
+    # ``published`` is the documented/default query value, but an omitted
+    # tags parameter has special visibility-union semantics for logged-in
+    # users and must therefore not be applied as a standalone tag filter.
+    apply_tag_filter = tags_was_provided
+    effective_tags = tags
+
+    # Anonymous callers are always restricted to public skills. This replaces
+    # rather than augments any client-supplied tag filter.
     if current_user is None:
-        if tags:
-            # Append "public" to existing tags filter
-            tags = f"{tags},public"
-        else:
-            tags = "public"
+        effective_tags = "public"
+        apply_tag_filter = True
+    elif not tags_was_provided:
+        effective_tags = None
+        apply_tag_filter = False
 
     # Use combined filters (AND logic between filters, OR within tags)
     skills, total = SkillListService.list_with_filters(
-        db, skip, size, category, tags, author, search
+        db,
+        skip,
+        size,
+        category,
+        effective_tags,
+        author,
+        search,
+        current_user=current_user,
+        apply_visibility=True,
+        apply_tag_filter=apply_tag_filter,
     )
 
     return SkillListListResponse(

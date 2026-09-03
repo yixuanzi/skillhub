@@ -8,6 +8,7 @@ Security Policy:
     * Skill creator (created_by matches user.username)
     * Users with 'admin' or 'super_admin' role
 """
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from models.skill_list import SkillList
 from models.user import User
@@ -80,6 +81,20 @@ def _validate_and_extract_skill_name(content: str) -> str:
 
 # Admin role names
 ADMIN_ROLES = {"admin", "super_admin"}
+
+
+def _tag_token_condition(tag: str):
+    """Build a case-insensitive exact-token condition for CSV tag columns."""
+    normalized_tags = func.lower(
+        func.replace(func.coalesce(SkillList.tags, ""), " ", "")
+    )
+    normalized_tag = tag.strip().lower().replace(" ", "")
+    return or_(
+        normalized_tags == normalized_tag,
+        normalized_tags.like(f"{normalized_tag},%"),
+        normalized_tags.like(f"%,{normalized_tag}"),
+        normalized_tags.like(f"%,{normalized_tag},%"),
+    )
 
 
 def _is_admin_user(user: Optional[User]) -> bool:
@@ -193,7 +208,10 @@ class SkillListService:
         category: Optional[str] = None,
         tags: Optional[str] = None,
         author: Optional[str] = None,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        current_user: Optional[User] = None,
+        apply_visibility: bool = False,
+        apply_tag_filter: bool = True,
     ) -> tuple[List[SkillList], int]:
         """List skills with multiple combined filters (AND logic).
 
@@ -204,15 +222,16 @@ class SkillListService:
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             category: Optional category filter
-            tags: Optional comma-separated tags filter (matches ANY tag within the tag list, AND with other filters)
+            tags: Optional comma-separated tags filter (matches ANY complete tag within the tag list, AND with other filters)
             author: Optional creator username filter
             search: Optional search term for fuzzy matching skill name
+            current_user: Authenticated user used for visibility filtering
+            apply_visibility: Whether to apply the endpoint visibility policy
+            apply_tag_filter: Whether ``tags`` is an active business filter
 
         Returns:
             Tuple of (list of filtered skills ordered by created_at DESC, total count)
         """
-        from sqlalchemy import or_
-
         query = db.query(SkillList)
 
         # Apply filters using AND logic
@@ -227,15 +246,28 @@ class SkillListService:
             # Fuzzy search on skill name (case-insensitive)
             query = query.filter(SkillList.name.ilike(f'%{search}%'))
 
-        if tags:
-            # Tags use OR within the tag list (match ANY), but AND with other filters
+        if apply_tag_filter and tags:
+            # Tags use OR within the tag list (match ANY complete token), but
+            # remain AND-ed with category, author, search, and visibility.
             tag_list = [tag.strip() for tag in tags.split(',') if tag.strip()]
             if tag_list:
-                tag_conditions = [SkillList.tags.like(f'%{tag}%') for tag in tag_list]
+                tag_conditions = [_tag_token_condition(tag) for tag in tag_list]
                 query = query.filter(or_(*tag_conditions))
             else:
-                # Empty tag list after parsing = no results
-                return [], 0
+                # An explicitly empty tags value means no tag restriction.
+                pass
+
+        if apply_visibility:
+            if current_user is None:
+                # Anonymous callers may only see public skills.
+                query = query.filter(_tag_token_condition("public"))
+            elif not _is_admin_user(current_user):
+                # Existing rows use both user IDs and usernames in
+                # ``created_by``; accept either representation for ownership.
+                owner_values = {str(current_user.id), current_user.username}
+                own_skill = SkillList.created_by.in_(owner_values)
+                published_skill = _tag_token_condition("published")
+                query = query.filter(or_(published_skill, own_skill))
 
         # Get total count before applying pagination
         total = query.count()

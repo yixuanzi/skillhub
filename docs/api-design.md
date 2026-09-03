@@ -338,15 +338,19 @@ FastAPI 自动生成交互式 API 文档：
 
 ### 6.1 列出技能
 
-**端点**: `GET /skills`
+**端点**: `GET /api/v1/skills/`
 
 **查询参数**:
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| page | int | 否 | 页码 |
-| size | int | 否 | 每页数量 |
-| type | str | 否 | 技能类型过滤 |
-| search | str | 否 | 搜索关键词 |
+| page | int | 否 | 页码，默认 `1`，最小值 `1` |
+| size | int | 否 | 每页数量，默认 `20`，范围 `1`～`100` |
+| category | str | 否 | 分类精确匹配 |
+| tags | str | 否 | 逗号分隔标签，默认 `published`；多个标签匹配任意一个完整标签 |
+| author | str | 否 | 按 `created_by` 精确匹配 |
+| search | str | 否 | 技能名称不区分大小写模糊搜索 |
+
+可见性规则：未登录用户只返回 `public` 技能；普通登录用户不传 `tags` 时返回 `published` 技能和本人创建的技能，显式传入 `tags` 时还会叠加该标签筛选；`admin` 和 `super_admin` 不受可见性限制。
 
 **响应** (200):
 ```json
@@ -356,11 +360,12 @@ FastAPI 自动生成交互式 API 文档：
       "id": "...",
       "name": "weather-forecast",
       "description": "Get weather forecast",
-      "skill_type": "business_logic",
-      "runtime": "python",
       "created_by": "john_doe",
-      "latest_version": "1.0.0",
-      "created_at": "2025-02-28T10:00:00Z"
+      "category": "data-processing",
+      "tags": "python,published",
+      "version": "1.0.0",
+      "created_at": "2025-02-28T10:00:00Z",
+      "updated_at": "2025-02-28T10:00:00Z"
     }
   ],
   "total": 1,

@@ -16,6 +16,15 @@ interface SkillListResponse {
   size: number;
 }
 
+export interface SkillListParams {
+  page?: number;
+  size?: number;
+  category?: string;
+  tags?: string;
+  author?: string;
+  search?: string;
+}
+
 export interface SkillStatisticsResponse {
   total_skills: number;
   published_skills: number;
@@ -25,7 +34,7 @@ export interface SkillStatisticsResponse {
 }
 
 export const skillsApi = {
-  list: async (params?: { page?: number; pageSize?: number; category?: string; tags?: string; author?: string }): Promise<SkillListResponse> => {
+  list: async (params?: SkillListParams): Promise<SkillListResponse> => {
     const response = await apiClient.get<SkillListResponse>('/skills/', { params });
     return response.data;
   },

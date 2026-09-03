@@ -17,7 +17,7 @@ export const SkillCreatePage = () => {
 
   // Fetch resources and skills for AI generation
   const { data: resourcesData } = useResources({ page: 1, pageSize: 100 });
-  const { data: skillsData } = useSkills({ page: 1, pageSize: 100 });
+  const { data: skillsData } = useSkills({ page: 1, size: 100 });
 
   const resources = resourcesData?.items || [];
   const skills = skillsData?.items || [];

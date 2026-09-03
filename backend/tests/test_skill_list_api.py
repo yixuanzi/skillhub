@@ -85,7 +85,10 @@ def test_user(db: SessionLocal):
         email="test@example.com",
         password="testpassword123"
     )
-    user = AuthService.register(db, user_data)
+    AuthService.register(db, user_data)
+    user = db.query(User).filter(User.username == "testuser").first()
+    assert user is not None
+    user.is_active = True
     db.commit()
     return user
 
@@ -107,7 +110,11 @@ def auth_headers_user2(db: SessionLocal):
         email="test2@example.com",
         password="testpassword123"
     )
-    user = AuthService.register(db, user_data)
+    AuthService.register(db, user_data)
+    user = db.query(User).filter(User.username == "testuser2").first()
+    assert user is not None
+    user.is_active = True
+    db.commit()
     access_token = create_access_token(
         data={"sub": user.id, "username": user.username}
     )
@@ -282,7 +289,7 @@ class TestListSkills:
 
         # Create skills by different users
         skill1 = SkillList(name="author-skill-1", created_by="user-1-id", tags="test")
-        skill2 = SkillList(name="author-skill-2", created_by=user2.id, tags="test")
+        skill2 = SkillList(name="author-skill-2", created_by=user2.id, tags="test,published")
         db.add_all([skill1, skill2])
         db.commit()
 
@@ -293,12 +300,169 @@ class TestListSkills:
         assert len(data["items"]) == 1
         assert data["items"][0]["created_by"] == user2.id
 
-    def test_list_skills_unauthorized(self, client: TestClient):
-        """Test that listing skills without authentication fails."""
-        response = client.get("/api/v1/skills/")
+    def test_list_skills_unauthenticated_only_returns_public(
+        self, client: TestClient, db: SessionLocal, test_user: User
+    ):
+        """Unauthenticated callers are restricted to public skills."""
+        db.add_all([
+            SkillList(
+                name="public-list-skill",
+                created_by=test_user.id,
+                tags="public,featured",
+            ),
+            SkillList(
+                name="private-list-skill",
+                created_by=test_user.id,
+                tags="private",
+            ),
+            SkillList(
+                name="publicity-list-skill",
+                created_by=test_user.id,
+                tags="publicity",
+            ),
+        ])
+        db.commit()
 
-        # HTTPBearer returns 403 when no credentials provided
-        assert response.status_code == 403
+        # No tags defaults to published, but anonymous visibility still wins.
+        for url in ("/api/v1/skills/", "/api/v1/skills/?tags=private"):
+            response = client.get(url)
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total"] == 1
+            assert [item["name"] for item in data["items"]] == [
+                "public-list-skill"
+            ]
+
+    def test_list_skills_authenticated_visibility_and_explicit_tags(
+        self,
+        client: TestClient,
+        auth_headers: dict,
+        auth_headers_user2: tuple,
+        test_user: User,
+        db: SessionLocal,
+    ):
+        """Regular users see published skills or their own skills only."""
+        _, user2 = auth_headers_user2
+        db.add_all([
+            SkillList(
+                name="published-by-other",
+                created_by=user2.id,
+                tags="published",
+            ),
+            SkillList(
+                name="draft-by-me",
+                created_by=test_user.id,
+                tags="draft",
+            ),
+            SkillList(
+                name="draft-by-me-username",
+                created_by=test_user.username,
+                tags="draft",
+            ),
+            SkillList(
+                name="draft-by-other",
+                created_by=user2.id,
+                tags="draft",
+            ),
+            SkillList(
+                name="unpublished-by-other",
+                created_by=user2.id,
+                tags="unpublished",
+            ),
+        ])
+        db.commit()
+
+        response = client.get("/api/v1/skills/", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert {item["name"] for item in data["items"]} == {
+            "published-by-other",
+            "draft-by-me",
+            "draft-by-me-username",
+        }
+
+        # An explicit tag filter is combined with the visibility rule.
+        response = client.get(
+            "/api/v1/skills/?tags=draft", headers=auth_headers
+        )
+        assert response.status_code == 200
+        assert {item["name"] for item in response.json()["items"]} == {
+            "draft-by-me",
+            "draft-by-me-username",
+        }
+
+        # Explicit published filtering does not include the user's draft.
+        response = client.get(
+            "/api/v1/skills/?tags=published", headers=auth_headers
+        )
+        assert response.status_code == 200
+        assert [item["name"] for item in response.json()["items"]] == [
+            "published-by-other"
+        ]
+
+    @pytest.mark.parametrize("role_name", ["admin", "super_admin"])
+    def test_list_skills_admin_visibility(
+        self,
+        client: TestClient,
+        db: SessionLocal,
+        test_user: User,
+        role_name: str,
+    ):
+        """Admins can list all skills, including unpublished skills."""
+        admin_username = f"{role_name}-list-user"
+        AuthService.register(
+            db,
+            UserCreate(
+                username=admin_username,
+                email=f"{admin_username}@example.com",
+                password="adminpassword123",
+            ),
+        )
+        admin_user = db.query(User).filter(User.username == admin_username).first()
+        assert admin_user is not None
+        admin_user.is_active = True
+        admin_role = Role(name=role_name, description=f"{role_name} role")
+        db.add(admin_role)
+        db.commit()
+        admin_user.roles.append(admin_role)
+        db.commit()
+
+        db.add_all([
+            SkillList(
+                name=f"{role_name}-draft",
+                created_by=test_user.id,
+                tags="draft",
+            ),
+            SkillList(
+                name=f"{role_name}-private",
+                created_by=test_user.id,
+                tags="private",
+            ),
+        ])
+        db.commit()
+
+        token = create_access_token(
+            data={"sub": admin_user.id, "username": admin_user.username}
+        )
+        headers = {"Authorization": f"Bearer {token}"}
+
+        response = client.get("/api/v1/skills/", headers=headers)
+        assert response.status_code == 200
+        assert response.json()["total"] == 2
+
+        response = client.get("/api/v1/skills/?tags=draft", headers=headers)
+        assert response.status_code == 200
+        assert [item["name"] for item in response.json()["items"]] == [
+            f"{role_name}-draft"
+        ]
+
+    def test_list_skills_tags_default_is_published(self, client: TestClient):
+        """The OpenAPI contract exposes published as the tags default."""
+        schema = client.get("/openapi.json").json()
+        parameters = schema["paths"]["/api/v1/skills/"]["get"]["parameters"]
+        tags_parameter = next(parameter for parameter in parameters if parameter["name"] == "tags")
+        assert tags_parameter["schema"]["default"] == "published"
 
     def test_list_empty_skills(self, client: TestClient, auth_headers: dict):
         """Test listing skills when none exist."""

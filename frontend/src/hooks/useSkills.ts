@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { skillsApi } from '@/api/skills';
+import type { SkillListParams } from '@/api/skills';
 import { SkillCreateRequest, SkillUpdateRequest, SkillInvokeRequest } from '@/types';
 
-export const useSkills = (params?: { page?: number; pageSize?: number; category?: string; tags?: string; author?: string }) => {
+export const useSkills = (params?: SkillListParams) => {
   return useQuery({
     queryKey: ['skills', params],
     queryFn: () => skillsApi.list(params),
