@@ -5,10 +5,17 @@ This module provides the business logic for calling MCP servers via langchain_mc
 - HTTPSTREAM: HTTP-based streaming protocol for MCP (bidirectional streaming)
 
 Uses MultiServerMCPClient for connection management and caching.
+
+Cache keying: each MCP resource's headers/config are resolved with the calling
+user's own token (see ``_replace_tokens``), so the cache is keyed per
+(resource_name, user_id) pair, never by resource_name alone. Sharing an entry
+across users would mean every user after the first silently reuses whichever
+user's token happened to warm the cache.
 """
 import asyncio
 import logging
 import re
+import time
 from typing import Any, Optional, Dict
 from sqlalchemy.orm import Session
 
@@ -28,10 +35,56 @@ class MCPService:
     to manage connections and cache MCP tools for efficient reuse.
     """
 
-    # Class-level cache for MCP clients and tools
-    # Structure: {resource_name: {"client": MultiServerMCPClient, "tools": dict, "config": dict}}
+    # Class-level cache for MCP clients and tools, keyed by "{resource_name}::{user_id}".
+    # Structure: {cache_key: {"client": MultiServerMCPClient, "tools": dict, "config": dict, "created_at": float}}
     _mcp_cache: Dict[str, Dict[str, Any]] = {}
-    _cache_lock = asyncio.Lock()
+
+    # One lock per cache key so a slow connect/handshake for one (resource, user)
+    # pair doesn't block unrelated resources or users. Creating/looking up a lock
+    # here never awaits, so no guard is needed around this dict in asyncio's
+    # single-threaded event loop.
+    _key_locks: Dict[str, asyncio.Lock] = {}
+
+    @staticmethod
+    def _cache_key(resource_name: str, user_id: str) -> str:
+        return f"{resource_name}::{user_id}"
+
+    @staticmethod
+    def _get_key_lock(cache_key: str) -> asyncio.Lock:
+        lock = MCPService._key_locks.get(cache_key)
+        if lock is None:
+            lock = asyncio.Lock()
+            MCPService._key_locks[cache_key] = lock
+        return lock
+
+    @staticmethod
+    def _is_expired(entry: Dict[str, Any]) -> bool:
+        ttl = settings.MCP_CACHE_TTL_SECONDS
+        if ttl <= 0:
+            return False
+        return (time.monotonic() - entry["created_at"]) > ttl
+
+    @staticmethod
+    def _evict_if_needed() -> None:
+        """Drop the oldest entries once the cache exceeds its configured size.
+
+        Bounds total connections held (resources x users), since without this
+        the cache would otherwise grow forever.
+        """
+        max_entries = settings.MCP_CACHE_MAX_ENTRIES
+        overflow = len(MCPService._mcp_cache) - max_entries
+        if max_entries <= 0 or overflow <= 0:
+            return
+
+        oldest_keys = sorted(
+            MCPService._mcp_cache.keys(),
+            key=lambda k: MCPService._mcp_cache[k]["created_at"],
+        )[:overflow]
+        for key in oldest_keys:
+            MCPService._mcp_cache.pop(key, None)
+            lock = MCPService._key_locks.get(key)
+            if lock is not None and not lock.locked():
+                MCPService._key_locks.pop(key, None)
 
     @staticmethod
     def parse_mcp_config(ext: dict) -> MCPConfig:
@@ -172,27 +225,37 @@ class MCPService:
         db: Optional[Session] = None,
         user_id: Optional[str] = None
     ) -> tuple[Any, dict]:
-        """Get or create MCP client for the resource.
+        """Get or create an MCP client scoped to this resource AND this user.
 
         Args:
             resource_name: Name of the resource
             config: MCPConfig object
+            db: Database session, used to resolve this user's own tokens
+            user_id: The calling user's id — required, since headers/config are
+                resolved with this user's tokens and must never be shared with
+                another user's cached client
 
         Returns:
             Tuple of (MultiServerMCPClient, tools_dict)
 
         Raises:
-            ValidationException: If transport is not supported
+            ValidationException: If transport is not supported or user_id is missing
             ExternalServiceException: If connection fails
         """
-        async with MCPService._cache_lock:
-            # Check if client exists in cache
-            if resource_name in MCPService._mcp_cache:
-                cached = MCPService._mcp_cache[resource_name]
-                logger.info(f"Using cached MCP client for resource: {resource_name}")
+        if not user_id:
+            raise ValidationException("user_id is required to resolve MCP credentials")
+
+        cache_key = MCPService._cache_key(resource_name, user_id)
+        lock = MCPService._get_key_lock(cache_key)
+
+        async with lock:
+            # Check if a still-fresh client exists in cache for this resource+user
+            cached = MCPService._mcp_cache.get(cache_key)
+            if cached is not None and not MCPService._is_expired(cached):
+                logger.info(f"Using cached MCP client for resource={resource_name} user={user_id}")
                 return cached["client"], cached["tools"]
 
-            # Create new client
+            # Create new client, resolving tokens for the current user
             try:
                 from langchain_mcp_adapters.client import MultiServerMCPClient
 
@@ -200,7 +263,7 @@ class MCPService:
                     resource_name, config, db, user_id
                 )
 
-                logger.info(f"Creating MCP client for resource: {resource_name}")
+                logger.info(f"Creating MCP client for resource={resource_name} user={user_id}")
                 logger.debug(f"MCP config: {mcp_config}")
 
                 if settings.SKIP_VERIFY:
@@ -226,12 +289,14 @@ class MCPService:
                         f"Loaded {len(tools)} tools from MCP server: {resource_name}"
                     )
 
-                    # Cache the client and tools
-                    MCPService._mcp_cache[resource_name] = {
+                    # Cache the client and tools, scoped to this resource+user
+                    MCPService._mcp_cache[cache_key] = {
                         "client": client,
                         "tools": tools_dict,
-                        "config": mcp_config
+                        "config": mcp_config,
+                        "created_at": time.monotonic(),
                     }
+                    MCPService._evict_if_needed()
 
                     return client, tools_dict
 
@@ -376,26 +441,50 @@ class MCPService:
         return tools_info
 
     @staticmethod
-    async def clear_cache(resource_name: Optional[str] = None):
+    def invalidate_resource(resource_name: str) -> None:
+        """Drop every cached MCP client for this resource, across all users.
+
+        Synchronous and safe to call from non-async code (e.g. resource
+        update/delete in ``ResourceService``): the dict/lock mutations here
+        contain no ``await`` points, so nothing can interleave with them on
+        asyncio's single-threaded event loop. Call this whenever a resource's
+        ``ext`` config (endpoint, headers, token placeholders) or name changes,
+        or the resource is deleted — otherwise a stale cached client keeps
+        using the old config/token indefinitely.
+        """
+        prefix = f"{resource_name}::"
+        stale_keys = [k for k in MCPService._mcp_cache if k.startswith(prefix)]
+        for key in stale_keys:
+            MCPService._mcp_cache.pop(key, None)
+            lock = MCPService._key_locks.get(key)
+            if lock is not None and not lock.locked():
+                MCPService._key_locks.pop(key, None)
+        if stale_keys:
+            logger.info(f"Invalidated {len(stale_keys)} cached MCP client(s) for resource: {resource_name}")
+
+    @staticmethod
+    async def clear_cache(resource_name: Optional[str] = None, user_id: Optional[str] = None):
         """Clear cached MCP clients.
 
         Args:
-            resource_name: Specific resource to clear, or None to clear all
+            resource_name: Specific resource to clear (all users, unless
+                user_id is also given). None clears everything.
+            user_id: Combined with resource_name, clears only that resource's
+                cache entry for this specific user.
         """
-        async with MCPService._cache_lock:
-            if resource_name:
-                if resource_name in MCPService._mcp_cache:
-                    del MCPService._mcp_cache[resource_name]
-                    logger.info(f"Cleared MCP cache for: {resource_name}")
-            else:
-                MCPService._mcp_cache.clear()
-                logger.info("Cleared all MCP caches")
+        if resource_name and user_id:
+            cache_key = MCPService._cache_key(resource_name, user_id)
+            MCPService._mcp_cache.pop(cache_key, None)
+            MCPService._key_locks.pop(cache_key, None)
+            logger.info(f"Cleared MCP cache for resource={resource_name} user={user_id}")
+        elif resource_name:
+            MCPService.invalidate_resource(resource_name)
+        else:
+            MCPService._mcp_cache.clear()
+            MCPService._key_locks.clear()
+            logger.info("Cleared all MCP caches")
 
     @staticmethod
     def get_cached_resources() -> list[str]:
-        """Get list of resources with cached MCP clients.
-
-        Returns:
-            List of resource names with active caches
-        """
+        """Get cache keys ("{resource_name}::{user_id}") with active clients."""
         return list(MCPService._mcp_cache.keys())
