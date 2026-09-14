@@ -384,6 +384,8 @@ class ResourceService:
             if not user or (resource.owner_id != user.id and not getattr(user, 'is_superuser', False)):
                 raise ValidationException("You do not have permission to update this resource")
 
+        old_name = resource.name
+
         # 检查名称唯一性（如果更改了名称）
         if resource_data.name and resource_data.name != resource.name:
             existing = db.query(Resource).filter(
@@ -409,6 +411,13 @@ class ResourceService:
 
         db.commit()
         db.refresh(resource)
+
+        # Drop any cached MCP client for this resource so config/token/endpoint
+        # changes take effect immediately instead of on next TTL expiry.
+        from services.mcp_service import MCPService
+        MCPService.invalidate_resource(old_name)
+        if resource.name != old_name:
+            MCPService.invalidate_resource(resource.name)
 
         return ResourceResponse.model_validate(resource)
 
@@ -437,8 +446,12 @@ class ResourceService:
             if not user or (resource.owner_id != user.id and not getattr(user, 'is_superuser', False)):
                 raise ValidationException("You do not have permission to delete this resource")
 
+        resource_name = resource.name
         db.delete(resource)
         db.commit()
+
+        from services.mcp_service import MCPService
+        MCPService.invalidate_resource(resource_name)
 
         return True
 
@@ -563,6 +576,8 @@ class ResourceService:
             if not user or resource.owner_id != user.id:
                 raise ValidationException("You do not have permission to update this resource")
 
+        old_name = resource.name
+
         # 检查名称唯一性（如果更改了名称）
         if resource_data.name and resource_data.name != resource.name:
             existing = db.query(Resource).filter(
@@ -588,6 +603,13 @@ class ResourceService:
 
         db.commit()
         db.refresh(resource)
+
+        # Drop any cached MCP client for this resource so config/token/endpoint
+        # changes take effect immediately instead of on next TTL expiry.
+        from services.mcp_service import MCPService
+        MCPService.invalidate_resource(old_name)
+        if resource.name != old_name:
+            MCPService.invalidate_resource(resource.name)
 
         return ResourceResponse.model_validate(resource)
 
@@ -622,7 +644,11 @@ class ResourceService:
         if acl_rule:
             db.delete(acl_rule)
 
+        resource_name = resource.name
         db.delete(resource)
         db.commit()
+
+        from services.mcp_service import MCPService
+        MCPService.invalidate_resource(resource_name)
 
         return True
