@@ -1,3 +1,12 @@
+import os
+
+# Must be set before `config`/`database` are imported by anything below (directly
+# or transitively via `main`), since Settings() reads DATABASE_URL once at import
+# time. Without this, tests run against backend/.env's DATABASE_URL — the same
+# sqlite file the dev server uses — and setup_database()/db() below drop and
+# wipe it on every test run.
+os.environ.setdefault("DATABASE_URL", "sqlite:///./data/test_skillhub.db")
+
 import pytest
 from fastapi.testclient import TestClient
 from database import Base, engine, SessionLocal
