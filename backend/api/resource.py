@@ -120,7 +120,7 @@ async def list_resources(
     )
 
     return ResourceListResponse(
-        items=[ResourceResponse.model_validate(r) for r in resources],
+        items=[ResourceService.to_response_for(r, current_user) for r in resources],
         total=total,
         page=page,
         size=size
@@ -153,7 +153,7 @@ async def get_resource(
 
     try:
         resource = ResourceService.get_accessible(db, resource_id, current_user)
-        return ResourceResponse.model_validate(resource)
+        return ResourceService.to_response_for(resource, current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

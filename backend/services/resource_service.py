@@ -17,6 +17,7 @@ from schemas.resource import ResourceCreate, ResourceUpdate, ResourceResponse
 from core.exceptions import ValidationException, NotFoundException
 from typing import Optional, List
 import json
+import re
 
 # Admin role names
 ADMIN_ROLES = {"admin", "super_admin"}
@@ -35,6 +36,55 @@ def _is_admin_user(user: Optional[User]) -> bool:
         return False
     user_role_names = {role.name for role in user.roles}
     return bool(user_role_names & ADMIN_ROLES)
+
+
+REDACTED = "***"
+
+# A value that is nothing but a managed-token placeholder is not itself a
+# secret - it names a token each caller resolves from their own MToken rows -
+# so it stays readable. Anything else in `ext` is treated as sensitive.
+_PLACEHOLDER_ONLY = re.compile(r"^\{[^{}]+\}$")
+
+
+def _redact_ext(value):
+    """Recursively mask secret-bearing leaves of an `ext` structure.
+
+    Keys and shape are preserved so a viewer can still tell how a resource is
+    configured; only string values are masked, and only those that are not a
+    bare {token_name} placeholder. Numbers and booleans (timeouts, flags) are
+    left alone - they carry no credentials.
+    """
+    if isinstance(value, dict):
+        return {k: _redact_ext(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_ext(v) for v in value]
+    if isinstance(value, str):
+        return value if _PLACEHOLDER_ONLY.match(value) else REDACTED
+    return value
+
+
+def _check_write_permission(resource: Resource, user: Optional[User], action: str) -> None:
+    """Raise unless `user` may modify or delete `resource`.
+
+    Write access is the owner plus admin/super_admin, for both update and
+    delete. These used to disagree: delete granted admins a bypass while
+    update did not, so an admin could destroy a resource but not correct it.
+
+    A resource with no owner_id (anonymously created, or a legacy row) is
+    admin-only. The previous checks were written as `if resource.owner_id:`,
+    which skipped the whole check when it was NULL and left such resources
+    writable and deletable by any authenticated user.
+    """
+    if _is_admin_user(user):
+        return
+    if not resource.owner_id:
+        raise ValidationException(
+            f"You do not have permission to {action} this resource"
+        )
+    if not user or resource.owner_id != user.id:
+        raise ValidationException(
+            f"You do not have permission to {action} this resource"
+        )
 
 
 class ResourceService:
@@ -110,17 +160,49 @@ class ResourceService:
         db.commit()
         db.refresh(new_resource)
 
-        # 默认创建 RBAC 空 ACL 策略，禁止所有未授权访问
+        # 默认创建 RBAC ACL 策略，除创建者本人外禁止所有未授权访问。
+        #
+        # The owner is seeded into the users whitelist because invocation
+        # permission is decided purely by the ACL (see
+        # ACLResourceService.enforce_permission) - ownership by itself grants
+        # nothing at call time. Without this the creator could not call their
+        # own resource until they hand-edited its ACL. The whitelist holds
+        # usernames, matching ACLResourceService.check_permission.
+        conditions = {"users": [user.username]} if user else None
         acl_rule = ACLRule(
             resource_id=new_resource.id,
             resource_name=new_resource.name,
             access_mode=AccessMode.RBAC,
-            conditions=None
+            conditions=conditions
         )
         db.add(acl_rule)
         db.commit()
 
         return ResourceResponse.model_validate(new_resource)
+
+    @staticmethod
+    def to_response_for(resource: Resource, user: Optional[User]) -> ResourceResponse:
+        """Serialize a resource for `user`, masking `ext` unless they own it.
+
+        `ext` holds the resource's credentials - MCP `headers`, the Composio
+        API key, whatever a gateway/third resource needs - and ResourceResponse
+        returns it verbatim. Since a resource is *visible* to far more people
+        than may write it (anyone, for a public one), every reader used to get
+        those secrets back from the plain list endpoint. Being unable to invoke
+        a resource is no protection if you can read its key and use it
+        yourself.
+
+        Owners and admins still get the real values; they are the ones who
+        have to edit them.
+        """
+        response = ResourceResponse.model_validate(resource)
+        if _is_admin_user(user):
+            return response
+        if user and resource.owner_id and resource.owner_id == user.id:
+            return response
+        if response.ext:
+            response.ext = _redact_ext(response.ext)
+        return response
 
     @staticmethod
     def get_by_id(db: Session, resource_id: str) -> Optional[Resource]:
@@ -316,10 +398,19 @@ class ResourceService:
         if not user:
             return []
 
-        user_role_ids = {str(role.id) for role in (user.roles or [])}
+        # Same matching as every other ACL call site. This used to compare
+        # roles by id only and ignore role_bindings entirely, so a user granted
+        # access through a role binding - or through a whitelist written with
+        # role names - could open and invoke the resource but never saw it in
+        # the listing.
+        from services.acl_resource_service import (
+            _matched_role_bindings,
+            _matched_role_whitelist,
+        )
+
         granted_resource_ids: set[str] = set()
 
-        acl_rules = db.query(ACLRule).all()
+        acl_rules = db.query(ACLRule).options(joinedload(ACLRule.role_bindings)).all()
         for acl_rule in acl_rules:
             if acl_rule.access_mode == AccessMode.ANY:
                 granted_resource_ids.add(acl_rule.resource_id)
@@ -329,14 +420,15 @@ class ResourceService:
                 continue
 
             conditions = acl_rule.conditions or {}
-            allowed_users = conditions.get("users") or []
-            allowed_roles = conditions.get("roles") or []
-
-            if user.username in allowed_users:
+            if user.username in (conditions.get("users") or []):
                 granted_resource_ids.add(acl_rule.resource_id)
                 continue
 
-            if user_role_ids and any(role_id in user_role_ids for role_id in allowed_roles):
+            if _matched_role_whitelist(user, conditions.get("roles")):
+                granted_resource_ids.add(acl_rule.resource_id)
+                continue
+
+            if _matched_role_bindings(user, acl_rule):
                 granted_resource_ids.add(acl_rule.resource_id)
 
         return list(granted_resource_ids)
@@ -626,10 +718,7 @@ class ResourceService:
         if not resource:
             raise NotFoundException(f"Resource with id '{resource_id}' not found")
 
-        # Only owner can update (admin users cannot modify other users' resources)
-        if resource.owner_id:
-            if not user or resource.owner_id != user.id:
-                raise ValidationException("You do not have permission to update this resource")
+        _check_write_permission(resource, user, "update")
 
         old_name = resource.name
 
@@ -693,11 +782,7 @@ class ResourceService:
         if not resource:
             raise NotFoundException(f"Resource with id '{resource_id}' not found")
 
-        # Admin/super_admin can delete any resource; otherwise only the owner can
-        if not _is_admin_user(user):
-            if resource.owner_id:
-                if not user or resource.owner_id != user.id:
-                    raise ValidationException("You do not have permission to delete this resource")
+        _check_write_permission(resource, user, "delete")
 
         # 级联删除对应 ACL 记录
         acl_rule = db.query(ACLRule).filter(ACLRule.resource_id == resource_id).first()

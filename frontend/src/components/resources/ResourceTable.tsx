@@ -11,6 +11,8 @@ import {
   TableCell,
 } from '@/components/ui/Table';
 import { cn } from '@/utils/cn';
+import { canManageResource } from '@/utils/permissions';
+import { useAuthStore } from '@/store/authStore';
 
 interface ResourceTableProps {
   resources: Resource[];
@@ -55,6 +57,7 @@ const ViewScopeBadge: React.FC<{ scope: 'public' | 'private' }> = ({ scope }) =>
 };
 
 export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConfirm }: ResourceTableProps) => {
+  const { user } = useAuthStore();
   // Loading state
   if (loading) {
     return (
@@ -160,8 +163,10 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
               </TableCell>
               {(onEdit || onDelete) && (
                 <TableCell>
+                  {/* Only the owner and admins may edit or delete, so nobody
+                      else is offered a button that would return 403. */}
                   <div className="flex items-center gap-2">
-                    {onEdit && (
+                    {onEdit && canManageResource(resource, user) && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -171,7 +176,7 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
                         <Pencil className="w-4 h-4" />
                       </Button>
                     )}
-                    {onDelete && (
+                    {onDelete && canManageResource(resource, user) && (
                       <Button
                         variant="ghost"
                         size="sm"

@@ -156,11 +156,11 @@ class ComposioService:
     @staticmethod
     def _authorize(db: Session, user: User) -> tuple[Resource, ComposioConfig]:
         """Resolve the singleton resource + this user's effective config, ACL-checked."""
-        from services.resource_service import ResourceService
+        from services.acl_resource_service import ACLResourceService
 
         resource = ComposioService.get_singleton_resource(db)
-        # Enforce the same visibility/ACL checks as standard resource access.
-        ResourceService.get_accessible(db, resource.id, user)
+        # Invocation permission is ACL-only, exactly as for gateway/third/mcp.
+        ACLResourceService.enforce_permission(db, resource.id, user, resource.name)
         return resource, ComposioService._resolve_config(db, resource, str(user.id))
 
     @staticmethod

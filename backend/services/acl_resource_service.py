@@ -26,6 +26,9 @@ from schemas.acl_resource import (
 from core.exceptions import ValidationException, NotFoundException
 from typing import Optional, List, Dict, Any
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Admin role names
 ADMIN_ROLES = {"admin", "super_admin"}
@@ -662,6 +665,41 @@ class ACLResourceService:
         role_name = role.name if role else None
 
         return ACLResourceService._to_binding_response(binding, role_name)
+
+    @staticmethod
+    def enforce_permission(
+        db: Session,
+        resource_id: str,
+        user: User,
+        resource_name: Optional[str] = None,
+    ) -> PermissionCheckResponse:
+        """Raise unless `user` is allowed to *invoke* the resource.
+
+        Every invocation path - gateway, third, mcp and composio - goes through
+        here, so execution permission is decided in exactly one place. It used
+        to be decided in two: the gateway proxy consulted the ACL via
+        check_permission, while the mcp and composio paths called
+        ResourceService.get_accessible, which answers a different question
+        (may this user *see and manage* the resource?) and short-circuits on
+        public/owner/admin before it ever reads the ACL. The result was that a
+        deny-all ACL rule was enforced for gateway resources and silently
+        ignored for mcp and composio ones.
+
+        Note that `view_scope` no longer affects invocation: it governs
+        visibility only. A resource that everyone should be able to call needs
+        an ACL rule in ANY mode, not view_scope="public".
+
+        Raises:
+            ValidationException: If the user is not allowed to invoke it.
+        """
+        result = ACLResourceService.check_permission(db, resource_id, user)
+        if not result.allowed:
+            logger.warning(
+                "Access denied for user '%s' to resource '%s': %s",
+                getattr(user, "username", None), resource_name or resource_id, result.reason,
+            )
+            raise ValidationException("Permission denied")
+        return result
 
     @staticmethod
     def check_permission(

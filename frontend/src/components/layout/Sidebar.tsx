@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { cn } from '@/utils/cn';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
+import { isAdminUser } from '@/utils/permissions';
 import {
   LayoutDashboard,
   Box,
@@ -40,8 +41,7 @@ export const Sidebar = () => {
   const { sidebarOpen, setSidebarOpen } = useUIStore();
   const { user } = useAuthStore();
 
-  // Check if user has admin or super_admin role
-  const isAdmin = user?.roles?.some(role => role.name === 'admin' || role.name === 'super_admin') ?? false;
+  const isAdmin = isAdminUser(user);
 
   return (
     <aside

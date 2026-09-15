@@ -13,6 +13,7 @@ import { SettingsPage } from './pages/settings/SettingsPage';
 import { UserManualPage } from './pages/settings/UserManualPage';
 import { useAuthStore } from './store/authStore';
 import { ApiConfigDebug } from './components/debug/ApiConfigDebug';
+import { isAdminUser } from '@/utils/permissions';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,8 +66,7 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Check if user has admin or super_admin role
-  const isAdmin = user?.roles?.some(role => role.name === 'admin' || role.name === 'super_admin') ?? false;
+  const isAdmin = isAdminUser(user);
 
   if (!isAdmin) {
     return <Navigate to="/dashboard" replace />;

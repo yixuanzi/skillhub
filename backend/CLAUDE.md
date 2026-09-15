@@ -29,14 +29,26 @@ This is a **monolithic FastAPI application** with SQLAlchemy ORM:
 - `gateway` - Gateway resources with path support for API proxying
 - `third` - Third-party API resources with method-based access
 - `mcp` - MCP (Model Context Protocol) servers with tool discovery
+- `composio` - Built-in Composio integration; at most one exists globally
 
 ### View Scope
-- `public` - Accessible to all authenticated users
-- `private` - Accessible only to owner, admin/super_admin, or ACL-granted users
+Governs **visibility and management** only - never invocation.
+- `public` - Visible to all authenticated users
+- `private` - Visible only to owner, admin/super_admin, or ACL-granted users
 
 ### Access Control Modes (ACL)
-- `any` - Public access within the ACL context
-- `rbac` - Role-based access with user/role whitelists
+Governs **invocation**, and is the only thing that does.
+- `any` - Anyone authenticated may invoke the resource
+- `rbac` - Only the users/roles whitelisted in `conditions`, or bound via
+  `role_bindings`, may invoke it
+
+Invocation permission is deliberately *not* granted by ownership, admin role,
+or `view_scope="public"`: all four resource types (gateway, third, mcp,
+composio) authorize through `ACLResourceService.enforce_permission`, which
+consults nothing but the ACL rule. New resources are created with an RBAC rule
+that whitelists their creator, so the owner can call what they just made; to
+open a resource to everyone, set its ACL to `any` mode rather than making it
+public.
 
 ### User Roles
 - `admin` - Full administrative access
@@ -203,6 +215,10 @@ def _is_admin_user(user: Optional[User]) -> bool:
 - **Public resources**: All authenticated users
 - **Private resources**: Owner, admin/super_admin, or ACL-granted users
 
+### Invocation (calling a resource through the gateway)
+- **ACL rule only** - `ACLResourceService.enforce_permission` for all four
+  resource types. Ownership, admin role and `view_scope` grant nothing here.
+
 ### Write Operations
 - **Resources**: Only owner can modify (update/delete)
 - **ACL Rules**: Resource owner or admin/super_admin
@@ -210,7 +226,8 @@ def _is_admin_user(user: Optional[User]) -> bool:
 
 ### Admin Privileges
 Users with `admin` or `super_admin` roles have:
-- Access to all resources (regardless of view_scope)
+- Access to all resources (regardless of view_scope) - for reading and
+  managing them; invoking still requires an ACL grant
 - Ability to modify ACL rules (for any resource)
 - Access to all audit logs
 - Full user/role/permission management

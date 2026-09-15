@@ -17,6 +17,7 @@ import types
 import pytest
 from pydantic import ValidationError
 
+from models.acl import ACLRule, AccessMode
 from models.resource import ResourceType
 from schemas.resource import ComposioConfig, ResourceCreate, ResourceUpdate
 from services.resource_service import ResourceService
@@ -107,15 +108,30 @@ def composio_resource(db, test_user):
     ), user=test_user)
 
 
+def _open_acl(db, resource_id):
+    """Switch a resource's ACL rule to ANY mode, so any user may invoke it.
+
+    Invocation permission is decided purely by the ACL, so view_scope="public"
+    no longer lets a second user call a resource - view_scope governs
+    visibility only. An ANY-mode rule is how a resource is opened up now.
+    """
+    rule = db.query(ACLRule).filter(ACLRule.resource_id == resource_id).first()
+    assert rule is not None, "every resource is created with a default ACL rule"
+    rule.access_mode = AccessMode.ANY
+    db.commit()
+
+
 @pytest.fixture
-def public_composio_resource(db, test_user):
-    """Public singleton composio resource, so several users can reach it."""
-    return ResourceService.create(db, ResourceCreate(
+def shared_composio_resource(db, test_user):
+    """Singleton composio resource any user may invoke (ACL in ANY mode)."""
+    resource = ResourceService.create(db, ResourceCreate(
         name="composio",
         type=ResourceType.COMPOSIO,
         view_scope="public",
         ext={"COMPOSIO_API_KEY": "ak_test", "COMPOSIO_USER_ID": "test-user-id"},
     ), user=test_user)
+    _open_acl(db, resource.id)
+    return resource
 
 
 class _FakeToolsClient:
@@ -269,12 +285,15 @@ class TestManagedTokenPlaceholders:
     """ext supports the same {token_name} placeholders as gateway/third resources."""
 
     def _create_placeholder_resource(self, db, owner):
-        return ResourceService.create(db, ResourceCreate(
+        resource = ResourceService.create(db, ResourceCreate(
             name="composio",
             type=ResourceType.COMPOSIO,
             view_scope="public",
             ext={"COMPOSIO_API_KEY": "{my_composio_key}", "COMPOSIO_USER_ID": "{my_composio_uid}"},
         ), user=owner)
+        # These tests are about per-user token resolution, not about the ACL.
+        _open_acl(db, resource.id)
+        return resource
 
     def test_placeholders_resolve_from_callers_own_tokens(self, db, test_user, fake_composio_module):
         self._create_placeholder_resource(db, test_user)
@@ -375,7 +394,7 @@ class TestSessionCache:
         assert len(client.session_user_ids) == 1
         assert len(client.calls) == 2
 
-    def test_different_users_never_share_a_session(self, db, test_user, public_composio_resource, fake_composio_module):
+    def test_different_users_never_share_a_session(self, db, test_user, shared_composio_resource, fake_composio_module):
         other_user = _make_user(db, "composio-second-user")
         tools = [{"tool_slug": "X", "arguments": {}}]
 
@@ -409,7 +428,7 @@ class TestSessionCache:
         asyncio.run(ComposioService.search_tools(db, test_user, use_case="x"))
         assert len(fake_composio_module.instances) == 1
 
-    def test_max_entries_evicts_oldest(self, db, test_user, public_composio_resource, fake_composio_module, monkeypatch):
+    def test_max_entries_evicts_oldest(self, db, test_user, shared_composio_resource, fake_composio_module, monkeypatch):
         monkeypatch.setattr(settings, "COMPOSIO_SESSION_MAX_ENTRIES", 2)
 
         users = [test_user] + [_make_user(db, f"composio-cap-user-{i}") for i in range(2)]
@@ -421,7 +440,7 @@ class TestSessionCache:
         # The first user's entry is the oldest and must have been evicted.
         assert f"composio::{test_user.id}" not in cached
 
-    def test_invalidate_resource_drops_all_users_entries(self, db, test_user, public_composio_resource, fake_composio_module):
+    def test_invalidate_resource_drops_all_users_entries(self, db, test_user, shared_composio_resource, fake_composio_module):
         other_user = _make_user(db, "composio-third-user")
         asyncio.run(ComposioService.search_tools(db, test_user, use_case="x"))
         asyncio.run(ComposioService.search_tools(db, other_user, use_case="x"))

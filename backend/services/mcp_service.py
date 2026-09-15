@@ -350,9 +350,9 @@ class MCPService:
         if not resource:
             raise ValidationException(f"Resource '{resource_name}' not found")
 
-        # Enforce the same visibility/ACL checks as standard resource access.
-        from services.resource_service import ResourceService
-        ResourceService.get_accessible(db, resource.id, user)
+        # Invocation permission is ACL-only, exactly as for gateway/third/composio.
+        from services.acl_resource_service import ACLResourceService
+        ACLResourceService.enforce_permission(db, resource.id, user, resource.name)
 
         if resource.type != ResourceType.MCP:
             raise ValidationException("Resource is not an MCP resource")
@@ -416,9 +416,9 @@ class MCPService:
         if not resource:
             raise ValidationException(f"Resource '{resource_name}' not found")
 
-        # Enforce the same visibility/ACL checks as standard resource access.
-        from services.resource_service import ResourceService
-        ResourceService.get_accessible(db, resource.id, user)
+        # Invocation permission is ACL-only, exactly as for gateway/third/composio.
+        from services.acl_resource_service import ACLResourceService
+        ACLResourceService.enforce_permission(db, resource.id, user, resource.name)
 
         if resource.type != ResourceType.MCP:
             raise ValidationException("Resource is not an MCP resource")

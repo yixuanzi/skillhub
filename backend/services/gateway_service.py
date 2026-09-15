@@ -207,23 +207,9 @@ class GatewayService:
             if not resource:
                 raise NotFoundException(f"Resource '{resource_name}' not found")
 
-            # Step 2: Check ACL permission
-            # check_data = PermissionCheckRequest(
-            #     user_id=str(user.id),
-            #     required_permission="execute"  # Default permission for gateway calls
-            # )
-            permission_result = ACLResourceService.check_permission(
-                db, resource.id, user
-            )
-
-            if not permission_result.allowed:
-                logger.warning(
-                    f"Gateway access denied for user '{user.username}' "
-                    f"to resource '{resource_name}': {permission_result.reason}"
-                )
-                raise ValidationException(
-                    f"Permission denied"
-                )
+            # Step 2: Check ACL permission - the one shared entry point for
+            # every resource type's invocation check.
+            ACLResourceService.enforce_permission(db, resource.id, user, resource.name)
 
             # Step 3: Invoke resource based on type
             result = await GatewayService._invoke_resource(
