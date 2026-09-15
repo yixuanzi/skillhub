@@ -1,6 +1,6 @@
 ---
 name: skillhub
-description: skillhub 官方基础skill,用于指导如何使用 skillhub cli
+description: skillhub 官方基础skill,用于指导如何使用 skillhub 和 Composio 资源；
 ---
 
 # SkillHub CLI Tool Usage
@@ -17,6 +17,7 @@ USAGE
     skillhub composio [search|schema|exec] [options] Call the composio integration
     skillhub getme                          Get current authenticated user info
     skillhub -h
+    skillhub --version                      Print the CLI version and exit
     skillhub
 
 LIST COMMAND
@@ -216,6 +217,8 @@ OPTIONS
     -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)
     -timeout <seconds>  Request timeout in seconds (optional, default: 30)
     -v                  Verbose mode: show curl command being executed (optional)
+    --version           Print the CLI version and exit (also -version).
+                        Note: the version flag is --version, not -v - -v is verbose.
 
 EXAMPLES
 

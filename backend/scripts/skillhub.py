@@ -16,6 +16,9 @@ import urllib.request
 from typing import Dict, Optional, Tuple
 
 
+# CLI version. Keep in sync with scripts/skillhub's SKILLHUB_VERSION.
+SKILLHUB_VERSION = "1.0.1"
+
 SKILLHUB_URL = "{PLACEHOLDER_SKILLHUB_URL}"
 
 # Colors for output
@@ -43,8 +46,12 @@ def info(message: str) -> None:
     print(f"{BLUE}{message}{NC}")
 
 
+def show_version() -> None:
+    print(f"skillhub {SKILLHUB_VERSION}")
+
+
 def show_help() -> None:
-    print(f"{GREEN}SkillHub CLI Tool{NC}\n")
+    print(f"{GREEN}SkillHub CLI Tool v{SKILLHUB_VERSION}{NC}\n")
     print(f"{BLUE}DESCRIPTION{NC}")
     print("    A command-line interface for interacting with SkillHub gateway resources.")
     print("    Supports three resource types: third-party APIs, gateway resources, and MCP servers,")
@@ -56,6 +63,7 @@ def show_help() -> None:
     print("    skillhub [res_type] [res_name] [options] Invoke a resource")
     print("    skillhub composio [search|schema|exec] [options] Call the composio integration")
     print("    skillhub -h")
+    print("    skillhub --version")
     print("    skillhub\n")
     print(f"{BLUE}LIST COMMAND{NC}")
     print("    skillhub list [search_term] [-page <number>]\n")
@@ -105,7 +113,8 @@ def show_help() -> None:
     print("    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)")
     print("    -timeout <seconds>  Request timeout in seconds (optional, default: 30)")
     print("    -page <number>      Page number for list command (optional)")
-    print("    -v                  Verbose mode: show curl command being executed (optional)\n")
+    print("    -v                  Verbose mode: show curl command being executed (optional)")
+    print("    --version           Print the CLI version and exit\n")
     print(f"{BLUE}EXAMPLES{NC}\n")
     print(f"    {YELLOW}# List all skills{NC}")
     print("    skillhub list\n")
@@ -433,6 +442,11 @@ def main() -> None:
     token = ""
     timeout_value = "30"
     verbose = 0
+
+    # Deliberately not -v: that is verbose mode.
+    if args and args[0] in ("--version", "-version"):
+        show_version()
+        sys.exit(0)
 
     if len(args) == 0 or args[0] in ("-h", "--help"):
         show_help()

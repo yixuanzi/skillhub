@@ -174,6 +174,61 @@ class TestArgumentValidationParity:
         assert bash_out == py_out
 
 
+class TestVersionFlag:
+    """--version prints the version; -v stays verbose mode.
+
+    The version lives in one variable per CLI (SKILLHUB_VERSION) and the two
+    must not drift apart.
+    """
+
+    EXPECTED = "1.0.1"
+
+    def test_python_cli_declares_the_version(self):
+        assert py_cli.SKILLHUB_VERSION == self.EXPECTED
+
+    def test_bash_cli_declares_the_same_version(self):
+        source = BASH_CLI.read_text()
+        assert f'SKILLHUB_VERSION="{self.EXPECTED}"' in source
+
+    @pytest.mark.parametrize("impl", ["bash", "py"])
+    @pytest.mark.parametrize("flag", ["--version", "-version"])
+    def test_version_flag_prints_the_version(self, impl, flag):
+        rc, out = run_cli(impl, flag)
+
+        assert rc == 0
+        assert out == f"skillhub {self.EXPECTED}"
+
+    def test_both_clis_print_the_same_version(self):
+        assert run_cli("bash", "--version") == run_cli("py", "--version")
+
+    @pytest.mark.parametrize("impl", ["bash", "py"])
+    def test_help_header_carries_the_version(self, impl):
+        _rc, out = run_cli(impl, "-h")
+        assert f"SkillHub CLI Tool v{self.EXPECTED}" in out
+
+    @pytest.mark.parametrize("impl", ["bash", "py"])
+    def test_dash_v_is_still_verbose_not_version(self, impl):
+        """Regression guard: -v must not be hijacked by the version flag.
+
+        `-v` alone is not a valid invocation (no res_type), so it must fail the
+        way any bad res_type does - not print a version and exit 0.
+        """
+        rc, out = run_cli(impl, "-v")
+
+        assert rc != 0
+        assert self.EXPECTED not in out
+
+    @pytest.mark.parametrize("impl", ["bash", "py"])
+    def test_dash_v_still_enables_verbose_on_a_real_command(self, impl):
+        """-v on a composio call still reaches the verbose curl echo."""
+        rc, out = run_cli(impl, "composio", "search", "hello", "-v", "-token", "t")
+
+        # The request itself fails (placeholder URL), but the verbose line must
+        # have been printed first, carrying the body the parser built.
+        assert rc != 0
+        assert '"use_case": "hello"' in out
+
+
 class TestHelpText:
     """`-h` must describe the flags that actually exist."""
 

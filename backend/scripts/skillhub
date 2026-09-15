@@ -3,6 +3,9 @@
 # SkillHub CLI Script
 # Usage: skillhub [res_type] [res_name] [options]
 
+# CLI version. Keep in sync with scripts/skillhub.py's SKILLHUB_VERSION.
+SKILLHUB_VERSION="1.0.1"
+
 # SkillHub API URL (configure this to your SkillHub instance)
 SKILLHUB_URL="{PLACEHOLDER_SKILLHUB_URL}"
 
@@ -62,9 +65,14 @@ info() {
     echo -e "${BLUE}$1${NC}"
 }
 
+# Show version
+show_version() {
+    printf "skillhub %s\n" "$SKILLHUB_VERSION"
+}
+
 # Show help and usage
 show_help() {
-    printf "${GREEN}SkillHub CLI Tool${NC}\n\n"
+    printf "${GREEN}SkillHub CLI Tool v${SKILLHUB_VERSION}${NC}\n\n"
     printf "${BLUE}DESCRIPTION${NC}\n"
     printf "    A command-line interface for interacting with SkillHub gateway resources.\n"
     printf "    Supports three resource types: third-party APIs, gateway resources, and MCP servers,\n"
@@ -76,6 +84,7 @@ show_help() {
     printf "    skillhub [res_type] [res_name] [options] Invoke a resource\n"
     printf "    skillhub composio [search|schema|exec] [options] Call the composio integration\n"
     printf "    skillhub -h\n"
+    printf "    skillhub --version\n"
     printf "    skillhub\n\n"
     printf "${BLUE}LIST COMMAND${NC}\n"
     printf "    skillhub list [search_term] [-page <number>]\n\n"
@@ -125,7 +134,8 @@ show_help() {
     printf "    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)\n"
     printf "    -timeout <seconds>  Request timeout in seconds (optional, default: 30)\n"
     printf "    -page <number>      Page number for list command (optional)\n"
-    printf "    -v                  Verbose mode: show curl command being executed (optional)\n\n"
+    printf "    -v                  Verbose mode: show curl command being executed (optional)\n"
+    printf "    --version           Print the CLI version and exit\n\n"
     printf "${BLUE}EXAMPLES${NC}\n\n"
     printf "    ${YELLOW}# List all skills${NC}\n"
     printf "    skillhub list\n\n"
@@ -471,6 +481,12 @@ INPUTS=""
 TOKEN=""
 TIMEOUT=30  # Default timeout: 30 seconds
 VERBOSE=0   # Verbose mode: 0=quiet, 1=show curl command
+
+# Check for version flag. Deliberately not -v: that is verbose mode.
+if [ "$1" = "--version" ] || [ "$1" = "-version" ]; then
+    show_version
+    exit 0
+fi
 
 # Check if no arguments or -h flag
 if [ $# -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then

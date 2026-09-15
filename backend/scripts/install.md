@@ -8,27 +8,7 @@ The skillhub is a command-line interface for interacting with SkillHub gateway r
 
 ## Installation Steps
 
-### Step 1: Check if `skillhub` is already installed
-
-First, verify if the CLI tool is already installed and accessible in the PATH:
-
-```bash
-# Check if skillhub command exists
-if command -v skillhub &> /dev/null; then
-    echo "skillhub is already installed at: $(which skillhub)"
-    echo "Current version:"
-    skillhub -h
-    exit 0
-fi
-
-# Also check common installation locations
-if [ -f "$HOME/.local/bin/skillhub" ]; then
-    echo "skillhub found at ~/.local/bin/skillhub but not in PATH"
-    echo "You may need to add ~/.local/bin to your PATH"
-fi
-```
-
-### Step 2: Ensure the installation directory exists
+### Step 1: Ensure the installation directory exists
 
 The CLI tool should be installed in `~/.local/bin`. Create this directory if it doesn't exist:
 
@@ -36,7 +16,7 @@ The CLI tool should be installed in `~/.local/bin`. Create this directory if it 
 mkdir -p "$HOME/.local/bin"
 ```
 
-### Step 3: Verify the SkillHub server is running
+### Step 2: Verify the SkillHub server is running
 
 **SKILLHUB_SERVER="{SKILLHUB_URL}"**
 Before downloading, ensure the SkillHub server is accessible:
@@ -50,7 +30,7 @@ if ! curl -s -f "$SKILLHUB_SERVER/api/v1/script/health/" > /dev/null 2>&1; then
 fi
 ```
 
-### Step 4: Download the skillhub script
+### Step 3: Download the skillhub cli
 
 Download the CLI tool from the SkillHub server:
 
@@ -66,7 +46,7 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-### Step 5: Make the script executable
+### Step 4: Make the cli executable
 
 Set execute permissions on the downloaded script:
 
@@ -75,7 +55,7 @@ chmod +x "$INSTALL_PATH"
 echo "Made skillhub executable"
 ```
 
-### Step 6: Verify the installation
+### Step 5: Verify the installation
 
 Run the help command to verify the installation was successful:
 
@@ -106,15 +86,14 @@ else
 fi
 ```
 
-### Step 7: Install skillhub skill
+### Step 6: Install skillhub skill
 ```bash
 "$INSTALL_PATH" install skillhub
 ```
 
-### Step 8: Output notice 、Suammry result and finish the workflow
+### Step 7: Output notice 、Suammry result and finish the workflow
 
 #### require
-- `SKILLHUB_URL` - Override the default SkillHub server URL (default has beed set,you can reset with new env)
 - `SKILLHUB_API_KEY` - Default API token for authentication (required for most operations,you can set in .bashrc/.zshrc/profile)
 
 
