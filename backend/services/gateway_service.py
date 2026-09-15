@@ -33,6 +33,11 @@ class GatewayService:
         any string values containing {key} pattern with the corresponding token value
         from the user's mtoken storage.
 
+        Shared by every resource type (gateway, third, mcp, composio), so the
+        placeholder syntax and the token-ownership scoping are identical
+        everywhere: placeholders only ever resolve against the calling user's
+        own managed tokens.
+
         Args:
             db: Database session
             user_id: ID of the current user
@@ -40,6 +45,11 @@ class GatewayService:
 
         Returns:
             New config dictionary with placeholders replaced
+
+        Raises:
+            ValidationException: If a referenced token doesn't exist for this
+                user. Substitution fails closed - an unresolved placeholder is
+                never passed through to the upstream service.
 
         Example:
             Input:  {"headers": {"Authorization": "Bearer {github_token}"}}
@@ -66,7 +76,11 @@ class GatewayService:
                             break
 
                     if not found:
-                        logger.warning(f"Token placeholder {{{placeholder}}} not found in user's mtokens")
+                        # Fail closed. Leaving the literal in place used to send
+                        # "{my_token}" upstream verbatim, surfacing as a confusing
+                        # 401/403 from the third-party service instead of telling
+                        # the user which managed token is missing.
+                        raise ValidationException(f"Token not found: {placeholder}")
 
                 return new_value
             return config

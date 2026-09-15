@@ -67,12 +67,14 @@ show_help() {
     printf "${GREEN}SkillHub CLI Tool${NC}\n\n"
     printf "${BLUE}DESCRIPTION${NC}\n"
     printf "    A command-line interface for interacting with SkillHub gateway resources.\n"
-    printf "    Supports three resource types: third-party APIs, gateway resources, and MCP servers.\n\n"
+    printf "    Supports three resource types: third-party APIs, gateway resources, and MCP servers,\n"
+    printf "    plus a dedicated 'composio' command for the built-in Composio integration.\n\n"
     printf "${BLUE}USAGE${NC}\n"
     printf "    skillhub list [search_term]              List all skills or search by name\n"
     printf "    skillhub install [skill_name]           Install a skill to local directory\n"
     printf "    skillhub getme                          Get current user info\n"
     printf "    skillhub [res_type] [res_name] [options] Invoke a resource\n"
+    printf "    skillhub composio [search|schema|exec] [options] Call the composio integration\n"
     printf "    skillhub -h\n"
     printf "    skillhub\n\n"
     printf "${BLUE}LIST COMMAND${NC}\n"
@@ -85,6 +87,14 @@ show_help() {
     printf "${BLUE}GETME COMMAND${NC}\n"
     printf "    skillhub getme [-token <token>]\n\n"
     printf "    Returns the current authenticated user's profile information.\n\n"
+    printf "${BLUE}COMPOSIO COMMAND${NC}\n"
+    printf "    skillhub composio search \"<search field>\"                 Search the Composio tool catalog (COMPOSIO_SEARCH_TOOLS)\n"
+    printf "    skillhub composio schema \"<tool_name>\"                    Get a tool's full input schema (COMPOSIO_GET_TOOL_SCHEMAS)\n"
+    printf "    skillhub composio exec \"<tool_name>\" --inputs '<json>'    Execute a tool (COMPOSIO_MULTI_EXECUTE_TOOL)\n\n"
+    printf "    Calls the single, globally-configured 'composio' resource (type=composio) -\n"
+    printf "    there can only ever be one such resource in SkillHub. Still requires -token /\n"
+    printf "    SKILLHUB_API_KEY for SkillHub auth as usual; the Composio account itself\n"
+    printf "    (COMPOSIO_API_KEY / COMPOSIO_USER_ID) is configured on that resource, not per CLI user.\n\n"
     printf "${BLUE}ARGUMENTS${NC}\n"
     printf "    res_type        Resource type (required): third, gateway, mcp\n"
     printf "    res_name        Resource name (required): name of the resource to call\n\n"
@@ -118,6 +128,10 @@ show_help() {
     printf "    ${YELLOW}# MCP server call${NC}\n"
     printf "    skillhub mcp my-mcp-server -mcptool test -inputs '{\"name\":\"weather_tool\",\"arguments\":{\"location\":\"Tokyo\"}}'\n"
     printf "    skillhub mcp my-mcp-server -mcptool tool_name2\n\n"
+    printf "    ${YELLOW}# Composio meta-tool calls${NC}\n"
+    printf "    skillhub composio search \"search Jira issues in project VMS created in the last 5 days\"\n"
+    printf "    skillhub composio schema JIRA_SEARCH_ISSUES\n"
+    printf "    skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{\"project_key\":\"VMS\",\"created_after\":\"-5d\"}'\n\n"
     printf "    ${YELLOW}# Get current user info${NC}\n"
     printf "    skillhub getme\n"
     printf "    skillhub getme -token your-api-token\n\n"
@@ -129,7 +143,8 @@ show_help() {
     printf "${BLUE}RESOURCE TYPES${NC}\n"
     printf "    third       Third-party API resources (requires -method)\n"
     printf "    gateway     Gateway resources with path support (requires -method and -path)\n"
-    printf "    mcp         MCP server resources (requires -mcptool)\n\n"
+    printf "    mcp         MCP server resources (requires -mcptool)\n"
+    printf "    composio    Built-in Composio integration, singleton, invoked via 'skillhub composio ...' (see COMPOSIO COMMAND)\n\n"
     printf "${BLUE}AUTHENTICATION${NC}\n"
     printf "    Token priority:\n"
     printf "    1. Token provided via -token option\n"
@@ -253,6 +268,80 @@ install_skill() {
     # if [ -L "$link_dir" ]; then
     #     echo "  Link:   $link_dir -> $actual_dir"
     # fi
+}
+
+# Call a composio backend endpoint and pretty-print the JSON response
+composio_call() {
+    local endpoint="$1"
+    local body="$2"
+
+    if [ -z "$TOKEN" ]; then
+        TOKEN="$SKILLHUB_API_KEY"
+    fi
+    if [ -z "$TOKEN" ]; then
+        error "No authentication token found. Please provide via -token option or set SKILLHUB_API_KEY environment variable"
+    fi
+
+    local api_url="$SKILLHUB_URL/api/v1/gateway/composio/$endpoint"
+
+    if [ $VERBOSE -eq 1 ]; then
+        info "$CURL_BIN --max-time $TIMEOUT -sS -L -X 'POST' '$api_url' -H 'Content-Type: application/json' -H 'Authorization: Bearer $TOKEN' -d '$body'"
+    fi
+
+    local response
+    response=$($CURL_BIN --max-time "$TIMEOUT" -sS -L -X POST "$api_url" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $TOKEN" \
+        -d "$body")
+
+    if [ $? -ne 0 ]; then
+        error "Failed to call composio endpoint: $endpoint"
+    fi
+
+    echo "$response" | $PYTHON_BIN -m json.tool 2>/dev/null || echo "$response"
+}
+
+# Build request bodies with python so the search text / JSON inputs never
+# need shell-escaping.
+composio_search_body() {
+    USE_CASE="$1" "$PYTHON_BIN" - <<'PY'
+import json
+import os
+print(json.dumps({"use_case": os.environ["USE_CASE"]}))
+PY
+}
+
+composio_schema_body() {
+    TOOL_NAME="$1" "$PYTHON_BIN" - <<'PY'
+import json
+import os
+print(json.dumps({"tool_slugs": [os.environ["TOOL_NAME"]]}))
+PY
+}
+
+composio_exec_body() {
+    TOOL_NAME="$1" INPUTS_JSON="$2" "$PYTHON_BIN" - <<'PY'
+import json
+import os
+import sys
+
+tool_name = os.environ["TOOL_NAME"]
+raw = os.environ.get("INPUTS_JSON", "")
+
+if raw:
+    try:
+        arguments = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        print(f"Error: invalid JSON for --inputs: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(arguments, dict):
+        print("Error: --inputs must be a JSON object", file=sys.stderr)
+        sys.exit(1)
+else:
+    arguments = {}
+
+print(json.dumps({"tools": [{"tool_slug": tool_name, "arguments": arguments}]}))
+PY
 }
 
 # List skills from SkillHub
@@ -432,6 +521,85 @@ if [ "$1" = "list" ]; then
     done
     # No search term provided, list all skills
     list_skills "" "$page"
+    exit 0
+fi
+
+# Check for composio command
+if [ "$1" = "composio" ]; then
+    shift
+    if [ $# -eq 0 ]; then
+        error "composio command requires a subcommand: search, schema, exec"
+    fi
+    SUBCMD="$1"
+    shift
+
+    ARG=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -token)
+                if [ $# -lt 2 ]; then
+                    error "Option -token requires a value"
+                fi
+                TOKEN="$2"
+                shift 2
+                ;;
+            -timeout)
+                if [ $# -lt 2 ]; then
+                    error "Option -timeout requires a value"
+                fi
+                TIMEOUT="$2"
+                shift 2
+                ;;
+            --inputs|-inputs)
+                if [ $# -lt 2 ]; then
+                    error "Option --inputs requires a value"
+                fi
+                INPUTS="$2"
+                shift 2
+                ;;
+            -v)
+                VERBOSE=1
+                shift
+                ;;
+            -*)
+                error "Unknown option for composio command: $1"
+                ;;
+            *)
+                if [ -n "$ARG" ]; then
+                    error "Unexpected extra argument for composio command: $1"
+                fi
+                ARG="$1"
+                shift
+                ;;
+        esac
+    done
+
+    case "$SUBCMD" in
+        search)
+            if [ -z "$ARG" ]; then
+                error 'composio search requires a search field, e.g. skillhub composio search "send an email"'
+            fi
+            BODY=$(composio_search_body "$ARG") || exit 1
+            composio_call "search" "$BODY"
+            ;;
+        schema)
+            if [ -z "$ARG" ]; then
+                error "composio schema requires a tool name, e.g. skillhub composio schema JIRA_SEARCH_ISSUES"
+            fi
+            BODY=$(composio_schema_body "$ARG") || exit 1
+            composio_call "schema" "$BODY"
+            ;;
+        exec)
+            if [ -z "$ARG" ]; then
+                error "composio exec requires a tool name, e.g. skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{...}'"
+            fi
+            BODY=$(composio_exec_body "$ARG" "$INPUTS") || exit 1
+            composio_call "exec" "$BODY"
+            ;;
+        *)
+            error "Unknown composio subcommand '$SUBCMD'. Must be one of: search, schema, exec"
+            ;;
+    esac
     exit 0
 fi
 

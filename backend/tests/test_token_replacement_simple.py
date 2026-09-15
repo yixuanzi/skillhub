@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, '.')
 
 import pytest
+from core.exceptions import ValidationException
 from sqlalchemy.orm import Session
 from services.gateway_service import GatewayService
 from services.mtoken_service import MTokenService
@@ -157,14 +158,14 @@ def test_placeholder_not_found(db: Session):
         "valid_key": "static_value"
     }
 
-    result = GatewayService._replace_token_placeholders(db, str(user.id), config)
+    # 失败关闭：未找到的占位符必须报错，不能原样透传给上游服务
+    try:
+        GatewayService._replace_token_placeholders(db, str(user.id), config)
+        raise AssertionError("应该抛出 ValidationException")
+    except ValidationException as exc:
+        assert "Token not found: nonexistent_token" in str(exc)
 
-    # 不存在的占位符应该保持原样
-    assert result["api_key"] == "{nonexistent_token}"
-    # 没有占位符的值保持不变
-    assert result["valid_key"] == "static_value"
-
-    print("✅ 占位符未找到测试通过")
+    print("✅ 占位符未找到报错测试通过")
 
 
 def test_complex_nested_structure(db: Session):

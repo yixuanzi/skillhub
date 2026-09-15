@@ -178,83 +178,138 @@ class TestMCPConfigValidation:
         assert config.timeout == 10000
 
 
+def _add_token(db, user_id: str, key_name: str, value: str):
+    from models.mtoken import MToken
+
+    db.add(MToken(app_name="test_app", key_name=key_name, value=value, created_by=user_id))
+    db.commit()
+
+
 class TestTokenReplacement:
-    """Test token placeholder replacement in env vars."""
+    """MCP headers use the same {token_name} syntax as gateway/third/composio."""
 
     def test_replace_tokens_single_placeholder(self, db):
-        """Test replacing single token placeholder."""
-        from models.mtoken import MToken
-        import uuid
-
-        # Create test token
-        user_id = str(uuid.uuid4())
-        token = MToken(
-            app_name="test_app",
-            key_name="test_api",
-            value="secret_key_123",
-            desc="Test API token",
-            created_by=user_id
-        )
-        db.add(token)
-        db.commit()
-
-        env = {"API_KEY": "${token:test_api}"}
-        result = MCPService._replace_tokens(db, env, user_id)
-
-        assert result["API_KEY"] == "secret_key_123"
-
-    def test_replace_tokens_multiple_placeholders(self, db):
-        """Test replacing multiple token placeholders."""
-        from models.mtoken import MToken
         import uuid
 
         user_id = str(uuid.uuid4())
-        token1 = MToken(
-            app_name="app1",
-            key_name="api1",
-            value="key1",
-            desc="API 1",
-            created_by=user_id
-        )
-        token2 = MToken(
-            app_name="app2",
-            key_name="api2",
-            value="key2",
-            desc="API 2",
-            created_by=user_id
-        )
-        db.add_all([token1, token2])
-        db.commit()
+        _add_token(db, user_id, "test_api", "secret_key_123")
 
-        env = {
-            "API1_KEY": "${token:api1}",
-            "API2_KEY": "${token:api2}",
-            "STATIC": "no_change"
+        headers = {"Authorization": "Bearer {test_api}"}
+        result = MCPService._replace_tokens(db, headers, user_id)
+
+        assert result["Authorization"] == "Bearer secret_key_123"
+
+    def test_replace_tokens_multiple_keys(self, db):
+        import uuid
+
+        user_id = str(uuid.uuid4())
+        _add_token(db, user_id, "api1", "key1")
+        _add_token(db, user_id, "api2", "key2")
+
+        headers = {
+            "API1_KEY": "{api1}",
+            "API2_KEY": "{api2}",
+            "STATIC": "no_change",
         }
-        result = MCPService._replace_tokens(db, env, user_id)
+        result = MCPService._replace_tokens(db, headers, user_id)
 
         assert result["API1_KEY"] == "key1"
         assert result["API2_KEY"] == "key2"
         assert result["STATIC"] == "no_change"
 
-    def test_replace_tokens_missing_token_raises_error(self, db):
-        """Test that missing token raises error."""
+    def test_multiple_placeholders_in_one_value(self, db):
+        """Regression: the old ${token:} implementation only replaced the first."""
         import uuid
+
         user_id = str(uuid.uuid4())
-        env = {"API_KEY": "${token:nonexistent}"}
+        _add_token(db, user_id, "api1", "key1")
+        _add_token(db, user_id, "api2", "key2")
+
+        headers = {"X-Auth": "{api1}:{api2}"}
+        result = MCPService._replace_tokens(db, headers, user_id)
+
+        assert result["X-Auth"] == "key1:key2"
+
+    def test_replace_tokens_missing_token_raises_error(self, db):
+        import uuid
+
+        user_id = str(uuid.uuid4())
+        headers = {"Authorization": "Bearer {nonexistent}"}
 
         with pytest.raises(ValidationException) as exc_info:
-            MCPService._replace_tokens(db, env, user_id)
+            MCPService._replace_tokens(db, headers, user_id)
         assert "Token not found" in str(exc_info.value)
 
-    def test_replace_tokens_non_dict_env(self, db):
-        """Test handling non-dict env values."""
+    def test_legacy_syntax_is_rejected_loudly(self, db):
+        """${token:name} is no longer supported and must not pass through."""
         import uuid
+
         user_id = str(uuid.uuid4())
-        env = {"KEY": "value without placeholder"}
-        result = MCPService._replace_tokens(db, env, user_id)
+        _add_token(db, user_id, "test_api", "secret_key_123")
+
+        headers = {"Authorization": "Bearer ${token:test_api}"}
+
+        with pytest.raises(ValidationException) as exc_info:
+            MCPService._replace_tokens(db, headers, user_id)
+        message = str(exc_info.value)
+        assert "no longer supported" in message
+        assert "{test_api}" in message  # tells the user what to migrate to
+
+    def test_tokens_resolve_only_against_calling_user(self, db):
+        """A user must never pick up another user's token of the same name."""
+        import uuid
+
+        owner_id = str(uuid.uuid4())
+        other_id = str(uuid.uuid4())
+        _add_token(db, owner_id, "shared_name", "OWNER_SECRET")
+
+        headers = {"Authorization": "Bearer {shared_name}"}
+
+        assert MCPService._replace_tokens(db, headers, owner_id)["Authorization"] == "Bearer OWNER_SECRET"
+
+        with pytest.raises(ValidationException) as exc_info:
+            MCPService._replace_tokens(db, headers, other_id)
+        assert "Token not found" in str(exc_info.value)
+
+    def test_replace_tokens_without_placeholder(self, db):
+        import uuid
+
+        user_id = str(uuid.uuid4())
+        headers = {"KEY": "value without placeholder"}
+        result = MCPService._replace_tokens(db, headers, user_id)
 
         assert result["KEY"] == "value without placeholder"
+
+
+class TestTokenReplacementScope:
+    """Substitution applies to headers only - not the endpoint URL."""
+
+    def test_headers_are_substituted_endpoint_is_not(self, db):
+        import uuid
+
+        user_id = str(uuid.uuid4())
+        _add_token(db, user_id, "api_key", "SECRET_A")
+
+        config = MCPConfig(
+            transport="sse",
+            endpoint="https://mcp.example.com/sse?k={api_key}",
+            headers={"Authorization": "Bearer {api_key}"},
+        )
+        out = MCPService._convert_config_to_mcp_client_format("r", config, db, user_id)["r"]
+
+        assert out["headers"]["Authorization"] == "Bearer SECRET_A"
+        assert out["url"] == "https://mcp.example.com/sse?k={api_key}"
+
+    def test_no_db_or_user_skips_substitution(self, db):
+        """Callers without a user context get the raw headers, unchanged."""
+        config = MCPConfig(
+            transport="sse",
+            endpoint="https://mcp.example.com/sse",
+            headers={"Authorization": "Bearer {api_key}"},
+        )
+        out = MCPService._convert_config_to_mcp_client_format("r", config)["r"]
+
+        assert out["headers"]["Authorization"] == "Bearer {api_key}"
 
 
 class TestMCPServiceIntegration:

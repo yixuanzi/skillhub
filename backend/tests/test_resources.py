@@ -10,6 +10,7 @@ This module contains tests for resource CRUD operations including:
 """
 import pytest
 from models.resource import Resource, ResourceType
+from models.user import User, Role
 from schemas.resource import ResourceCreate, ResourceUpdate
 from services.resource_service import ResourceService
 from core.exceptions import ValidationException, NotFoundException
@@ -26,8 +27,20 @@ def db():
     finally:
         # Clean up resources after each test
         db.query(Resource).delete()
+        db.query(User).delete()
+        db.query(Role).delete()
         db.commit()
         db.close()
+
+
+@pytest.fixture(scope="function")
+def test_user(db):
+    """A plain (non-admin) persisted user, local to this module's own `db`."""
+    user = User(username="resources-test-user", email="resources-test-user@example.com", hashed_password="x")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def test_create_resource_with_ext(db):
@@ -154,3 +167,83 @@ def test_resource_with_url(db):
     resource = ResourceService.create(db, resource_data)
 
     assert resource.url == "https://api.example.com/v1/endpoint"
+
+
+class TestListAccessibleWithCountResourceTypeFilter:
+    """`GET /api/v1/resources/?resource_type=...` must actually filter by type.
+
+    Regression coverage: the route accepted `resource_type` but never passed it
+    to ResourceService.list_accessible_with_count, so every filtered listing
+    silently returned ALL accessible resources regardless of type. The
+    frontend's composio-singleton "does one already exist?" check relies on
+    this: {resource_type: 'composio'} must not count unrelated resources.
+    """
+
+    def test_filters_by_type_for_anonymous_user(self, db):
+        ResourceService.create(db, ResourceCreate(
+            name="pub-gateway", type=ResourceType.GATEWAY, view_scope="public"
+        ))
+        ResourceService.create(db, ResourceCreate(
+            name="pub-composio", type=ResourceType.COMPOSIO, view_scope="public",
+            ext={"COMPOSIO_API_KEY": "ak_x", "COMPOSIO_USER_ID": "u1"},
+        ))
+
+        resources, total = ResourceService.list_accessible_with_count(
+            db, None, resource_type=ResourceType.COMPOSIO.value
+        )
+
+        assert total == 1
+        assert [r.name for r in resources] == ["pub-composio"]
+
+    def test_filters_by_type_for_admin_user(self, db, test_user):
+        ResourceService.create(db, ResourceCreate(name="gw", type=ResourceType.GATEWAY), user=test_user)
+        ResourceService.create(db, ResourceCreate(
+            name="composio", type=ResourceType.COMPOSIO,
+            ext={"COMPOSIO_API_KEY": "ak_x", "COMPOSIO_USER_ID": "u1"},
+        ), user=test_user)
+
+        admin_role = Role(name="admin", description="Administrator")
+        test_user.roles.append(admin_role)
+        db.add(admin_role)
+        db.commit()
+
+        resources, total = ResourceService.list_accessible_with_count(
+            db, test_user, resource_type=ResourceType.COMPOSIO.value
+        )
+
+        assert total == 1
+        assert [r.name for r in resources] == ["composio"]
+
+    def test_filters_by_type_for_regular_user(self, db, test_user):
+        """This is the exact path the Resources page's existence-check hits."""
+        ResourceService.create(db, ResourceCreate(name="gw", type=ResourceType.GATEWAY), user=test_user)
+        ResourceService.create(db, ResourceCreate(name="third", type=ResourceType.THIRD), user=test_user)
+
+        # No composio resource created yet - the count must be zero, not the
+        # total count of all of this user's resources.
+        resources, total = ResourceService.list_accessible_with_count(
+            db, test_user, resource_type=ResourceType.COMPOSIO.value
+        )
+
+        assert total == 0
+        assert resources == []
+
+        ResourceService.create(db, ResourceCreate(
+            name="composio", type=ResourceType.COMPOSIO,
+            ext={"COMPOSIO_API_KEY": "ak_x", "COMPOSIO_USER_ID": "u1"},
+        ), user=test_user)
+
+        resources, total = ResourceService.list_accessible_with_count(
+            db, test_user, resource_type=ResourceType.COMPOSIO.value
+        )
+
+        assert total == 1
+        assert [r.name for r in resources] == ["composio"]
+
+    def test_no_filter_returns_everything(self, db, test_user):
+        ResourceService.create(db, ResourceCreate(name="gw", type=ResourceType.GATEWAY), user=test_user)
+        ResourceService.create(db, ResourceCreate(name="third", type=ResourceType.THIRD), user=test_user)
+
+        _resources, total = ResourceService.list_accessible_with_count(db, test_user)
+
+        assert total == 2

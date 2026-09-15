@@ -47,12 +47,14 @@ def show_help() -> None:
     print(f"{GREEN}SkillHub CLI Tool{NC}\n")
     print(f"{BLUE}DESCRIPTION{NC}")
     print("    A command-line interface for interacting with SkillHub gateway resources.")
-    print("    Supports three resource types: third-party APIs, gateway resources, and MCP servers.\n")
+    print("    Supports three resource types: third-party APIs, gateway resources, and MCP servers,")
+    print("    plus a dedicated 'composio' command for the built-in Composio integration.\n")
     print(f"{BLUE}USAGE{NC}")
     print("    skillhub list [search_term]              List all skills or search by name")
     print("    skillhub install [skill_name]           Install a skill to local directory")
     print("    skillhub getme                          Get current user info")
     print("    skillhub [res_type] [res_name] [options] Invoke a resource")
+    print("    skillhub composio [search|schema|exec] [options] Call the composio integration")
     print("    skillhub -h")
     print("    skillhub\n")
     print(f"{BLUE}LIST COMMAND{NC}")
@@ -65,6 +67,14 @@ def show_help() -> None:
     print(f"{BLUE}GETME COMMAND{NC}")
     print("    skillhub getme [-token <token>]\n")
     print("    Returns the current authenticated user's profile information.\n")
+    print(f"{BLUE}COMPOSIO COMMAND{NC}")
+    print('    skillhub composio search "<search field>"                 Search the Composio tool catalog (COMPOSIO_SEARCH_TOOLS)')
+    print('    skillhub composio schema "<tool_name>"                    Get a tool\'s full input schema (COMPOSIO_GET_TOOL_SCHEMAS)')
+    print("    skillhub composio exec \"<tool_name>\" --inputs '<json>'    Execute a tool (COMPOSIO_MULTI_EXECUTE_TOOL)\n")
+    print("    Calls the single, globally-configured 'composio' resource (type=composio) -")
+    print("    there can only ever be one such resource in SkillHub. Still requires -token /")
+    print("    SKILLHUB_API_KEY for SkillHub auth as usual; the Composio account itself")
+    print("    (COMPOSIO_API_KEY / COMPOSIO_USER_ID) is configured on that resource, not per CLI user.\n")
     print(f"{BLUE}ARGUMENTS{NC}")
     print("    res_type        Resource type (required): third, gateway, mcp")
     print("    res_name        Resource name (required): name of the resource to call\n")
@@ -98,6 +108,10 @@ def show_help() -> None:
     print(f"    {YELLOW}# MCP server call{NC}")
     print("    skillhub mcp my-mcp-server -mcptool test -inputs '{\"name\":\"weather_tool\",\"arguments\":{\"location\":\"Tokyo\"}}'")
     print("    skillhub mcp my-mcp-server -mcptool tool_name2\n")
+    print(f"    {YELLOW}# Composio meta-tool calls{NC}")
+    print('    skillhub composio search "search Jira issues in project VMS created in the last 5 days"')
+    print("    skillhub composio schema JIRA_SEARCH_ISSUES")
+    print("    skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{\"project_key\":\"VMS\",\"created_after\":\"-5d\"}'\n")
     print(f"    {YELLOW}# Get current user info{NC}")
     print("    skillhub getme")
     print("    skillhub getme -token your-api-token\n")
@@ -109,7 +123,8 @@ def show_help() -> None:
     print(f"{BLUE}RESOURCE TYPES{NC}")
     print("    third       Third-party API resources (requires -method)")
     print("    gateway     Gateway resources with path support (requires -method and -path)")
-    print("    mcp         MCP server resources (requires -mcptool)\n")
+    print("    mcp         MCP server resources (requires -mcptool)")
+    print("    composio    Built-in Composio integration, singleton, invoked via 'skillhub composio ...' (see COMPOSIO COMMAND)\n")
     print(f"{BLUE}AUTHENTICATION{NC}")
     print("    Token priority:")
     print("    1. Token provided via -token option")
@@ -302,6 +317,43 @@ def list_skills(search_term: str, page: str, token: str, timeout_value: str) -> 
         print(response)
 
 
+def composio_call(endpoint: str, body: dict, token: str, timeout_value: str, verbose: int) -> None:
+    if not token:
+        token = os.environ.get("SKILLHUB_API_KEY", "")
+    if not token:
+        error("No authentication token found. Please provide via -token option or set SKILLHUB_API_KEY environment variable")
+
+    api_url = f"{SKILLHUB_URL}/api/v1/gateway/composio/{endpoint}"
+    payload = json.dumps(body)
+
+    if verbose == 1:
+        info(
+            f"curl --max-time {timeout_value} -sS -L -X 'POST' '{api_url}' "
+            f"-H 'Content-Type: application/json' -H 'Authorization: Bearer {token}' -d '{payload}'"
+        )
+
+    try:
+        _status, resp_body = _http_request(
+            method="POST",
+            url=api_url,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            timeout_value=timeout_value,
+            body=payload,
+        )
+    except Exception as exc:
+        error(str(exc))
+        return
+
+    try:
+        parsed = json.loads(resp_body)
+        print(json.dumps(parsed, indent=4, ensure_ascii=False))
+    except Exception:
+        print(resp_body)
+
+
 def normalize_method(method: str) -> str:
     m = method.strip().upper()
     if m not in ("GET", "POST", "PUT", "DELETE"):
@@ -411,6 +463,74 @@ def main() -> None:
                 list_skills(search_term, page, token, timeout_value)
                 sys.exit(0)
         list_skills("", page, token, timeout_value)
+        sys.exit(0)
+
+    if args[0] == "composio":
+        rest = args[1:]
+        if len(rest) == 0:
+            error("composio command requires a subcommand: search, schema, exec")
+        subcmd = rest[0]
+        rest = rest[1:]
+
+        arg_value = ""
+        i = 0
+        while i < len(rest):
+            a = rest[i]
+            if a == "-token":
+                if i + 1 >= len(rest):
+                    error("Option -token requires a value")
+                token = rest[i + 1]
+                i += 2
+            elif a == "-timeout":
+                if i + 1 >= len(rest):
+                    error("Option -timeout requires a value")
+                timeout_value = rest[i + 1]
+                i += 2
+            elif a in ("--inputs", "-inputs"):
+                if i + 1 >= len(rest):
+                    error("Option --inputs requires a value")
+                inputs = rest[i + 1]
+                i += 2
+            elif a == "-v":
+                verbose = 1
+                i += 1
+            elif a.startswith("-"):
+                error(f"Unknown option for composio command: {a}")
+            else:
+                if arg_value:
+                    error(f"Unexpected extra argument for composio command: {a}")
+                arg_value = a
+                i += 1
+
+        if subcmd == "search":
+            if not arg_value:
+                error('composio search requires a search field, e.g. skillhub composio search "send an email"')
+            composio_call("search", {"use_case": arg_value}, token, timeout_value, verbose)
+        elif subcmd == "schema":
+            if not arg_value:
+                error("composio schema requires a tool name, e.g. skillhub composio schema JIRA_SEARCH_ISSUES")
+            composio_call("schema", {"tool_slugs": [arg_value]}, token, timeout_value, verbose)
+        elif subcmd == "exec":
+            if not arg_value:
+                error("composio exec requires a tool name, e.g. skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{...}'")
+            if inputs:
+                try:
+                    arguments = json.loads(inputs)
+                except json.JSONDecodeError as exc:
+                    error(f"Invalid JSON for --inputs: {exc}")
+                    return
+                if not isinstance(arguments, dict):
+                    error("--inputs must be a JSON object")
+                    return
+            else:
+                arguments = {}
+            composio_call(
+                "exec",
+                {"tools": [{"tool_slug": arg_value, "arguments": arguments}]},
+                token, timeout_value, verbose,
+            )
+        else:
+            error(f"Unknown composio subcommand '{subcmd}'. Must be one of: search, schema, exec")
         sys.exit(0)
 
     res_type = args[0]

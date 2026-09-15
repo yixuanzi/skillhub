@@ -19,6 +19,7 @@ class ResourceType(str, enum.Enum):
     GATEWAY = "gateway"  # 网关资源
     THIRD = "third"      # 第三方资源
     MCP = "mcp"          # MCP (Model Context Protocol) 服务器资源
+    COMPOSIO = "composio"  # Composio 集成资源(全局单例)
 
 
 class Resource(Base):

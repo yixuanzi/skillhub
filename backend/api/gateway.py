@@ -5,12 +5,13 @@ with automatic ACL permission checking and resource invocation.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from database import get_db
 from schemas.gateway import GatewayResponse, GatewayCallRequest
 from services.gateway_service import GatewayService
 from services.mcp_service import MCPService
+from services.composio_service import ComposioService
 from core.deps import get_current_active_user
 from models.user import User
 
@@ -329,6 +330,98 @@ async def list_mcp_tools(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"MCP server error: {str(e)}"
         )
+
+
+class ComposioSearchRequest(BaseModel):
+    """Request schema for COMPOSIO_SEARCH_TOOLS."""
+    use_case: str = Field(..., min_length=1, description="Natural-language description of what you want to do")
+    known_fields: Optional[str] = Field(None, description="Comma-separated key:value hints, e.g. 'project_key:VMS'")
+
+
+class ComposioSchemaRequest(BaseModel):
+    """Request schema for COMPOSIO_GET_TOOL_SCHEMAS."""
+    tool_slugs: list[str] = Field(..., min_length=1, description="Tool slugs returned by a prior search, e.g. ['JIRA_SEARCH_ISSUES']")
+
+
+class ComposioExecTool(BaseModel):
+    """A single tool invocation within a COMPOSIO_MULTI_EXECUTE_TOOL call."""
+    tool_slug: str = Field(..., min_length=1)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
+
+class ComposioExecRequest(BaseModel):
+    """Request schema for COMPOSIO_MULTI_EXECUTE_TOOL."""
+    tools: list[ComposioExecTool] = Field(..., min_length=1, max_length=50, description="Up to 50 tools to execute in parallel")
+
+
+def _raise_composio_http_error(e: Exception):
+    from core.exceptions import ValidationException, ExternalServiceException
+
+    if isinstance(e, ValidationException):
+        if "permission" in str(e).lower() or "access" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    if isinstance(e, ExternalServiceException):
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Composio error: {str(e)}")
+    raise
+
+
+@router.post("/composio/search")
+async def composio_search_tools(
+    request: ComposioSearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Search the Composio tool catalog via the singleton composio resource.
+
+    Calls COMPOSIO_SEARCH_TOOLS for a single natural-language use case and
+    returns Composio's suggested tools and execution plan.
+    """
+    from core.exceptions import ValidationException, ExternalServiceException
+
+    try:
+        return await ComposioService.search_tools(
+            db=db, user=current_user, use_case=request.use_case, known_fields=request.known_fields
+        )
+    except (ValidationException, ExternalServiceException) as e:
+        _raise_composio_http_error(e)
+
+
+@router.post("/composio/schema")
+async def composio_get_tool_schemas(
+    request: ComposioSchemaRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Fetch full input schemas for tool slugs via the singleton composio resource.
+
+    Calls COMPOSIO_GET_TOOL_SCHEMAS. Only pass slugs returned by a prior search.
+    """
+    from core.exceptions import ValidationException, ExternalServiceException
+
+    try:
+        return await ComposioService.get_tool_schemas(db=db, user=current_user, tool_slugs=request.tool_slugs)
+    except (ValidationException, ExternalServiceException) as e:
+        _raise_composio_http_error(e)
+
+
+@router.post("/composio/exec")
+async def composio_multi_execute_tool(
+    request: ComposioExecRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Execute one or more discovered tools via the singleton composio resource.
+
+    Calls COMPOSIO_MULTI_EXECUTE_TOOL (up to 50 tools per call, run in parallel).
+    """
+    from core.exceptions import ValidationException, ExternalServiceException
+
+    try:
+        tools = [t.model_dump() for t in request.tools]
+        return await ComposioService.multi_execute_tool(db=db, user=current_user, tools=tools)
+    except (ValidationException, ExternalServiceException) as e:
+        _raise_composio_http_error(e)
 
 
 # New routes with path support for gateway-type resources
