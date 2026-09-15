@@ -68,13 +68,29 @@ def show_help() -> None:
     print("    skillhub getme [-token <token>]\n")
     print("    Returns the current authenticated user's profile information.\n")
     print(f"{BLUE}COMPOSIO COMMAND{NC}")
-    print('    skillhub composio search "<search field>"                 Search the Composio tool catalog (COMPOSIO_SEARCH_TOOLS)')
-    print('    skillhub composio schema "<tool_name>"                    Get a tool\'s full input schema (COMPOSIO_GET_TOOL_SCHEMAS)')
-    print("    skillhub composio exec \"<tool_name>\" --inputs '<json>'    Execute a tool (COMPOSIO_MULTI_EXECUTE_TOOL)\n")
+    print("    skillhub composio search \"<use case>\" [--known-fields '<k:v,...>']   COMPOSIO_SEARCH_TOOLS")
+    print("    skillhub composio schema <TOOL_SLUG> [TOOL_SLUG ...]                 COMPOSIO_GET_TOOL_SCHEMAS")
+    print("    skillhub composio exec <TOOL_SLUG> [--inputs '<json object>']        COMPOSIO_MULTI_EXECUTE_TOOL")
+    print("    skillhub composio exec --tools '<json array>'                        COMPOSIO_MULTI_EXECUTE_TOOL (batch)\n")
     print("    Calls the single, globally-configured 'composio' resource (type=composio) -")
     print("    there can only ever be one such resource in SkillHub. Still requires -token /")
     print("    SKILLHUB_API_KEY for SkillHub auth as usual; the Composio account itself")
     print("    (COMPOSIO_API_KEY / COMPOSIO_USER_ID) is configured on that resource, not per CLI user.\n")
+    print("    Workflow: search -> schema -> exec. A tool slug is only valid if a search")
+    print("    returned it - never invent one. search often already returns the full")
+    print("    input_schema, in which case the schema step can be skipped. Check the")
+    print("    toolkit's connection status from search; it must be ACTIVE before exec.\n")
+    print("    search  use_case      the quoted positional argument (one action per search)")
+    print("            known_fields  optional; comma-separated key:value identifier hints,")
+    print("                          e.g. --known-fields 'project_key:VMS'. Short, stable")
+    print("                          identifiers only - never free-form text.")
+    print("    schema  tool_slugs    one or more slugs, space-separated")
+    print("    exec    tool_slug     the positional argument; --inputs holds that tool's")
+    print("                          own arguments as a JSON object (omitted -> {})")
+    print("            --tools       batch form, a JSON array of")
+    print('                          {"tool_slug": "...", "arguments": {...}} (max 50),')
+    print("                          executed in parallel. Mutually exclusive with the")
+    print("                          positional slug and --inputs.\n")
     print(f"{BLUE}ARGUMENTS{NC}")
     print("    res_type        Resource type (required): third, gateway, mcp")
     print("    res_name        Resource name (required): name of the resource to call\n")
@@ -83,6 +99,9 @@ def show_help() -> None:
     print("    -path <path>        Resource access path (required for gateway)")
     print("    -mcptool <tool>     MCP tool/method name (required for mcp)")
     print("    -inputs <json>      JSON string of parameters (optional)")
+    print("                        Also spelled --inputs for 'composio exec'")
+    print("    --known-fields <s>  Identifier hints for 'composio search' (optional)")
+    print("    --tools <json>      JSON array of tools for 'composio exec' batch form (optional)")
     print("    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)")
     print("    -timeout <seconds>  Request timeout in seconds (optional, default: 30)")
     print("    -page <number>      Page number for list command (optional)")
@@ -108,10 +127,13 @@ def show_help() -> None:
     print(f"    {YELLOW}# MCP server call{NC}")
     print("    skillhub mcp my-mcp-server -mcptool test -inputs '{\"name\":\"weather_tool\",\"arguments\":{\"location\":\"Tokyo\"}}'")
     print("    skillhub mcp my-mcp-server -mcptool tool_name2\n")
-    print(f"    {YELLOW}# Composio meta-tool calls{NC}")
-    print('    skillhub composio search "search Jira issues in project VMS created in the last 5 days"')
+    print(f"    {YELLOW}# Composio meta-tool calls (search -> schema -> exec){NC}")
+    print("    skillhub composio search \"search issues in jira created recently\" --known-fields 'project_key:VMS'")
     print("    skillhub composio schema JIRA_SEARCH_ISSUES")
-    print("    skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{\"project_key\":\"VMS\",\"created_after\":\"-5d\"}'\n")
+    print("    skillhub composio schema JIRA_SEARCH_ISSUES SLACK_SEND_MESSAGE")
+    print("    skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{\"project_key\":\"VMS\",\"created_after\":\"-5d\"}'")
+    print("    skillhub composio exec --tools '[{\"tool_slug\":\"JIRA_SEARCH_ISSUES\",\"arguments\":{\"project_key\":\"VMS\"}},"
+          "{\"tool_slug\":\"SLACK_SEND_MESSAGE\",\"arguments\":{\"channel\":\"general\",\"text\":\"done\"}}]'\n")
     print(f"    {YELLOW}# Get current user info{NC}")
     print("    skillhub getme")
     print("    skillhub getme -token your-api-token\n")
@@ -119,7 +141,6 @@ def show_help() -> None:
     print("    skillhub third weather-api -method GET -inputs '{\"city\":\"Shanghai\"}' -token your-api-token-here\n")
     print(f"{BLUE}ENVIRONMENT VARIABLES{NC}")
     print("    SKILLHUB_API_KEY   Default API token if -token is not provided")
-    print("    SKILLHUB_URL       Override the default SkillHub URL \n")
     print(f"{BLUE}RESOURCE TYPES{NC}")
     print("    third       Third-party API resources (requires -method)")
     print("    gateway     Gateway resources with path support (requires -method and -path)")
@@ -317,6 +338,33 @@ def list_skills(search_term: str, page: str, token: str, timeout_value: str) -> 
         print(response)
 
 
+def parse_composio_tools(raw: str) -> list:
+    """Validate the --tools batch form: [{"tool_slug": "...", "arguments": {...}}, ...]."""
+    try:
+        tools = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        error(f"invalid JSON for --tools: {exc}")
+
+    if not isinstance(tools, list) or not tools:
+        error('--tools must be a non-empty JSON array, e.g. \'[{"tool_slug":"X","arguments":{}}]\'')
+    if len(tools) > 50:
+        error(f"--tools accepts at most 50 entries, got {len(tools)}")
+
+    normalized = []
+    for index, tool in enumerate(tools):
+        if not isinstance(tool, dict):
+            error(f"--tools[{index}] must be a JSON object")
+        slug = tool.get("tool_slug")
+        if not isinstance(slug, str) or not slug:
+            error(f'--tools[{index}] requires a non-empty "tool_slug"')
+        arguments = tool.get("arguments", {})
+        if not isinstance(arguments, dict):
+            error(f"--tools[{index}].arguments must be a JSON object")
+        normalized.append({"tool_slug": slug, "arguments": arguments})
+
+    return normalized
+
+
 def composio_call(endpoint: str, body: dict, token: str, timeout_value: str, verbose: int) -> None:
     if not token:
         token = os.environ.get("SKILLHUB_API_KEY", "")
@@ -472,7 +520,9 @@ def main() -> None:
         subcmd = rest[0]
         rest = rest[1:]
 
-        arg_value = ""
+        positionals = []
+        known_fields = ""
+        tools_json = ""
         i = 0
         while i < len(rest):
             a = rest[i]
@@ -491,44 +541,80 @@ def main() -> None:
                     error("Option --inputs requires a value")
                 inputs = rest[i + 1]
                 i += 2
+            elif a in ("--known-fields", "-known-fields"):
+                if i + 1 >= len(rest):
+                    error("Option --known-fields requires a value")
+                known_fields = rest[i + 1]
+                i += 2
+            elif a in ("--tools", "-tools"):
+                if i + 1 >= len(rest):
+                    error("Option --tools requires a value")
+                tools_json = rest[i + 1]
+                i += 2
             elif a == "-v":
                 verbose = 1
                 i += 1
             elif a.startswith("-"):
                 error(f"Unknown option for composio command: {a}")
             else:
-                if arg_value:
-                    error(f"Unexpected extra argument for composio command: {a}")
-                arg_value = a
+                positionals.append(a)
                 i += 1
 
         if subcmd == "search":
-            if not arg_value:
-                error('composio search requires a search field, e.g. skillhub composio search "send an email"')
-            composio_call("search", {"use_case": arg_value}, token, timeout_value, verbose)
-        elif subcmd == "schema":
-            if not arg_value:
-                error("composio schema requires a tool name, e.g. skillhub composio schema JIRA_SEARCH_ISSUES")
-            composio_call("schema", {"tool_slugs": [arg_value]}, token, timeout_value, verbose)
-        elif subcmd == "exec":
-            if not arg_value:
-                error("composio exec requires a tool name, e.g. skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{...}'")
+            if not positionals:
+                error('composio search requires a use case, e.g. skillhub composio search "send an email"')
+            if len(positionals) > 1:
+                error("composio search takes a single use case - quote it as one argument")
             if inputs:
-                try:
-                    arguments = json.loads(inputs)
-                except json.JSONDecodeError as exc:
-                    error(f"Invalid JSON for --inputs: {exc}")
-                    return
-                if not isinstance(arguments, dict):
-                    error("--inputs must be a JSON object")
-                    return
+                error("--inputs is only valid for 'composio exec'")
+            if tools_json:
+                error("--tools is only valid for 'composio exec'")
+            body = {"use_case": positionals[0]}
+            if known_fields:
+                body["known_fields"] = known_fields
+            composio_call("search", body, token, timeout_value, verbose)
+        elif subcmd == "schema":
+            if not positionals:
+                error("composio schema requires at least one tool name, e.g. skillhub composio schema JIRA_SEARCH_ISSUES")
+            if known_fields:
+                error("--known-fields is only valid for 'composio search'")
+            if inputs:
+                error("--inputs is only valid for 'composio exec'")
+            if tools_json:
+                error("--tools is only valid for 'composio exec'")
+            composio_call("schema", {"tool_slugs": positionals}, token, timeout_value, verbose)
+        elif subcmd == "exec":
+            if known_fields:
+                error("--known-fields is only valid for 'composio search'")
+            if tools_json:
+                # Batch form - the positional slug and --inputs belong to the single form.
+                if positionals:
+                    error("composio exec takes either a tool name or --tools, not both")
+                if inputs:
+                    error("--inputs applies to a single tool name; put arguments inside --tools instead")
+                composio_call("exec", {"tools": parse_composio_tools(tools_json)},
+                              token, timeout_value, verbose)
             else:
-                arguments = {}
-            composio_call(
-                "exec",
-                {"tools": [{"tool_slug": arg_value, "arguments": arguments}]},
-                token, timeout_value, verbose,
-            )
+                if not positionals:
+                    error("composio exec requires a tool name, e.g. skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{...}'")
+                if len(positionals) > 1:
+                    error("composio exec takes one tool name - use --tools '[{...}]' to run several")
+                if inputs:
+                    try:
+                        arguments = json.loads(inputs)
+                    except json.JSONDecodeError as exc:
+                        error(f"Invalid JSON for --inputs: {exc}")
+                        return
+                    if not isinstance(arguments, dict):
+                        error("--inputs must be a JSON object")
+                        return
+                else:
+                    arguments = {}
+                composio_call(
+                    "exec",
+                    {"tools": [{"tool_slug": positionals[0], "arguments": arguments}]},
+                    token, timeout_value, verbose,
+                )
         else:
             error(f"Unknown composio subcommand '{subcmd}'. Must be one of: search, schema, exec")
         sys.exit(0)

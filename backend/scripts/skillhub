@@ -88,13 +88,29 @@ show_help() {
     printf "    skillhub getme [-token <token>]\n\n"
     printf "    Returns the current authenticated user's profile information.\n\n"
     printf "${BLUE}COMPOSIO COMMAND${NC}\n"
-    printf "    skillhub composio search \"<search field>\"                 Search the Composio tool catalog (COMPOSIO_SEARCH_TOOLS)\n"
-    printf "    skillhub composio schema \"<tool_name>\"                    Get a tool's full input schema (COMPOSIO_GET_TOOL_SCHEMAS)\n"
-    printf "    skillhub composio exec \"<tool_name>\" --inputs '<json>'    Execute a tool (COMPOSIO_MULTI_EXECUTE_TOOL)\n\n"
+    printf "    skillhub composio search \"<use case>\" [--known-fields '<k:v,...>']   COMPOSIO_SEARCH_TOOLS\n"
+    printf "    skillhub composio schema <TOOL_SLUG> [TOOL_SLUG ...]                 COMPOSIO_GET_TOOL_SCHEMAS\n"
+    printf "    skillhub composio exec <TOOL_SLUG> [--inputs '<json object>']        COMPOSIO_MULTI_EXECUTE_TOOL\n"
+    printf "    skillhub composio exec --tools '<json array>'                        COMPOSIO_MULTI_EXECUTE_TOOL (batch)\n\n"
     printf "    Calls the single, globally-configured 'composio' resource (type=composio) -\n"
     printf "    there can only ever be one such resource in SkillHub. Still requires -token /\n"
     printf "    SKILLHUB_API_KEY for SkillHub auth as usual; the Composio account itself\n"
     printf "    (COMPOSIO_API_KEY / COMPOSIO_USER_ID) is configured on that resource, not per CLI user.\n\n"
+    printf "    Workflow: search -> schema -> exec. A tool slug is only valid if a search\n"
+    printf "    returned it - never invent one. search often already returns the full\n"
+    printf "    input_schema, in which case the schema step can be skipped. Check the\n"
+    printf "    toolkit's connection status from search; it must be ACTIVE before exec.\n\n"
+    printf "    search  use_case      the quoted positional argument (one action per search)\n"
+    printf "            known_fields  optional; comma-separated key:value identifier hints,\n"
+    printf "                          e.g. --known-fields 'project_key:VMS'. Short, stable\n"
+    printf "                          identifiers only - never free-form text.\n"
+    printf "    schema  tool_slugs    one or more slugs, space-separated\n"
+    printf "    exec    tool_slug     the positional argument; --inputs holds that tool's\n"
+    printf "                          own arguments as a JSON object (omitted -> {})\n"
+    printf "            --tools       batch form, a JSON array of\n"
+    printf "                          {\"tool_slug\": \"...\", \"arguments\": {...}} (max 50),\n"
+    printf "                          executed in parallel. Mutually exclusive with the\n"
+    printf "                          positional slug and --inputs.\n\n"
     printf "${BLUE}ARGUMENTS${NC}\n"
     printf "    res_type        Resource type (required): third, gateway, mcp\n"
     printf "    res_name        Resource name (required): name of the resource to call\n\n"
@@ -103,6 +119,9 @@ show_help() {
     printf "    -path <path>        Resource access path (required for gateway)\n"
     printf "    -mcptool <tool>     MCP tool/method name (required for mcp)\n"
     printf "    -inputs <json>      JSON string of parameters (optional)\n"
+    printf "                        Also spelled --inputs for 'composio exec'\n"
+    printf "    --known-fields <s>  Identifier hints for 'composio search' (optional)\n"
+    printf "    --tools <json>      JSON array of tools for 'composio exec' batch form (optional)\n"
     printf "    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)\n"
     printf "    -timeout <seconds>  Request timeout in seconds (optional, default: 30)\n"
     printf "    -page <number>      Page number for list command (optional)\n"
@@ -128,10 +147,12 @@ show_help() {
     printf "    ${YELLOW}# MCP server call${NC}\n"
     printf "    skillhub mcp my-mcp-server -mcptool test -inputs '{\"name\":\"weather_tool\",\"arguments\":{\"location\":\"Tokyo\"}}'\n"
     printf "    skillhub mcp my-mcp-server -mcptool tool_name2\n\n"
-    printf "    ${YELLOW}# Composio meta-tool calls${NC}\n"
-    printf "    skillhub composio search \"search Jira issues in project VMS created in the last 5 days\"\n"
+    printf "    ${YELLOW}# Composio meta-tool calls (search -> schema -> exec)${NC}\n"
+    printf "    skillhub composio search \"search issues in jira created recently\" --known-fields 'project_key:VMS'\n"
     printf "    skillhub composio schema JIRA_SEARCH_ISSUES\n"
-    printf "    skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{\"project_key\":\"VMS\",\"created_after\":\"-5d\"}'\n\n"
+    printf "    skillhub composio schema JIRA_SEARCH_ISSUES SLACK_SEND_MESSAGE\n"
+    printf "    skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{\"project_key\":\"VMS\",\"created_after\":\"-5d\"}'\n"
+    printf "    skillhub composio exec --tools '[{\"tool_slug\":\"JIRA_SEARCH_ISSUES\",\"arguments\":{\"project_key\":\"VMS\"}},{\"tool_slug\":\"SLACK_SEND_MESSAGE\",\"arguments\":{\"channel\":\"general\",\"text\":\"done\"}}]'\n\n"
     printf "    ${YELLOW}# Get current user info${NC}\n"
     printf "    skillhub getme\n"
     printf "    skillhub getme -token your-api-token\n\n"
@@ -139,7 +160,6 @@ show_help() {
     printf "    skillhub third weather-api -method GET -inputs '{\"city\":\"Shanghai\"}' -token your-api-token-here\n\n"
     printf "${BLUE}ENVIRONMENT VARIABLES${NC}\n"
     printf "    SKILLHUB_API_KEY   Default API token if -token is not provided\n"
-    printf "    SKILLHUB_URL       Override the default SkillHub URL \n\n"
     printf "${BLUE}RESOURCE TYPES${NC}\n"
     printf "    third       Third-party API resources (requires -method)\n"
     printf "    gateway     Gateway resources with path support (requires -method and -path)\n"
@@ -304,18 +324,26 @@ composio_call() {
 # Build request bodies with python so the search text / JSON inputs never
 # need shell-escaping.
 composio_search_body() {
-    USE_CASE="$1" "$PYTHON_BIN" - <<'PY'
+    USE_CASE="$1" KNOWN_FIELDS="$2" "$PYTHON_BIN" - <<'PY'
 import json
 import os
-print(json.dumps({"use_case": os.environ["USE_CASE"]}))
+
+body = {"use_case": os.environ["USE_CASE"]}
+known_fields = os.environ.get("KNOWN_FIELDS", "")
+if known_fields:
+    body["known_fields"] = known_fields
+print(json.dumps(body))
 PY
 }
 
+# Slugs arrive newline-delimited; tool slugs never contain newlines.
 composio_schema_body() {
-    TOOL_NAME="$1" "$PYTHON_BIN" - <<'PY'
+    TOOL_SLUGS="$(printf '%s\n' "$@")" "$PYTHON_BIN" - <<'PY'
 import json
 import os
-print(json.dumps({"tool_slugs": [os.environ["TOOL_NAME"]]}))
+
+slugs = [s for s in os.environ["TOOL_SLUGS"].split("\n") if s]
+print(json.dumps({"tool_slugs": slugs}))
 PY
 }
 
@@ -341,6 +369,43 @@ else:
     arguments = {}
 
 print(json.dumps({"tools": [{"tool_slug": tool_name, "arguments": arguments}]}))
+PY
+}
+
+# Batch form: --tools '[{"tool_slug": "...", "arguments": {...}}, ...]'
+composio_exec_batch_body() {
+    TOOLS_JSON="$1" "$PYTHON_BIN" - <<'PY'
+import json
+import os
+import sys
+
+def fail(message):
+    print(f"Error: {message}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    tools = json.loads(os.environ["TOOLS_JSON"])
+except json.JSONDecodeError as exc:
+    fail(f"invalid JSON for --tools: {exc}")
+
+if not isinstance(tools, list) or not tools:
+    fail('--tools must be a non-empty JSON array, e.g. \'[{"tool_slug":"X","arguments":{}}]\'')
+if len(tools) > 50:
+    fail(f"--tools accepts at most 50 entries, got {len(tools)}")
+
+normalized = []
+for index, tool in enumerate(tools):
+    if not isinstance(tool, dict):
+        fail(f"--tools[{index}] must be a JSON object")
+    slug = tool.get("tool_slug")
+    if not isinstance(slug, str) or not slug:
+        fail(f'--tools[{index}] requires a non-empty "tool_slug"')
+    arguments = tool.get("arguments", {})
+    if not isinstance(arguments, dict):
+        fail(f'--tools[{index}].arguments must be a JSON object')
+    normalized.append({"tool_slug": slug, "arguments": arguments})
+
+print(json.dumps({"tools": normalized}))
 PY
 }
 
@@ -533,7 +598,9 @@ if [ "$1" = "composio" ]; then
     SUBCMD="$1"
     shift
 
-    ARG=""
+    ARGS=()
+    KNOWN_FIELDS=""
+    TOOLS_JSON=""
     while [ $# -gt 0 ]; do
         case "$1" in
             -token)
@@ -557,6 +624,20 @@ if [ "$1" = "composio" ]; then
                 INPUTS="$2"
                 shift 2
                 ;;
+            --known-fields|-known-fields)
+                if [ $# -lt 2 ]; then
+                    error "Option --known-fields requires a value"
+                fi
+                KNOWN_FIELDS="$2"
+                shift 2
+                ;;
+            --tools|-tools)
+                if [ $# -lt 2 ]; then
+                    error "Option --tools requires a value"
+                fi
+                TOOLS_JSON="$2"
+                shift 2
+                ;;
             -v)
                 VERBOSE=1
                 shift
@@ -565,10 +646,7 @@ if [ "$1" = "composio" ]; then
                 error "Unknown option for composio command: $1"
                 ;;
             *)
-                if [ -n "$ARG" ]; then
-                    error "Unexpected extra argument for composio command: $1"
-                fi
-                ARG="$1"
+                ARGS+=("$1")
                 shift
                 ;;
         esac
@@ -576,24 +654,59 @@ if [ "$1" = "composio" ]; then
 
     case "$SUBCMD" in
         search)
-            if [ -z "$ARG" ]; then
-                error 'composio search requires a search field, e.g. skillhub composio search "send an email"'
+            if [ ${#ARGS[@]} -eq 0 ]; then
+                error 'composio search requires a use case, e.g. skillhub composio search "send an email"'
             fi
-            BODY=$(composio_search_body "$ARG") || exit 1
+            if [ ${#ARGS[@]} -gt 1 ]; then
+                error "composio search takes a single use case - quote it as one argument"
+            fi
+            if [ -n "$INPUTS" ]; then
+                error "--inputs is only valid for 'composio exec'"
+            fi
+            if [ -n "$TOOLS_JSON" ]; then
+                error "--tools is only valid for 'composio exec'"
+            fi
+            BODY=$(composio_search_body "${ARGS[0]}" "$KNOWN_FIELDS") || exit 1
             composio_call "search" "$BODY"
             ;;
         schema)
-            if [ -z "$ARG" ]; then
-                error "composio schema requires a tool name, e.g. skillhub composio schema JIRA_SEARCH_ISSUES"
+            if [ ${#ARGS[@]} -eq 0 ]; then
+                error "composio schema requires at least one tool name, e.g. skillhub composio schema JIRA_SEARCH_ISSUES"
             fi
-            BODY=$(composio_schema_body "$ARG") || exit 1
+            if [ -n "$KNOWN_FIELDS" ]; then
+                error "--known-fields is only valid for 'composio search'"
+            fi
+            if [ -n "$INPUTS" ]; then
+                error "--inputs is only valid for 'composio exec'"
+            fi
+            if [ -n "$TOOLS_JSON" ]; then
+                error "--tools is only valid for 'composio exec'"
+            fi
+            BODY=$(composio_schema_body "${ARGS[@]}") || exit 1
             composio_call "schema" "$BODY"
             ;;
         exec)
-            if [ -z "$ARG" ]; then
-                error "composio exec requires a tool name, e.g. skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{...}'"
+            if [ -n "$KNOWN_FIELDS" ]; then
+                error "--known-fields is only valid for 'composio search'"
             fi
-            BODY=$(composio_exec_body "$ARG" "$INPUTS") || exit 1
+            if [ -n "$TOOLS_JSON" ]; then
+                # Batch form - the positional slug and --inputs belong to the single form.
+                if [ ${#ARGS[@]} -gt 0 ]; then
+                    error "composio exec takes either a tool name or --tools, not both"
+                fi
+                if [ -n "$INPUTS" ]; then
+                    error "--inputs applies to a single tool name; put arguments inside --tools instead"
+                fi
+                BODY=$(composio_exec_batch_body "$TOOLS_JSON") || exit 1
+            else
+                if [ ${#ARGS[@]} -eq 0 ]; then
+                    error "composio exec requires a tool name, e.g. skillhub composio exec JIRA_SEARCH_ISSUES --inputs '{...}'"
+                fi
+                if [ ${#ARGS[@]} -gt 1 ]; then
+                    error "composio exec takes one tool name - use --tools '[{...}]' to run several"
+                fi
+                BODY=$(composio_exec_body "${ARGS[0]}" "$INPUTS") || exit 1
+            fi
             composio_call "exec" "$BODY"
             ;;
         *)
