@@ -1,5 +1,5 @@
 import { ACLRule, AccessMode } from '@/types';
-import { Pencil, Trash2, Shield, Unlock, Lock, Clock, AlertTriangle } from 'lucide-react';
+import { Pencil, Trash2, Eye, Shield, Unlock, Lock, Clock, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
@@ -11,12 +11,15 @@ import {
   TableCell,
 } from '@/components/ui/Table';
 import { cn } from '@/utils/cn';
+import { canManageAclRule } from '@/utils/permissions';
 
 interface ACLResourceTableProps {
   rules: ACLRule[];
   loading?: boolean;
   onEdit?: (rule: ACLRule) => void;
   onDelete?: (rule: ACLRule) => void;
+  /** Read-only detail view, offered to users who may not edit or delete. */
+  onViewDetail?: (rule: ACLRule) => void;
   deleteConfirm?: ACLRule | null;
 }
 
@@ -30,6 +33,7 @@ export const ACLResourceTable = ({
   loading,
   onEdit,
   onDelete,
+  onViewDetail,
   deleteConfirm,
 }: ACLResourceTableProps) => {
   // Loading state
@@ -71,7 +75,7 @@ export const ACLResourceTable = ({
             <TableHead>Conditions</TableHead>
             <TableHead>Role Bindings</TableHead>
             <TableHead>Created</TableHead>
-            {(onEdit || onDelete) && <TableHead className="w-32">Actions</TableHead>}
+            {(onEdit || onDelete || onViewDetail) && <TableHead className="w-32">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -174,10 +178,25 @@ export const ACLResourceTable = ({
                   {formatRelativeTime(rule.created_at)}
                 </span>
               </TableCell>
-              {(onEdit || onDelete) && (
+              {(onEdit || onDelete || onViewDetail) && (
                 <TableCell>
+                  {/* Only the resource owner and admins may edit or delete an
+                      ACL rule; everyone else gets the read-only view, so no
+                      row is ever left with no action at all. */}
                   <div className="flex items-center gap-2">
-                    {onEdit && (
+                    {onViewDetail && !canManageAclRule(rule) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onViewDetail(rule)}
+                        className="p-1.5"
+                        title="View details"
+                        aria-label={`View details of ACL rule for ${rule.resource_name}`}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {onEdit && canManageAclRule(rule) && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -187,7 +206,7 @@ export const ACLResourceTable = ({
                         <Pencil className="w-4 h-4" />
                       </Button>
                     )}
-                    {onDelete && (
+                    {onDelete && canManageAclRule(rule) && (
                       <Button
                         variant="ghost"
                         size="sm"

@@ -86,6 +86,21 @@ def _is_admin_user(user: Optional[User]) -> bool:
     return bool(user_role_names & ADMIN_ROLES)
 
 
+def _can_manage_acl(db: Session, resource_id: str, user: Optional[User]) -> bool:
+    """Whether `user` may create, update or delete ACL rules for a resource.
+
+    Admin/super_admin, or the resource's owner. Non-raising counterpart of
+    _check_acl_permission, so a response can report the verdict without
+    clients re-deriving it.
+    """
+    if _is_admin_user(user):
+        return True
+    if not user:
+        return False
+    resource = db.query(Resource).filter(Resource.id == resource_id).first()
+    return bool(resource and resource.owner_id and resource.owner_id == user.id)
+
+
 def _check_acl_permission(db: Session, resource_id: str, user: Optional[User]) -> bool:
     """Check if user has permission to modify ACL rules for a resource.
 
@@ -109,13 +124,12 @@ def _check_acl_permission(db: Session, resource_id: str, user: Optional[User]) -
     if _is_admin_user(user):
         return True
 
-    # Get resource with owner info
+    # The resource must exist regardless, so a bad id reads as 404 not 403.
     resource = db.query(Resource).filter(Resource.id == resource_id).first()
     if not resource:
         raise NotFoundException(f"Resource with id '{resource_id}' not found")
 
-    # Owner can modify their resource's ACL
-    if user and resource.owner_id == user.id:
+    if _can_manage_acl(db, resource_id, user):
         return True
 
     raise ValidationException("You do not have permission to modify ACL rules for this resource")
@@ -189,7 +203,8 @@ class ACLResourceService:
         db.commit()
         db.refresh(new_acl_rule)
 
-        return ACLResourceService._to_response(db, new_acl_rule)
+        # The write check above already passed for this user.
+        return ACLResourceService._to_response(db, new_acl_rule, user)
 
     @staticmethod
     def get_by_id(db: Session, acl_rule_id: str) -> Optional[ACLRuleResponse]:
@@ -317,7 +332,7 @@ class ACLResourceService:
 
             total = query.count()
             acl_rules = query.offset(skip).limit(limit).all()
-            return [ACLResourceService._to_response(db, rule) for rule in acl_rules], total
+            return [ACLResourceService._to_response(db, rule, user) for rule in acl_rules], total
 
         # For regular users, apply exact membership checks in Python to avoid
         # unsafe substring matching on JSON arrays.
@@ -333,7 +348,7 @@ class ACLResourceService:
 
         total = len(accessible_rules)
         paged_rules = accessible_rules[skip:skip + limit]
-        return [ACLResourceService._to_response(db, rule) for rule in paged_rules], total
+        return [ACLResourceService._to_response(db, rule, user) for rule in paged_rules], total
 
     @staticmethod
     def _user_has_acl_access(db: Session, acl_rule: ACLRule, user: User) -> bool:
@@ -403,13 +418,13 @@ class ACLResourceService:
 
         # Admin users can access any ACL rule
         if _is_admin_user(user):
-            return ACLResourceService._to_response(db, acl_rule)
+            return ACLResourceService._to_response(db, acl_rule, user)
 
         # Regular users can only access if granted by ACL
         if not ACLResourceService._user_has_acl_access(db, acl_rule, user):
             raise ValidationException("You do not have permission to access this ACL rule")
 
-        return ACLResourceService._to_response(db, acl_rule)
+        return ACLResourceService._to_response(db, acl_rule, user)
 
     @staticmethod
     def get_by_resource_id_for_user(db: Session, resource_id: str, user: User) -> ACLRuleResponse:
@@ -439,13 +454,13 @@ class ACLResourceService:
 
         # Admin users can access any ACL rule
         if _is_admin_user(user):
-            return ACLResourceService._to_response(db, acl_rule)
+            return ACLResourceService._to_response(db, acl_rule, user)
 
         # Regular users can only access if granted by ACL
         if not ACLResourceService._user_has_acl_access(db, acl_rule, user):
             raise ValidationException("You do not have permission to access this ACL rule")
 
-        return ACLResourceService._to_response(db, acl_rule)
+        return ACLResourceService._to_response(db, acl_rule, user)
 
     @staticmethod
     def update(db: Session, acl_rule_id: str, acl_data: ACLRuleUpdate, user: Optional[User] = None) -> ACLRuleResponse:
@@ -483,7 +498,8 @@ class ACLResourceService:
         db.commit()
         db.refresh(acl_rule)
 
-        return ACLResourceService._to_response(db, acl_rule)
+        # The write check above already passed for this user.
+        return ACLResourceService._to_response(db, acl_rule, user)
 
     @staticmethod
     def delete(db: Session, acl_rule_id: str, user: Optional[User] = None) -> bool:
@@ -791,8 +807,13 @@ class ACLResourceService:
         )
 
     @staticmethod
-    def _to_response(db: Session, acl_rule: ACLRule) -> ACLRuleResponse:
-        """Convert ACLRule model to response schema."""
+    def _to_response(db: Session, acl_rule: ACLRule, user: Optional[User] = None) -> ACLRuleResponse:
+        """Convert ACLRule model to response schema.
+
+        `user` is who the response is for; it decides `can_manage`. Callers
+        that are already inside a write path may leave it None and set the
+        flag themselves, since the write check has already passed.
+        """
         role_bindings = []
         for binding in acl_rule.role_bindings:
             role = db.query(Role).filter(Role.id == binding.role_id).first()
@@ -808,7 +829,8 @@ class ACLResourceService:
             access_mode=acl_rule.access_mode,
             conditions=acl_rule.conditions,
             created_at=acl_rule.created_at,
-            role_bindings=role_bindings
+            role_bindings=role_bindings,
+            can_manage=_can_manage_acl(db, acl_rule.resource_id, user),
         )
 
     @staticmethod

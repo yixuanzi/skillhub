@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useResources, useCreateResource, useUpdateResource, useDeleteResource } from '@/hooks/useResources';
 import { ResourceTable } from '@/components/resources/ResourceTable';
 import { ResourceFormModal } from '@/components/resources/ResourceFormModal';
+import { ResourceDetailModal } from '@/components/resources/ResourceDetailModal';
 import { Card, Input, Alert } from '@/components/ui';
 import { Button } from '@/components/ui/Button';
 import { Search, Plus, Filter, CheckCircle } from 'lucide-react';
@@ -15,6 +16,7 @@ export const ResourcesPage = () => {
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<any>(null);
+  const [detailResource, setDetailResource] = useState<Resource | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -179,6 +181,7 @@ export const ResourcesPage = () => {
         loading={isLoading}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onViewDetail={setDetailResource}
         deleteConfirm={deleteConfirm}
       />
 
@@ -235,6 +238,13 @@ export const ResourcesPage = () => {
         onSubmit={handleCreate}
         mode="create"
         composioExists={composioExists}
+      />
+
+      {/* Read-only detail, for users who may see a resource but not manage it */}
+      <ResourceDetailModal
+        isOpen={!!detailResource}
+        onClose={() => setDetailResource(null)}
+        resource={detailResource}
       />
 
       {/* Edit Modal */}

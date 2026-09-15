@@ -1,5 +1,5 @@
 import { Resource } from '@/types';
-import { Pencil, Trash2, ExternalLink, Globe, Lock, FileText } from 'lucide-react';
+import { Pencil, Trash2, Eye, ExternalLink, Globe, Lock, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
@@ -12,13 +12,14 @@ import {
 } from '@/components/ui/Table';
 import { cn } from '@/utils/cn';
 import { canManageResource } from '@/utils/permissions';
-import { useAuthStore } from '@/store/authStore';
 
 interface ResourceTableProps {
   resources: Resource[];
   loading?: boolean;
   onEdit?: (resource: Resource) => void;
   onDelete?: (resource: Resource) => void;
+  /** Read-only detail view, offered to users who may not edit or delete. */
+  onViewDetail?: (resource: Resource) => void;
   deleteConfirm?: Resource | null;
 }
 
@@ -56,8 +57,7 @@ const ViewScopeBadge: React.FC<{ scope: 'public' | 'private' }> = ({ scope }) =>
   );
 };
 
-export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConfirm }: ResourceTableProps) => {
-  const { user } = useAuthStore();
+export const ResourceTable = ({ resources, loading, onEdit, onDelete, onViewDetail, deleteConfirm }: ResourceTableProps) => {
   // Loading state
   if (loading) {
     return (
@@ -101,7 +101,7 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
             <TableHead>Description</TableHead>
             <TableHead className="w-20">Docs</TableHead>
             <TableHead>Created</TableHead>
-            {(onEdit || onDelete) && <TableHead className="w-32">Actions</TableHead>}
+            {(onEdit || onDelete || onViewDetail) && <TableHead className="w-32">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -161,12 +161,26 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
                   {formatRelativeTime(resource.created_at)}
                 </span>
               </TableCell>
-              {(onEdit || onDelete) && (
+              {(onEdit || onDelete || onViewDetail) && (
                 <TableCell>
                   {/* Only the owner and admins may edit or delete, so nobody
-                      else is offered a button that would return 403. */}
+                      else is offered a button that would return 403. Everyone
+                      else gets the read-only detail view instead, so no row is
+                      ever left with no action at all. */}
                   <div className="flex items-center gap-2">
-                    {onEdit && canManageResource(resource, user) && (
+                    {onViewDetail && !canManageResource(resource) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onViewDetail(resource)}
+                        className="p-1.5"
+                        title="View details"
+                        aria-label={`View details of ${resource.name}`}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                    )}
+                    {onEdit && canManageResource(resource) && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -176,7 +190,7 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
                         <Pencil className="w-4 h-4" />
                       </Button>
                     )}
-                    {onDelete && canManageResource(resource, user) && (
+                    {onDelete && canManageResource(resource) && (
                       <Button
                         variant="ghost"
                         size="sm"

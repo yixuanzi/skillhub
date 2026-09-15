@@ -63,6 +63,19 @@ def _redact_ext(value):
     return value
 
 
+def _can_write(resource: Resource, user: Optional[User]) -> bool:
+    """Whether `user` may modify or delete `resource`.
+
+    Owner plus admin/super_admin. A resource with no owner_id (anonymously
+    created, or a legacy row) is admin-only.
+    """
+    if _is_admin_user(user):
+        return True
+    if not user or not resource.owner_id:
+        return False
+    return resource.owner_id == user.id
+
+
 def _check_write_permission(resource: Resource, user: Optional[User], action: str) -> None:
     """Raise unless `user` may modify or delete `resource`.
 
@@ -75,13 +88,7 @@ def _check_write_permission(resource: Resource, user: Optional[User], action: st
     which skipped the whole check when it was NULL and left such resources
     writable and deletable by any authenticated user.
     """
-    if _is_admin_user(user):
-        return
-    if not resource.owner_id:
-        raise ValidationException(
-            f"You do not have permission to {action} this resource"
-        )
-    if not user or resource.owner_id != user.id:
+    if not _can_write(resource, user):
         raise ValidationException(
             f"You do not have permission to {action} this resource"
         )
@@ -196,9 +203,8 @@ class ResourceService:
         have to edit them.
         """
         response = ResourceResponse.model_validate(resource)
-        if _is_admin_user(user):
-            return response
-        if user and resource.owner_id and resource.owner_id == user.id:
+        response.can_manage = _can_write(resource, user)
+        if response.can_manage:
             return response
         if response.ext:
             response.ext = _redact_ext(response.ext)

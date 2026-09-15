@@ -141,6 +141,8 @@ export interface Resource {
   view_scope: ViewScope;
   api_description?: string;
   owner_id?: string;
+  /** Server's verdict on whether the current user may edit/delete this. */
+  can_manage?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -176,6 +178,8 @@ export interface ACLRule {
   conditions?: ACLConditions;
   created_at: string;
   role_bindings?: RoleBinding[];
+  /** Server's verdict on whether the current user may edit/delete this rule. */
+  can_manage?: boolean;
 }
 
 export interface RoleBinding {

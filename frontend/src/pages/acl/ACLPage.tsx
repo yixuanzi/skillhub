@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useACLRules, useACLRule, useCreateACLRule, useUpdateACLRule, useDeleteACLRule } from '@/hooks/useACL';
 import { useResources } from '@/hooks/useResources';
-import { ACLResourceTable, ACLResourceFormModal } from '@/components/acl';
+import { ACLResourceTable, ACLResourceFormModal, ACLRuleDetailModal } from '@/components/acl';
 import { Card, Input, Alert } from '@/components/ui';
 import { Button } from '@/components/ui/Button';
 import { Search, Plus, Filter, Shield, CheckCircle } from 'lucide-react';
@@ -16,6 +16,7 @@ export const ACLPage = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<ACLRule | null>(null);
+  const [detailRule, setDetailRule] = useState<ACLRule | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -184,6 +185,7 @@ export const ACLPage = () => {
             loading={rulesLoading}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onViewDetail={setDetailRule}
             deleteConfirm={deleteConfirm}
           />
 
@@ -232,6 +234,13 @@ export const ACLPage = () => {
               </div>
             </div>
           )}
+
+      {/* Read-only detail, for users who may see a rule but not manage it */}
+      <ACLRuleDetailModal
+        isOpen={!!detailRule}
+        onClose={() => setDetailRule(null)}
+        rule={detailRule}
+      />
 
       {/* Create Modal */}
       <ACLResourceFormModal

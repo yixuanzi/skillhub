@@ -106,6 +106,14 @@ class ResourceResponse(ResourceBase):
     id: str
     created_at: datetime
     updated_at: datetime
+    can_manage: bool = Field(
+        default=False,
+        description=(
+            "Whether the requesting user may update or delete this resource. "
+            "Computed by the server so clients never re-implement the rule; "
+            "the server still enforces it on every write."
+        ),
+    )
 
     class Config:
         from_attributes = True

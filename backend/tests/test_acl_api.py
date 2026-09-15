@@ -94,3 +94,79 @@ class TestCheckPermissionEndpoint:
 
         assert response.status_code == 200
         assert response.json()["allowed"] is False
+
+
+class TestAclRuleCanManage:
+    """ACL responses must state whether the caller may edit/delete the rule.
+
+    The Resources and ACL pages hide their Edit/Delete buttons based on this
+    flag, so it has to come from the server - a client re-deriving "owner or
+    admin" would be one more copy of the rule, free to drift out of sync with
+    the check that actually runs on the write.
+    """
+
+    def _rule_for(self, client, headers, resource_id):
+        response = client.get(f"/api/v1/acl/resources/resource/{resource_id}/", headers=headers)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    def test_owner_gets_can_manage_true(self, client, db, acl_resource, admin_user, admin_headers):
+        ACLResourceService.create(db, ACLRuleCreate(
+            resource_id=acl_resource.id,
+            resource_name=acl_resource.name,
+            access_mode=AccessMode.ANY,
+        ), admin_user)
+
+        assert self._rule_for(client, admin_headers, acl_resource.id)["can_manage"] is True
+
+    def test_a_granted_non_owner_gets_can_manage_false(
+        self, client, db, acl_resource, admin_user, test_user, auth_headers
+    ):
+        """They can see the rule that grants them access, but not change it."""
+        ACLResourceService.create(db, ACLRuleCreate(
+            resource_id=acl_resource.id,
+            resource_name=acl_resource.name,
+            access_mode=AccessMode.ANY,
+        ), admin_user)
+
+        assert self._rule_for(client, auth_headers, acl_resource.id)["can_manage"] is False
+
+    def test_listing_carries_the_same_verdict(
+        self, client, db, acl_resource, admin_user, admin_headers, auth_headers
+    ):
+        ACLResourceService.create(db, ACLRuleCreate(
+            resource_id=acl_resource.id,
+            resource_name=acl_resource.name,
+            access_mode=AccessMode.ANY,
+        ), admin_user)
+
+        as_owner = client.get("/api/v1/acl/resources/", headers=admin_headers).json()["items"]
+        as_other = client.get("/api/v1/acl/resources/", headers=auth_headers).json()["items"]
+
+        assert [r["can_manage"] for r in as_owner if r["resource_id"] == acl_resource.id] == [True]
+        assert [r["can_manage"] for r in as_other if r["resource_id"] == acl_resource.id] == [False]
+
+    def test_the_flag_matches_what_a_write_actually_does(
+        self, client, db, acl_resource, admin_user, test_user, auth_headers
+    ):
+        """can_manage=False must mean the write really is refused."""
+        rule = ACLResourceService.create(db, ACLRuleCreate(
+            resource_id=acl_resource.id,
+            resource_name=acl_resource.name,
+            access_mode=AccessMode.ANY,
+        ), admin_user)
+
+        assert self._rule_for(client, auth_headers, acl_resource.id)["can_manage"] is False
+
+        response = client.delete(f"/api/v1/acl/resources/{rule.id}/", headers=auth_headers)
+        assert response.status_code == 403
+
+    def test_create_response_reports_can_manage(self, client, acl_resource, admin_headers):
+        response = client.post("/api/v1/acl/resources/", headers=admin_headers, json={
+            "resource_id": acl_resource.id,
+            "resource_name": acl_resource.name,
+            "access_mode": "any",
+        })
+
+        assert response.status_code == 201, response.text
+        assert response.json()["can_manage"] is True

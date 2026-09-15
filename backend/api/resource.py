@@ -80,7 +80,10 @@ async def create_resource(
     from core.exceptions import ValidationException
 
     try:
-        return ResourceService.create(db, resource_data, user=current_user)
+        created = ResourceService.create(db, resource_data, user=current_user)
+        # The creator owns it, so they can manage it by definition.
+        created.can_manage = True
+        return created
     except ValidationException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -195,7 +198,10 @@ async def update_resource(
 
     try:
         # Only owner can update, not even admin users
-        return ResourceService.update_owner_only(db, resource_id, resource_data, user=current_user)
+        updated = ResourceService.update_owner_only(db, resource_id, resource_data, user=current_user)
+        # The write already passed the permission check.
+        updated.can_manage = True
+        return updated
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

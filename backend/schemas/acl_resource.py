@@ -107,6 +107,14 @@ class ACLRuleResponse(ACLRuleBase):
     conditions: Optional[Dict[str, Any]] = None
     created_at: datetime
     role_bindings: List[RoleBindingResponse] = []
+    can_manage: bool = Field(
+        default=False,
+        description=(
+            "Whether the requesting user may update or delete this ACL rule. "
+            "Computed by the server so clients never re-implement the rule; "
+            "the server still enforces it on every write."
+        ),
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
