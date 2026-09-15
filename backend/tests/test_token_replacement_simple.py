@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, '.')
 
 import pytest
+from core.exceptions import ValidationException
 from sqlalchemy.orm import Session
 from services.gateway_service import GatewayService
 from services.mtoken_service import MTokenService
@@ -31,8 +32,8 @@ def test_simple_string_replacement(db: Session):
 
     # 创建 mtoken
     mtoken = MTokenCreate(
-        app_name="github_token",
-        key_name="Production Token",
+        app_name="GitHub",
+        key_name="github_token",
         value="ghp_1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ",
         desc="GitHub token for production"
     )
@@ -69,14 +70,14 @@ def test_multiple_placeholders_in_one_string(db: Session):
 
     # 创建多个 mtokens
     MTokenService.create(db, MTokenCreate(
-        app_name="api_key",
-        key_name="OpenAI Key",
+        app_name="OpenAI",
+        key_name="api_key",
         value="sk-1234567890",
         desc="OpenAI API key"
     ), user.id)
     MTokenService.create(db, MTokenCreate(
-        app_name="secret_token",
-        key_name="Slack Secret",
+        app_name="Slack",
+        key_name="secret_token",
         value="xoxb-9876543210",
         desc="Slack bot token"
     ), user.id)
@@ -113,8 +114,8 @@ def test_nested_dict_replacement(db: Session):
 
     # 创建 mtoken
     MTokenService.create(db, MTokenCreate(
-        app_name="auth_header",
-        key_name="API Auth",
+        app_name="API",
+        key_name="auth_header",
         value="Bearer xyz789",
         desc="Auth header value"
     ), user.id)
@@ -157,14 +158,14 @@ def test_placeholder_not_found(db: Session):
         "valid_key": "static_value"
     }
 
-    result = GatewayService._replace_token_placeholders(db, str(user.id), config)
+    # 失败关闭：未找到的占位符必须报错，不能原样透传给上游服务
+    try:
+        GatewayService._replace_token_placeholders(db, str(user.id), config)
+        raise AssertionError("应该抛出 ValidationException")
+    except ValidationException as exc:
+        assert "Token not found: nonexistent_token" in str(exc)
 
-    # 不存在的占位符应该保持原样
-    assert result["api_key"] == "{nonexistent_token}"
-    # 没有占位符的值保持不变
-    assert result["valid_key"] == "static_value"
-
-    print("✅ 占位符未找到测试通过")
+    print("✅ 占位符未找到报错测试通过")
 
 
 def test_complex_nested_structure(db: Session):
@@ -182,14 +183,14 @@ def test_complex_nested_structure(db: Session):
 
     # 创建多个 mtokens
     MTokenService.create(db, MTokenCreate(
-        app_name="main_token",
-        key_name="Primary",
+        app_name="Primary App",
+        key_name="main_token",
         value="token_abc",
         desc="Main token"
     ), user.id)
     MTokenService.create(db, MTokenCreate(
-        app_name="backup_token",
-        key_name="Backup",
+        app_name="Backup App",
+        key_name="backup_token",
         value="token_xyz",
         desc="Backup token"
     ), user.id)

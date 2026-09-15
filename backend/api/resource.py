@@ -115,7 +115,9 @@ async def list_resources(
     skip = (page - 1) * size
 
     # Get accessible resources and total count
-    resources, total = ResourceService.list_accessible_with_count(db, current_user, skip, size)
+    resources, total = ResourceService.list_accessible_with_count(
+        db, current_user, skip, size, resource_type=resource_type
+    )
 
     return ResourceListResponse(
         items=[ResourceResponse.model_validate(r) for r in resources],

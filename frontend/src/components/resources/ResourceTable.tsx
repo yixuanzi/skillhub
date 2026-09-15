@@ -21,7 +21,7 @@ interface ResourceTableProps {
 }
 
 // Type badge color mapping
-const getTypeBadgeVariant = (type: Resource['type']): 'info' | 'warning' | 'success' | 'default' => {
+const getTypeBadgeVariant = (type: Resource['type']): 'info' | 'warning' | 'success' | 'default' | 'danger' => {
   switch (type) {
     case 'gateway':
       return 'warning';
@@ -29,6 +29,8 @@ const getTypeBadgeVariant = (type: Resource['type']): 'info' | 'warning' | 'succ
       return 'success';
     case 'mcp':
       return 'default';
+    case 'composio':
+      return 'danger';
     default:
       return 'info';
   }
@@ -78,7 +80,7 @@ export const ResourceTable = ({ resources, loading, onEdit, onDelete, deleteConf
         </div>
         <h3 className="text-lg font-mono font-semibold text-gray-300 mb-2">No Resources Found</h3>
         <p className="text-sm text-gray-500 text-center max-w-md">
-          Get started by creating your first resource. Resources can be MCP servers, gateway endpoints, or third-party integrations.
+          Get started by creating your first resource. Resources can be MCP servers, gateway endpoints, third-party integrations, or the Composio integration.
         </p>
       </div>
     );

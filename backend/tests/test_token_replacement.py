@@ -4,6 +4,7 @@
 能够正确地从用户的 mtoken 中查找并替换为实际的 token 值。
 """
 import pytest
+from core.exceptions import ValidationException
 import sys
 sys.path.insert(0, '.')
 
@@ -38,8 +39,8 @@ class TestTokenPlaceholderReplacement:
         # 创建 mtoken
         from schemas.mtoken import MTokenCreate
         mtoken = MTokenCreate(
-            app_name="github_token",
-            key_name="Production Token",
+            app_name="GitHub",
+            key_name="github_token",
             value="ghp_1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ",
             desc="GitHub token for production"
         )
@@ -76,14 +77,14 @@ class TestTokenPlaceholderReplacement:
         # 创建多个 mtokens
         from schemas.mtoken import MTokenCreate
         MTokenService.create(db, MTokenCreate(
-            app_name="api_key",
-            key_name="OpenAI Key",
+            app_name="OpenAI",
+            key_name="api_key",
             value="sk-1234567890",
             desc="OpenAI API key"
         ), user.id)
         MTokenService.create(db, MTokenCreate(
-            app_name="secret_token",
-            key_name="Slack Secret",
+            app_name="Slack",
+            key_name="secret_token",
             value="xoxb-9876543210",
             desc="Slack bot token"
         ), user.id)
@@ -119,8 +120,8 @@ class TestTokenPlaceholderReplacement:
         # 创建 mtoken
         from schemas.mtoken import MTokenCreate
         MTokenService.create(db, MTokenCreate(
-            app_name="auth_header",
-            key_name="API Auth",
+            app_name="API",
+            key_name="auth_header",
             value="Bearer xyz789",
             desc="Auth header value"
         ), user.id)
@@ -158,14 +159,14 @@ class TestTokenPlaceholderReplacement:
         # 创建 mtoken
         from schemas.mtoken import MTokenCreate
         MTokenService.create(db, MTokenCreate(
-            app_name="token1",
-            key_name="First Token",
+            app_name="First App",
+            key_name="token1",
             value="value1",
             desc="First token"
         ), user.id)
         MTokenService.create(db, MTokenCreate(
-            app_name="token2",
-            key_name="Second Token",
+            app_name="Second App",
+            key_name="token2",
             value="value2",
             desc="Second token"
         ), user.id)
@@ -204,14 +205,13 @@ class TestTokenPlaceholderReplacement:
             "valid_key": "static_value"
         }
 
-        result = GatewayService._replace_token_placeholders(db, str(user.id), config)
+        # 失败关闭：未找到的占位符必须报错，不能原样透传给上游服务
+        with pytest.raises(ValidationException) as exc_info:
+            GatewayService._replace_token_placeholders(db, str(user.id), config)
 
-        # 不存在的占位符应该保持原样
-        assert result["api_key"] == "{nonexistent_token}"
-        # 没有占位符的值保持不变
-        assert result["valid_key"] == "static_value"
+        assert "Token not found: nonexistent_token" in str(exc_info.value)
 
-        print("✅ 占位符未找到测试通过")
+        print("✅ 占位符未找到报错测试通过")
 
     def test_complex_nested_structure(self, db: Session):
         """测试复杂的嵌套结构."""
@@ -228,14 +228,14 @@ class TestTokenPlaceholderReplacement:
         # 创建多个 mtokens
         from schemas.mtoken import MTokenCreate
         MTokenService.create(db, MTokenCreate(
-            app_name="main_token",
-            key_name="Primary",
+            app_name="Primary App",
+            key_name="main_token",
             value="token_abc",
             desc="Main token"
         ), user.id)
         MTokenService.create(db, MTokenCreate(
-            app_name="backup_token",
-            key_name="Backup",
+            app_name="Backup App",
+            key_name="backup_token",
             value="token_xyz",
             desc="Backup token"
         ), user.id)

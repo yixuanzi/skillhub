@@ -25,6 +25,12 @@ export const ResourcesPage = () => {
     resource_type: typeFilter || undefined,
   });
 
+  // Lightweight existence check for the composio singleton, independent of the
+  // current filter/pagination above - used to disable "create a new composio
+  // resource" in the form once one already exists anywhere.
+  const { data: composioCheck } = useResources({ resource_type: 'composio', pageSize: 1 });
+  const composioExists = (composioCheck?.total ?? 0) > 0;
+
   const createMutation = useCreateResource();
   const updateMutation = useUpdateResource();
   const deleteMutation = useDeleteResource();
@@ -119,7 +125,7 @@ export const ResourcesPage = () => {
             <span className="text-cyber-primary">/&gt;</span>
           </h1>
           <p className="font-mono text-sm text-gray-500">
-            Manage MCP servers, gateway endpoints, and third-party integrations
+            Manage MCP servers, gateway endpoints, third-party integrations, and the Composio integration
           </p>
         </div>
         <Button
@@ -161,6 +167,7 @@ export const ResourcesPage = () => {
               <option value="gateway">Gateway</option>
               <option value="third">Third Party</option>
               <option value="mcp">MCP Server</option>
+              <option value="composio">Composio</option>
             </select>
           </div>
         </div>
@@ -227,6 +234,7 @@ export const ResourcesPage = () => {
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreate}
         mode="create"
+        composioExists={composioExists}
       />
 
       {/* Edit Modal */}
@@ -236,6 +244,7 @@ export const ResourcesPage = () => {
         onSubmit={handleUpdate}
         resource={editingResource}
         mode="edit"
+        composioExists={composioExists}
       />
     </div>
   );

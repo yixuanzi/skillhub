@@ -60,6 +60,16 @@ class MCPConfig(BaseModel):
         return self
 
 
+class ComposioConfig(BaseModel):
+    """Configuration for the singleton `composio` resource, read from its `ext`.
+
+    Field names match Composio's own environment variable names
+    (COMPOSIO_API_KEY / COMPOSIO_USER_ID) so they can be copy-pasted as-is.
+    """
+    COMPOSIO_API_KEY: str = Field(..., min_length=1, description="Composio project API key (sent as x-api-key)")
+    COMPOSIO_USER_ID: str = Field(..., min_length=1, description="Composio end-user id that calls execute as")
+
+
 # 基础 Schema
 class ResourceBase(BaseModel):
     """Base schema for resource data."""

@@ -41,6 +41,28 @@ class ResourceService:
     """Service class for resource management operations."""
 
     @staticmethod
+    def _ensure_composio_singleton(db: Session, exclude_id: Optional[str] = None) -> None:
+        """Enforce that at most one `composio`-type resource exists globally.
+
+        Args:
+            db: Database session
+            exclude_id: Resource id to exclude from the check (the resource being
+                updated, so re-saving the existing composio resource doesn't
+                conflict with itself)
+
+        Raises:
+            ValidationException: If another composio resource already exists
+        """
+        query = db.query(Resource).filter(Resource.type == ResourceType.COMPOSIO)
+        if exclude_id:
+            query = query.filter(Resource.id != exclude_id)
+        if query.first():
+            raise ValidationException(
+                "A composio resource already exists; only one is allowed globally. "
+                "Update the existing one instead of creating a new one."
+            )
+
+    @staticmethod
     def create(db: Session, resource_data: ResourceCreate, user: Optional[User] = None) -> ResourceResponse:
         """Create a new resource.
 
@@ -62,6 +84,9 @@ class ResourceService:
         existing = db.query(Resource).filter(Resource.name == resource_data.name).first()
         if existing:
             raise ValidationException(f"Resource with name '{resource_data.name}' already exists")
+
+        if resource_data.type == ResourceType.COMPOSIO:
+            ResourceService._ensure_composio_singleton(db)
 
         # Get view_scope value (Pydantic schema has default value)
         view_scope = resource_data.view_scope.value if resource_data.view_scope else "private"
@@ -218,7 +243,13 @@ class ResourceService:
         return base_query.offset(skip).limit(limit).all()
 
     @staticmethod
-    def list_accessible_with_count(db: Session, user: Optional[User], skip: int = 0, limit: int = 100) -> tuple[List[Resource], int]:
+    def list_accessible_with_count(
+        db: Session,
+        user: Optional[User],
+        skip: int = 0,
+        limit: int = 100,
+        resource_type: Optional[str] = None,
+    ) -> tuple[List[Resource], int]:
         """List resources accessible to the user with total count for pagination.
 
         Returns:
@@ -232,6 +263,7 @@ class ResourceService:
             user: User object to filter resources for
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
+            resource_type: Optional resource type to filter by (e.g. 'gateway', 'mcp')
 
         Returns:
             Tuple of (list of accessible resources, total count)
@@ -239,13 +271,18 @@ class ResourceService:
         # Anonymous users only see public resources
         if not user:
             query = db.query(Resource).filter(Resource.view_scope == "public")
+            if resource_type:
+                query = query.filter(Resource.type == resource_type)
             total = query.count()
             return query.offset(skip).limit(limit).all(), total
 
         # Admin users can see all resources
         if _is_admin_user(user):
-            total = db.query(Resource).count()
-            return db.query(Resource).offset(skip).limit(limit).all(), total
+            query = db.query(Resource)
+            if resource_type:
+                query = query.filter(Resource.type == resource_type)
+            total = query.count()
+            return query.offset(skip).limit(limit).all(), total
 
         # Regular users: public resources + own resources + ACL-granted resources
         # Get ACL-granted resource IDs
@@ -259,6 +296,8 @@ class ResourceService:
                 Resource.id.in_(acl_resource_ids) if acl_resource_ids else False
             )
         )
+        if resource_type:
+            base_query = base_query.filter(Resource.type == resource_type)
 
         total = base_query.count()
         return base_query.offset(skip).limit(limit).all(), total
@@ -399,6 +438,8 @@ class ResourceService:
         if resource_data.desc is not None:
             resource.desc = resource_data.desc
         if resource_data.type is not None:
+            if resource_data.type == ResourceType.COMPOSIO:
+                ResourceService._ensure_composio_singleton(db, exclude_id=resource.id)
             resource.type = resource_data.type
         if resource_data.url is not None:
             resource.url = resource_data.url
@@ -415,9 +456,12 @@ class ResourceService:
         # Drop any cached MCP client for this resource so config/token/endpoint
         # changes take effect immediately instead of on next TTL expiry.
         from services.mcp_service import MCPService
+        from services.composio_service import ComposioService
         MCPService.invalidate_resource(old_name)
+        ComposioService.invalidate_resource(old_name)
         if resource.name != old_name:
             MCPService.invalidate_resource(resource.name)
+            ComposioService.invalidate_resource(resource.name)
 
         return ResourceResponse.model_validate(resource)
 
@@ -451,7 +495,9 @@ class ResourceService:
         db.commit()
 
         from services.mcp_service import MCPService
+        from services.composio_service import ComposioService
         MCPService.invalidate_resource(resource_name)
+        ComposioService.invalidate_resource(resource_name)
 
         return True
 
@@ -527,6 +573,12 @@ class ResourceService:
 
         # RBAC mode - check user permissions
         if acl_rule.access_mode == AccessMode.RBAC:
+            # Imported here to keep the module-level import graph acyclic.
+            from services.acl_resource_service import (
+                _matched_role_bindings,
+                _matched_role_whitelist,
+            )
+
             # Reload user with roles
             user_with_roles = db.query(User).options(
                 joinedload(User.roles)
@@ -543,10 +595,13 @@ class ResourceService:
                         return True
 
                 # Check conditions - role whitelist
-                if "roles" in conditions and conditions["roles"]:
-                    user_role_ids = [str(role.id) for role in user_with_roles.roles]
-                    if any(role_id in conditions["roles"] for role_id in user_role_ids):
-                        return True
+                if _matched_role_whitelist(user_with_roles, conditions.get("roles")):
+                    return True
+
+            # A role bound to the rule grants access, same as in
+            # ACLResourceService.check_permission.
+            if _matched_role_bindings(user_with_roles, acl_rule):
+                return True
 
         return False
 
@@ -591,6 +646,8 @@ class ResourceService:
         if resource_data.desc is not None:
             resource.desc = resource_data.desc
         if resource_data.type is not None:
+            if resource_data.type == ResourceType.COMPOSIO:
+                ResourceService._ensure_composio_singleton(db, exclude_id=resource.id)
             resource.type = resource_data.type
         if resource_data.url is not None:
             resource.url = resource_data.url
@@ -607,9 +664,12 @@ class ResourceService:
         # Drop any cached MCP client for this resource so config/token/endpoint
         # changes take effect immediately instead of on next TTL expiry.
         from services.mcp_service import MCPService
+        from services.composio_service import ComposioService
         MCPService.invalidate_resource(old_name)
+        ComposioService.invalidate_resource(old_name)
         if resource.name != old_name:
             MCPService.invalidate_resource(resource.name)
+            ComposioService.invalidate_resource(resource.name)
 
         return ResourceResponse.model_validate(resource)
 
@@ -649,6 +709,8 @@ class ResourceService:
         db.commit()
 
         from services.mcp_service import MCPService
+        from services.composio_service import ComposioService
         MCPService.invalidate_resource(resource_name)
+        ComposioService.invalidate_resource(resource_name)
 
         return True

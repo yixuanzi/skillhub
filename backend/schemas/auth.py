@@ -1,14 +1,21 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import datetime
+
+# Email addresses are validated on *input* schemas only. Response schemas keep
+# a plain `str` on purpose: rows created before validation existed - and rows
+# created by the OIDC flow, which writes User.email straight from the identity
+# provider's claims - may hold an address that EmailStr rejects, and a response
+# model must not turn reading such a user into a 500.
 
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: str
 
 class UserCreate(UserBase):
+    email: EmailStr
     password: str = Field(..., min_length=8, max_length=100)
 
 class UserResponse(UserBase):
@@ -68,7 +75,7 @@ class RoleWithPermissions(RoleResponse):
 class UserUpdate(BaseModel):
     """Schema for updating user profile (username and/or email)."""
     username: Optional[str] = Field(None, min_length=3, max_length=50)
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
 
 class PasswordChange(BaseModel):
     """Schema for changing user password."""

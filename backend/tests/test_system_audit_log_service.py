@@ -181,11 +181,11 @@ class TestSystemAuditLogFilterByAction:
         SystemAuditLogService.log_action(db, user_id=str(test_user.id), action=AuditAction.LOGOUT, status="success")
         SystemAuditLogService.log_action(db, user_id=str(test_user.id), action=AuditAction.LOGIN, status="success")
 
-        logs, total = SystemAuditLogService.list_logs(db, action=AuditAction.LOGIN)
+        logs, total = SystemAuditLogService.list_logs(db, action=AuditAction.LOGIN.value)
         assert total == 2
         assert all(log.action == AuditAction.LOGIN for log in logs)
 
-        logs, total = SystemAuditLogService.list_logs(db, action=AuditAction.LOGOUT)
+        logs, total = SystemAuditLogService.list_logs(db, action=AuditAction.LOGOUT.value)
         assert total == 1
 
 
@@ -378,13 +378,13 @@ class TestSystemAuditLogMultipleFilters:
 
         # Filter for successful logins only
         logs, total = SystemAuditLogService.list_logs(
-            db, action=AuditAction.LOGIN, status="success"
+            db, action=AuditAction.LOGIN.value, status="success"
         )
         assert total == 2
 
         # Filter for failed logins
         logs, total = SystemAuditLogService.list_logs(
-            db, action=AuditAction.LOGIN_FAILED, status="failure"
+            db, action=AuditAction.LOGIN_FAILED.value, status="failure"
         )
         assert total == 1
 
@@ -401,7 +401,7 @@ class TestSystemAuditLogMultipleFilters:
         )
 
         logs, total = SystemAuditLogService.list_logs(
-            db, user_id=str(test_user.id), action=AuditAction.LOGIN
+            db, user_id=str(test_user.id), action=AuditAction.LOGIN.value
         )
         assert total == 1
 
@@ -419,7 +419,7 @@ class TestSystemAuditLogMultipleFilters:
 
         # Get first page of logins
         logs, total = SystemAuditLogService.list_logs(
-            db, action=AuditAction.LOGIN, skip=0, limit=2
+            db, action=AuditAction.LOGIN.value, skip=0, limit=2
         )
         assert total == 5
         assert len(logs) == 2

@@ -33,7 +33,9 @@ class TestRegistrationEndpoints:
         data = response.json()
         assert data["username"] == "newuser"
         assert data["email"] == "newuser@example.com"
-        assert data["is_active"] is True
+        # Registration now creates the account in an inactive state; it must be
+        # activated (e.g. by an admin) before the user can log in.
+        assert data["is_active"] is False
         assert "id" in data
         assert "created_at" in data
         assert "password" not in data  # Password should not be in response
@@ -205,10 +207,10 @@ class TestCurrentUserEndpoint:
         assert "password" not in data
 
     def test_get_current_user_unauthorized(self, client: TestClient):
-        """Test getting current user without token returns 403."""
+        """Test getting current user without token returns 401."""
         response = client.get("/api/v1/auth/me")
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
     def test_get_current_user_invalid_token(self, client: TestClient):
         """Test getting current user with invalid token returns 401."""
@@ -226,7 +228,7 @@ class TestCurrentUserEndpoint:
             headers={"Authorization": "InvalidFormat token123"}
         )
 
-        assert response.status_code == 403
+        assert response.status_code == 401
 
 
 class TestTokenRefreshEndpoint:
@@ -409,8 +411,8 @@ class TestLogoutEndpoint:
 class TestCompleteAuthFlow:
     """Integration tests for complete authentication flows."""
 
-    def test_complete_registration_login_flow(self, client: TestClient):
-        """Test complete registration -> login -> get current user flow."""
+    def test_complete_registration_login_flow(self, client: TestClient, db: Session):
+        """Test complete registration -> activation -> login -> get current user flow."""
         # 1. Register new user
         register_response = client.post(
             "/api/v1/auth/register",
@@ -423,6 +425,23 @@ class TestCompleteAuthFlow:
         assert register_response.status_code == 201
         user_data = register_response.json()
         assert user_data["username"] == "flowuser"
+        assert user_data["is_active"] is False
+
+        # 1b. Registered accounts start inactive and cannot log in yet.
+        inactive_login = client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "flowuser",
+                "password": "flowpassword123"
+            }
+        )
+        assert inactive_login.status_code == 401
+
+        # 1c. Activate the account.
+        created_user = db.query(User).filter(User.username == "flowuser").first()
+        assert created_user is not None
+        created_user.is_active = True
+        db.commit()
 
         # 2. Login
         login_response = client.post(
@@ -614,3 +633,63 @@ class TestEdgeCases:
             }
         )
         assert response.status_code == 200
+
+
+class TestEmailValidation:
+    """Email addresses must be validated on every input path.
+
+    Regression coverage: `UserBase.email` was a bare `str` with no validator
+    anywhere in the project, so registration happily accepted "notanemail"
+    and returned 201.
+    """
+
+    @pytest.mark.parametrize("bad_email", [
+        "notanemail",
+        "missing@tld",
+        "@example.com",
+        "two@@example.com",
+        "spaces in@example.com",
+        "",
+    ])
+    def test_register_rejects_malformed_addresses(self, client: TestClient, bad_email):
+        response = client.post(
+            "/api/v1/auth/register",
+            json={"username": "emailcheck", "email": bad_email, "password": "password123"},
+        )
+
+        assert response.status_code == 422
+
+    def test_register_accepts_a_valid_address(self, client: TestClient):
+        response = client.post(
+            "/api/v1/auth/register",
+            json={"username": "emailok", "email": "email.ok+tag@example.co.uk", "password": "password123"},
+        )
+
+        assert response.status_code == 201
+        assert response.json()["email"] == "email.ok+tag@example.co.uk"
+
+    def test_profile_update_rejects_malformed_address(self, client: TestClient, auth_headers):
+        response = client.put(
+            "/api/v1/auth/me",
+            json={"email": "notanemail"},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 422
+
+    def test_reading_a_user_with_a_legacy_malformed_address_still_works(
+        self, client: TestClient, db, test_user, auth_headers
+    ):
+        """Response models keep a plain `str` on purpose.
+
+        Rows written before validation existed - and rows written by the OIDC
+        flow, which copies User.email straight out of the provider's claims -
+        may hold an address EmailStr rejects. Reading such a user must not 500.
+        """
+        test_user.email = "legacy-no-at-sign"
+        db.commit()
+
+        response = client.get("/api/v1/auth/me", headers=auth_headers)
+
+        assert response.status_code == 200
+        assert response.json()["email"] == "legacy-no-at-sign"

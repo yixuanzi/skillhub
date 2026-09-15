@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     MCP_CACHE_TTL_SECONDS: int = 600
     MCP_CACHE_MAX_ENTRIES: int = 256
 
+    # Composio client/tool-router-session cache. Keyed per (composio resource,
+    # SkillHub user) because ext may carry {token} placeholders that resolve to
+    # each user's own managed token - two users must never share a session.
+    # TTL <= 0 disables expiry, max <= 0 disables the size cap.
+    COMPOSIO_SESSION_TTL_SECONDS: int = 1800
+    COMPOSIO_SESSION_MAX_ENTRIES: int = 128
+
     # Aegis Portal OIDC client settings. The browser-facing issuer and the
     # container-reachable backchannel can be different in Docker deployments.
     OIDC_ISSUER: str = "http://127.0.0.1:8080"

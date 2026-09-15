@@ -19,6 +19,15 @@ from core.security import create_access_token
 from main import app
 
 
+def skill_content(name: str, description: str = "Test skill description") -> str:
+    """Build valid skill content.
+
+    The skill service derives the skill name from the ``content`` YAML
+    frontmatter and rejects content without it.
+    """
+    return f"---\nname: {name}\ndescription: {description}\n---\n\nSkill body for {name}."
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
     """Create all tables before running tests"""
@@ -126,10 +135,11 @@ class TestCreateSkill:
 
     def test_create_skill_success(self, client: TestClient, auth_headers: dict, test_user: User):
         """Test successful skill creation."""
+        content = skill_content("test-skill")
         skill_data = {
             "name": "test-skill",
             "description": "Test skill description",
-            "content": "Test skill content",
+            "content": content,
             "created_by": test_user.id,
             "category": "data-processing",
             "tags": "test,api,automation",
@@ -142,8 +152,9 @@ class TestCreateSkill:
         data = response.json()
         assert data["name"] == "test-skill"
         assert data["description"] == "Test skill description"
-        assert data["content"] == "Test skill content"
-        assert data["created_by"] == test_user.id
+        assert data["content"] == content
+        # created_by is taken from the authenticated user, not from the payload
+        assert data["created_by"] == test_user.username
         assert data["category"] == "data-processing"
         assert data["tags"] == "test,api,automation"
         assert data["version"] == "1.0.0"
@@ -155,6 +166,7 @@ class TestCreateSkill:
         """Test that duplicate skill names are rejected."""
         skill_data = {
             "name": "duplicate-skill",
+            "content": skill_content("duplicate-skill"),
             "created_by": test_user.id
         }
 
@@ -171,18 +183,20 @@ class TestCreateSkill:
         """Test that creating skill without authentication fails."""
         skill_data = {
             "name": "unauthorized-skill",
+            "content": skill_content("unauthorized-skill"),
             "created_by": test_user.id
         }
 
         response = client.post("/api/v1/skills/", json=skill_data)
 
-        # HTTPBearer returns 403 when no credentials provided
-        assert response.status_code == 403
+        # HTTPBearer returns 401 when no credentials provided
+        assert response.status_code == 401
 
     def test_create_skill_minimal_data(self, client: TestClient, auth_headers: dict, test_user: User):
         """Test creating skill with minimal required fields."""
         skill_data = {
             "name": "minimal-skill",
+            "content": skill_content("minimal-skill"),
             "created_by": test_user.id
         }
 
@@ -191,7 +205,7 @@ class TestCreateSkill:
         assert response.status_code == 201
         data = response.json()
         assert data["name"] == "minimal-skill"
-        assert data["created_by"] == test_user.id
+        assert data["created_by"] == test_user.username
         assert data["version"] == "1.0.0"  # Default version
 
 
@@ -483,7 +497,8 @@ class TestGetSkill:
         skill = SkillList(
             name="get-test-skill",
             description="Test description",
-            created_by=test_user.id,
+            content=skill_content("get-test-skill"),
+            created_by=test_user.username,
             category="test"
         )
         db.add(skill)
@@ -524,7 +539,8 @@ class TestUpdateSkill:
         skill = SkillList(
             name="update-test-skill",
             description="Original description",
-            created_by=test_user.id
+            content=skill_content("update-test-skill"),
+            created_by=test_user.username
         )
         db.add(skill)
         db.commit()
@@ -567,14 +583,23 @@ class TestUpdateSkill:
     def test_update_skill_duplicate_name(self, client: TestClient, auth_headers: dict, test_user: User, db: SessionLocal):
         """Test updating skill to duplicate name."""
         # Create two skills
-        skill1 = SkillList(name="update-original-1", created_by=test_user.id)
-        skill2 = SkillList(name="update-original-2", created_by=test_user.id)
+        skill1 = SkillList(
+            name="update-original-1",
+            content=skill_content("update-original-1"),
+            created_by=test_user.username,
+        )
+        skill2 = SkillList(
+            name="update-original-2",
+            content=skill_content("update-original-2"),
+            created_by=test_user.username,
+        )
         db.add_all([skill1, skill2])
         db.commit()
         db.refresh(skill2)
 
-        # Try to update skill2 to have same name as skill1
-        update_data = {"name": "update-original-1"}
+        # Try to rename skill2 to skill1's name. The name follows the content
+        # frontmatter, so the rename is expressed through new content.
+        update_data = {"content": skill_content("update-original-1")}
         response = client.put(
             f"/api/v1/skills/{skill2.id}",
             json=update_data,
@@ -590,8 +615,8 @@ class TestUpdateSkill:
         skill = SkillList(
             name="all-fields-skill",
             description="Original",
-            content="Original content",
-            created_by=test_user.id,
+            content=skill_content("all-fields-skill"),
+            created_by=test_user.username,
             category="original",
             tags="original",
             version="1.0.0"
@@ -600,11 +625,13 @@ class TestUpdateSkill:
         db.commit()
         db.refresh(skill)
 
-        # Update all fields
+        # Update all fields. The new name comes from the content frontmatter;
+        # the "name" key in the payload is ignored by the service.
+        new_content = skill_content("updated-all-fields-skill", "Updated description")
         update_data = {
-            "name": "updated-all-fields-skill",
+            "name": "ignored-name",
             "description": "Updated description",
-            "content": "Updated content",
+            "content": new_content,
             "category": "updated",
             "tags": "updated,tags",
             "version": "2.0.0"
@@ -619,7 +646,7 @@ class TestUpdateSkill:
         data = response.json()
         assert data["name"] == "updated-all-fields-skill"
         assert data["description"] == "Updated description"
-        assert data["content"] == "Updated content"
+        assert data["content"] == new_content
         assert data["category"] == "updated"
         assert data["tags"] == "updated,tags"
         assert data["version"] == "2.0.0"
@@ -633,7 +660,8 @@ class TestDeleteSkill:
         # Create skill
         skill = SkillList(
             name="delete-test-skill",
-            created_by=test_user.id
+            content=skill_content("delete-test-skill"),
+            created_by=test_user.username
         )
         db.add(skill)
         db.commit()
@@ -671,8 +699,8 @@ class TestDeleteSkill:
         # Try to delete without auth
         response = client.delete(f"/api/v1/skills/{skill.id}")
 
-        # HTTPBearer returns 403 when no credentials provided
-        assert response.status_code == 403
+        # HTTPBearer returns 401 when no credentials provided
+        assert response.status_code == 401
 
         # Verify skill still exists
         deleted_skill = db.query(SkillList).filter(SkillList.id == skill.id).first()

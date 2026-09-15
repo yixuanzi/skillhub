@@ -11,6 +11,10 @@ user's own token (see ``_replace_tokens``), so the cache is keyed per
 (resource_name, user_id) pair, never by resource_name alone. Sharing an entry
 across users would mean every user after the first silently reuses whichever
 user's token happened to warm the cache.
+
+Managed tokens: headers support `{token_name}` placeholders - the same syntax
+gateway/third/composio resources use - resolved against the calling user's own
+tokens. Substitution applies to headers only, not to the endpoint URL.
 """
 import asyncio
 import logging
@@ -111,61 +115,61 @@ class MCPService:
         return MCPConfig(**config_dict)
 
     @staticmethod
-    def _replace_tokens(db: Session, value: Any, user_id: str) -> Any:
-        """Replace ${token:name} placeholders with actual token values.
+    def _iter_strings(value: Any):
+        """Yield every string inside a nested dict/list/str structure."""
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict):
+            for item in value.values():
+                yield from MCPService._iter_strings(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from MCPService._iter_strings(item)
 
-        This supports both string values and dict values (for env vars).
+    @staticmethod
+    def _replace_tokens(db: Session, value: Any, user_id: str) -> Any:
+        """Replace {token_name} placeholders with the calling user's own token values.
+
+        Uses the exact same syntax and resolution as gateway/third resources
+        (GatewayService._replace_token_placeholders), so there is one placeholder
+        syntax across every resource type. Tokens resolve only against the
+        calling user's own managed tokens.
+
+        The pre-unification ${token:name} form is no longer supported: it is
+        rejected loudly instead of being forwarded to the MCP server as a
+        literal, which would otherwise surface as a confusing upstream 401.
 
         Args:
             db: Database session
             value: String or dict that may contain token placeholders
+            user_id: Calling user's id - tokens resolve against this user only
 
         Returns:
-            String or dict with tokens replaced
+            Same structure with placeholders replaced
 
         Raises:
-            ValidationException: If referenced token is not found
+            ValidationException: If a referenced token is not found, or legacy
+                ${token:name} syntax is used
         """
-        from models.mtoken import MToken
+        from services.gateway_service import GatewayService
+        from services.mtoken_service import MTokenService
 
-        # Handle dict case (for env vars)
-        if isinstance(value, dict):
-            result = {}
-            for key, val in value.items():
-                if isinstance(val, str) and "${token:" in val:
-                    # Extract token name: ${token:api_name} -> api_name
-                    match = re.search(r'\$\{token:([^}]+)\}', val)
-                    if match:
-                        key_name = match.group(1)
-                        # Look up token by key_name
-                        token = db.query(MToken).filter(
-                            MToken.key_name == key_name,
-                            MToken.created_by == user_id
-                        ).first()
-                        if token:
-                            val = val.replace(f'${{token:{key_name}}}', token.value)
-                        else:
-                            raise ValidationException(f"Token not found: {key_name}")
-                result[key] = val
-            return result
+        legacy = sorted({
+            name
+            for text in MCPService._iter_strings(value)
+            for name in re.findall(r'\$\{token:([^}]+)\}', text)
+        })
+        if legacy:
+            examples = ", ".join(f"${{token:{name}}} -> {{{name}}}" for name in legacy)
+            raise ValidationException(
+                "Legacy ${token:name} placeholder syntax is no longer supported. "
+                f"Use {{token_name}} instead: {examples}"
+            )
 
-        # Handle string case (for endpoint URLs)
-        if isinstance(value, str) and "${token:" in value:
-            # Extract token name: ${token:api_name} -> api_name
-            match = re.search(r'\$\{token:([^}]+)\}', value)
-            if match:
-                key_name = match.group(1)
-                # Look up token by key_name
-                token = db.query(MToken).filter(
-                    MToken.key_name == key_name,
-                    MToken.created_by == user_id
-                ).first()
-                if token:
-                    value = value.replace(f'${{token:{key_name}}}', token.value)
-                else:
-                    raise ValidationException(f"Token not found: {key_name}")
-
-        return value
+        mtokens = MTokenService.list_all(db, user_id, limit=1000)
+        # Fails closed on unknown placeholders ("Token not found: x"), so an
+        # unresolved literal is never sent upstream as an auth header.
+        return GatewayService._replace_token_placeholders(db, user_id, value, mtokens)
 
     @staticmethod
     def _convert_config_to_mcp_client_format(

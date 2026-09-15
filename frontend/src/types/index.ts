@@ -110,7 +110,7 @@ export interface SkillInvokeResponse {
 }
 
 // Resource Types
-export type ResourceType = 'gateway' | 'third' | 'mcp';
+export type ResourceType = 'gateway' | 'third' | 'mcp' | 'composio';
 export type ViewScope = 'public' | 'private';
 export type MCPTransportType = 'stdio' | 'sse' | 'ws' | 'httpstream';
 
@@ -121,6 +121,14 @@ export interface MCPConfig {
   headers?: Record<string, string>;
   timeout?: number;
   endpoint?: string;
+}
+
+// Composio resource is a global singleton - its ext stores these two keys flat
+// (not nested, unlike mcp's ext.mcp_config), matching the backend's
+// ComposioConfig(**resource.ext) and Composio's own env var names.
+export interface ComposioConfig {
+  COMPOSIO_API_KEY: string;
+  COMPOSIO_USER_ID: string;
 }
 
 export interface Resource {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Globe, Server } from 'lucide-react';
+import { Lock, Globe, Server, Zap } from 'lucide-react';
 import {
   Modal,
   Input,
@@ -22,6 +22,10 @@ interface ResourceFormModalProps {
   onSubmit: (data: ResourceCreate) => Promise<void>;
   resource?: Resource;
   mode: 'create' | 'edit';
+  // Whether a composio resource already exists elsewhere (it's a global
+  // singleton) - disables picking 'composio' unless we're editing that very
+  // resource. Omit/false if unknown; the backend still enforces this either way.
+  composioExists?: boolean;
 }
 
 // Helper to parse MCP config from ext
@@ -40,6 +44,7 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
   onSubmit,
   resource,
   mode,
+  composioExists,
 }) => {
   // Form state
   const [name, setName] = useState('');
@@ -57,6 +62,10 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
   const [mcpEndpoint, setMcpEndpoint] = useState('');
   const [mcpTimeout, setMcpTimeout] = useState('30000');
   const [mcpHeaders, setMcpHeaders] = useState('');
+
+  // Composio config state (flat ext keys, global singleton resource)
+  const [composioApiKey, setComposioApiKey] = useState('');
+  const [composioUserId, setComposioUserId] = useState('');
 
   // UI state
   const [ext, setExt] = useState('');
@@ -96,6 +105,10 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
           setMcpHeaders(mcpConfig.headers ? JSON.stringify(mcpConfig.headers, null, 2) : '');
         }
 
+        // Parse Composio config from ext (stored flat, not nested)
+        setComposioApiKey((resource.ext?.COMPOSIO_API_KEY as string) || '');
+        setComposioUserId((resource.ext?.COMPOSIO_USER_ID as string) || '');
+
         setExt(resource.ext ? JSON.stringify(resource.ext, null, 2) : '');
       } else {
         setName('');
@@ -111,6 +124,8 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
         setMcpEndpoint('');
         setMcpTimeout('30000');
         setMcpHeaders('');
+        setComposioApiKey('');
+        setComposioUserId('');
         setExt('');
       }
       setError('');
@@ -148,6 +163,14 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
           setError('Invalid JSON in header variables');
           return false;
         }
+      }
+    }
+
+    // Validate Composio config
+    if (type === 'composio') {
+      if (!composioApiKey.trim() || !composioUserId.trim()) {
+        setError('Composio API Key and User ID are both required');
+        return false;
       }
     }
 
@@ -221,6 +244,13 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
         extObj.mcp_config = mcpConfig;
       }
 
+      // Add Composio config to ext (flat keys, matching the backend's ComposioConfig)
+      if (type === 'composio') {
+        extObj = extObj || {};
+        extObj.COMPOSIO_API_KEY = composioApiKey.trim();
+        extObj.COMPOSIO_USER_ID = composioUserId.trim();
+      }
+
       const data: ResourceCreate = {
         name: name.trim(),
         type,
@@ -245,7 +275,12 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
     { value: 'gateway', label: 'Gateway Resource' },
     { value: 'third', label: 'Third-party API' },
     { value: 'mcp', label: 'MCP Server', icon: <Server className="w-4 h-4" /> },
+    { value: 'composio', label: 'Composio Integration', icon: <Zap className="w-4 h-4" /> },
   ];
+
+  // Composio is a global singleton: only selectable if none exists yet, or if
+  // we're editing the one that already exists.
+  const composioOptionDisabled = !!composioExists && !(mode === 'edit' && resource?.type === 'composio');
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={mode === 'create' ? 'Create Resource' : 'Edit Resource'} size="lg">
@@ -275,15 +310,27 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
             </SelectTrigger>
             <SelectContent>
               {resourceTypes.map(({ value, label, icon }) => (
-                <SelectItem key={value} value={value}>
+                <SelectItem
+                  key={value}
+                  value={value}
+                  disabled={value === 'composio' && composioOptionDisabled}
+                >
                   <div className="flex items-center gap-2">
                     {icon}
                     <span>{label}</span>
+                    {value === 'composio' && composioOptionDisabled && (
+                      <span className="text-xs text-gray-500">(already exists)</span>
+                    )}
                   </div>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {type === 'composio' && (
+            <p className="text-xs text-gray-500 mt-1">
+              Global singleton — only one composio resource can exist across all of SkillHub.
+            </p>
+          )}
         </div>
 
         {/* URL Field (for gateway/third) */}
@@ -445,23 +492,71 @@ curl -X POST https://api.example.com/endpoint \\
             />
 
             {/* Header Variables */}
-            <Textarea
-              label="Header Variables (JSON)"
-              value={mcpHeaders}
-              onChange={(e) => setMcpHeaders(e.target.value)}
-              placeholder='{\n  "Authorization": "Bearer your-token"\n}'
-              rows={4}
-              className="font-mono text-sm"
+            <div className="flex flex-col gap-1.5">
+              <Textarea
+                label="Header Variables (JSON)"
+                value={mcpHeaders}
+                onChange={(e) => setMcpHeaders(e.target.value)}
+                placeholder={'{\n  "Authorization": "Bearer {my_token}"\n}'}
+                rows={4}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-gray-500">
+                Supports <code className="text-cyber-secondary">{'{token_name}'}</code> managed-token
+                placeholders, resolved against the <em>calling</em> user's own tokens — e.g.
+                <code className="text-cyber-secondary"> {'"Bearer {my_token}"'}</code>. Headers only;
+                the endpoint URL is not substituted.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Composio Configuration (for composio type) */}
+        {type === 'composio' && (
+          <div className="space-y-4 border border-void-700 rounded-lg p-4">
+            <h3 className="font-semibold text-gray-100">Composio Configuration</h3>
+            <p className="text-xs text-gray-500">
+              Both fields support <code className="text-cyber-secondary">{'{token_name}'}</code> managed-token
+              placeholders, resolved against the <em>calling</em> user's own tokens — so
+              <code className="text-cyber-secondary"> {'{my_composio_key}'}</code> lets each user execute as their
+              own Composio account. A literal value means every user shares this one account.
+            </p>
+
+            <Input
+              label="Composio API Key *"
+              value={composioApiKey}
+              onChange={(e) => setComposioApiKey(e.target.value)}
+              placeholder="{my_composio_key} or ak_xxxxxxxxxxxxxxxx"
+              required
+            />
+            <Input
+              label="Composio User ID *"
+              value={composioUserId}
+              onChange={(e) => setComposioUserId(e.target.value)}
+              placeholder="{my_composio_uid} or pg-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              required
             />
           </div>
         )}
 
         {/* Extended Properties (JSON) */}
-        <JsonEditor
-          value={ext}
-          onChange={setExt}
-          placeholder='{\n  "key": "value"\n}'
-        />
+        <div className="flex flex-col gap-1.5">
+          <JsonEditor
+            value={ext}
+            onChange={setExt}
+            placeholder='{\n  "key": "value"\n}'
+          />
+          {(type === 'gateway' || type === 'third') && (
+            <p className="text-xs text-gray-500">
+              Supports <code className="text-cyber-secondary">{'{token_name}'}</code> managed-token
+              placeholders anywhere in this object (typically under
+              <code className="text-cyber-secondary"> headers</code>), resolved against the{' '}
+              <em>calling</em> user's own tokens — e.g.{' '}
+              <code className="text-cyber-secondary">{'{"headers": {"Authorization": "Bearer {my_token}"}}'}</code>.
+              The URL field above is not substituted.
+            </p>
+          )}
+        </div>
 
         {/* Action Buttons */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-void-700">
