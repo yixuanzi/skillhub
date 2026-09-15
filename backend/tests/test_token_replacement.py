@@ -39,8 +39,8 @@ class TestTokenPlaceholderReplacement:
         # 创建 mtoken
         from schemas.mtoken import MTokenCreate
         mtoken = MTokenCreate(
-            app_name="github_token",
-            key_name="Production Token",
+            app_name="GitHub",
+            key_name="github_token",
             value="ghp_1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ",
             desc="GitHub token for production"
         )
@@ -77,14 +77,14 @@ class TestTokenPlaceholderReplacement:
         # 创建多个 mtokens
         from schemas.mtoken import MTokenCreate
         MTokenService.create(db, MTokenCreate(
-            app_name="api_key",
-            key_name="OpenAI Key",
+            app_name="OpenAI",
+            key_name="api_key",
             value="sk-1234567890",
             desc="OpenAI API key"
         ), user.id)
         MTokenService.create(db, MTokenCreate(
-            app_name="secret_token",
-            key_name="Slack Secret",
+            app_name="Slack",
+            key_name="secret_token",
             value="xoxb-9876543210",
             desc="Slack bot token"
         ), user.id)
@@ -120,8 +120,8 @@ class TestTokenPlaceholderReplacement:
         # 创建 mtoken
         from schemas.mtoken import MTokenCreate
         MTokenService.create(db, MTokenCreate(
-            app_name="auth_header",
-            key_name="API Auth",
+            app_name="API",
+            key_name="auth_header",
             value="Bearer xyz789",
             desc="Auth header value"
         ), user.id)
@@ -159,14 +159,14 @@ class TestTokenPlaceholderReplacement:
         # 创建 mtoken
         from schemas.mtoken import MTokenCreate
         MTokenService.create(db, MTokenCreate(
-            app_name="token1",
-            key_name="First Token",
+            app_name="First App",
+            key_name="token1",
             value="value1",
             desc="First token"
         ), user.id)
         MTokenService.create(db, MTokenCreate(
-            app_name="token2",
-            key_name="Second Token",
+            app_name="Second App",
+            key_name="token2",
             value="value2",
             desc="Second token"
         ), user.id)
@@ -228,14 +228,14 @@ class TestTokenPlaceholderReplacement:
         # 创建多个 mtokens
         from schemas.mtoken import MTokenCreate
         MTokenService.create(db, MTokenCreate(
-            app_name="main_token",
-            key_name="Primary",
+            app_name="Primary App",
+            key_name="main_token",
             value="token_abc",
             desc="Main token"
         ), user.id)
         MTokenService.create(db, MTokenCreate(
-            app_name="backup_token",
-            key_name="Backup",
+            app_name="Backup App",
+            key_name="backup_token",
             value="token_xyz",
             desc="Backup token"
         ), user.id)

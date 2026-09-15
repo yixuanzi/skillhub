@@ -32,8 +32,8 @@ def test_simple_string_replacement(db: Session):
 
     # 创建 mtoken
     mtoken = MTokenCreate(
-        app_name="github_token",
-        key_name="Production Token",
+        app_name="GitHub",
+        key_name="github_token",
         value="ghp_1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ",
         desc="GitHub token for production"
     )
@@ -70,14 +70,14 @@ def test_multiple_placeholders_in_one_string(db: Session):
 
     # 创建多个 mtokens
     MTokenService.create(db, MTokenCreate(
-        app_name="api_key",
-        key_name="OpenAI Key",
+        app_name="OpenAI",
+        key_name="api_key",
         value="sk-1234567890",
         desc="OpenAI API key"
     ), user.id)
     MTokenService.create(db, MTokenCreate(
-        app_name="secret_token",
-        key_name="Slack Secret",
+        app_name="Slack",
+        key_name="secret_token",
         value="xoxb-9876543210",
         desc="Slack bot token"
     ), user.id)
@@ -114,8 +114,8 @@ def test_nested_dict_replacement(db: Session):
 
     # 创建 mtoken
     MTokenService.create(db, MTokenCreate(
-        app_name="auth_header",
-        key_name="API Auth",
+        app_name="API",
+        key_name="auth_header",
         value="Bearer xyz789",
         desc="Auth header value"
     ), user.id)
@@ -183,14 +183,14 @@ def test_complex_nested_structure(db: Session):
 
     # 创建多个 mtokens
     MTokenService.create(db, MTokenCreate(
-        app_name="main_token",
-        key_name="Primary",
+        app_name="Primary App",
+        key_name="main_token",
         value="token_abc",
         desc="Main token"
     ), user.id)
     MTokenService.create(db, MTokenCreate(
-        app_name="backup_token",
-        key_name="Backup",
+        app_name="Backup App",
+        key_name="backup_token",
         value="token_xyz",
         desc="Backup token"
     ), user.id)

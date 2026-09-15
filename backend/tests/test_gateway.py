@@ -81,22 +81,38 @@ def build_resource(db, test_user):
 
 @pytest.fixture(scope="function")
 def acl_rule_with_permission(db, build_resource, test_role, test_user):
-    """Create ACL rule allowing access to the resource."""
+    """Grant the test role access to the resource.
+
+    ``ResourceService.create()`` already creates a default deny-all RBAC ACL
+    rule for every new resource, so creating a second rule here would be
+    rejected as a duplicate. Instead, update the auto-created rule so that it
+    grants access, and attach the role binding to it.
+    """
     from services.acl_resource_service import ACLResourceService
+    from schemas.acl_resource import ACLRuleUpdate, ConditionSchema
     from models.acl import AccessMode
 
-    role_binding = RoleBindingCreate(
-        role_id=test_role.id,
-        permissions=["execute"]
+    existing = ACLResourceService.get_by_resource_id(db, build_resource.id)
+    assert existing is not None, "resource creation should auto-create an ACL rule"
+
+    acl_rule = ACLResourceService.update(
+        db,
+        existing.id,
+        ACLRuleUpdate(
+            access_mode=AccessMode.RBAC,
+            conditions=ConditionSchema(roles=[test_role.name]),
+        ),
+        user=test_user,
     )
 
-    acl_data = ACLRuleCreate(
-        resource_id=build_resource.id,
-        resource_name=build_resource.name,
-        access_mode=AccessMode.RBAC,
-        role_bindings=[role_binding]
+    ACLResourceService.add_role_binding(
+        db,
+        acl_rule.id,
+        RoleBindingCreate(role_id=test_role.id, permissions=["execute"]),
+        user=test_user,
     )
-    return ACLResourceService.create(db, acl_data, user=test_user)
+
+    return ACLResourceService.get_by_id(db, acl_rule.id)
 
 
 @pytest.mark.asyncio
@@ -530,22 +546,36 @@ def gateway_resource(db, test_user):
 
 @pytest.fixture(scope="function")
 def acl_rule_for_gateway(db, gateway_resource, test_role, test_user):
-    """Create ACL rule allowing access to the gateway resource."""
+    """Grant the test role access to the gateway resource.
+
+    Like ``acl_rule_with_permission``, this updates the ACL rule that
+    ``ResourceService.create()`` auto-creates rather than adding a second one.
+    """
     from services.acl_resource_service import ACLResourceService
+    from schemas.acl_resource import ACLRuleUpdate, ConditionSchema
     from models.acl import AccessMode
 
-    role_binding = RoleBindingCreate(
-        role_id=test_role.id,
-        permissions=["execute"]
+    existing = ACLResourceService.get_by_resource_id(db, gateway_resource.id)
+    assert existing is not None, "resource creation should auto-create an ACL rule"
+
+    acl_rule = ACLResourceService.update(
+        db,
+        existing.id,
+        ACLRuleUpdate(
+            access_mode=AccessMode.RBAC,
+            conditions=ConditionSchema(roles=[test_role.name]),
+        ),
+        user=test_user,
     )
 
-    acl_data = ACLRuleCreate(
-        resource_id=gateway_resource.id,
-        resource_name=gateway_resource.name,
-        access_mode=AccessMode.RBAC,
-        role_bindings=[role_binding]
+    ACLResourceService.add_role_binding(
+        db,
+        acl_rule.id,
+        RoleBindingCreate(role_id=test_role.id, permissions=["execute"]),
+        user=test_user,
     )
-    return ACLResourceService.create(db, acl_data, user=test_user)
+
+    return ACLResourceService.get_by_id(db, acl_rule.id)
 
 
 def test_build_url_function():

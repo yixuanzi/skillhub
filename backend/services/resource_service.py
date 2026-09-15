@@ -573,6 +573,12 @@ class ResourceService:
 
         # RBAC mode - check user permissions
         if acl_rule.access_mode == AccessMode.RBAC:
+            # Imported here to keep the module-level import graph acyclic.
+            from services.acl_resource_service import (
+                _matched_role_bindings,
+                _matched_role_whitelist,
+            )
+
             # Reload user with roles
             user_with_roles = db.query(User).options(
                 joinedload(User.roles)
@@ -589,10 +595,13 @@ class ResourceService:
                         return True
 
                 # Check conditions - role whitelist
-                if "roles" in conditions and conditions["roles"]:
-                    user_role_ids = [str(role.id) for role in user_with_roles.roles]
-                    if any(role_id in conditions["roles"] for role_id in user_role_ids):
-                        return True
+                if _matched_role_whitelist(user_with_roles, conditions.get("roles")):
+                    return True
+
+            # A role bound to the rule grants access, same as in
+            # ACLResourceService.check_permission.
+            if _matched_role_bindings(user_with_roles, acl_rule):
+                return True
 
         return False
 

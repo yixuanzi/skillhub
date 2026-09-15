@@ -33,7 +33,9 @@ class TestAuthServiceRegister:
 
         assert result.username == "testuser"
         assert result.email == "test@example.com"
-        assert result.is_active is True
+        # Registration creates the account in an inactive state; it has to be
+        # activated before the user can authenticate.
+        assert result.is_active is False
         assert hasattr(result, 'id')
         assert hasattr(result, 'created_at')
 
@@ -128,7 +130,15 @@ class TestAuthServiceAuthenticate:
             email="auth@example.com",
             password="authpassword123"
         )
-        return AuthService.register(db, user_data)
+        AuthService.register(db, user_data)
+        # Registration leaves the account inactive; activate it so that
+        # authentication can succeed.
+        user = db.query(User).filter(User.username == "authtest").first()
+        assert user is not None
+        user.is_active = True
+        db.commit()
+        db.refresh(user)
+        return user
 
     def test_authenticate_valid_credentials(self, db: Session, test_user):
         """Test successful authentication with valid credentials."""
@@ -245,6 +255,10 @@ class TestAuthServiceRefreshToken:
         )
         AuthService.register(db, user_data)
         user = db.query(User).filter(User.username == "refreshuser").first()
+        # Refreshing rejects inactive accounts, so activate the new account.
+        user.is_active = True
+        db.commit()
+        db.refresh(user)
 
         # Create tokens
         tokens = AuthService.create_tokens(db, user)
@@ -341,6 +355,13 @@ class TestAuthServiceIntegration:
         )
         user = AuthService.register(db, user_data)
         assert user.username == "flowtest"
+        assert user.is_active is False
+
+        # 1b. Activate the account - registration alone does not allow login.
+        db_user = db.query(User).filter(User.username == "flowtest").first()
+        assert db_user is not None
+        db_user.is_active = True
+        db.commit()
 
         # 2. Login (authenticate)
         authenticated_user = AuthService.authenticate(db, "flowtest", "flowpassword123")

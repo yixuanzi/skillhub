@@ -31,6 +31,43 @@ import json
 ADMIN_ROLES = {"admin", "super_admin"}
 
 
+def _matched_role_whitelist(user: Optional[User], allowed_roles: Optional[List[str]]) -> List[str]:
+    """Return the entries of an ACL role whitelist that the user holds.
+
+    ``conditions["roles"]`` is written by hand (the ACL form takes raw JSON), so
+    in practice it contains either role ids or role names depending on who
+    wrote the rule - and the code used to disagree with itself about which one
+    to compare (``check_permission`` matched on name, ``_user_has_acl_access``
+    and ``ResourceService._check_acl_permission`` matched on id), so the same
+    rule granted access on one path and denied it on another. Role ids are
+    UUIDs and role names are not, so accepting both cannot make two different
+    roles collide.
+    """
+    if not allowed_roles or not user or not user.roles:
+        return []
+
+    allowed = set(allowed_roles)
+    return [
+        str(role.id) if str(role.id) in allowed else str(role.name)
+        for role in user.roles
+        if str(role.id) in allowed or str(role.name) in allowed
+    ]
+
+
+def _matched_role_bindings(user: Optional[User], acl_rule: ACLRule) -> List[str]:
+    """Return the ids of roles bound to ``acl_rule`` that the user holds.
+
+    Role bindings (``ACLRuleRole``) are the ACL API's first-class way to grant
+    a role access to a resource: ``POST /acl/resources/{id}/roles``. They are
+    always keyed by role id.
+    """
+    if not user or not user.roles or not acl_rule.role_bindings:
+        return []
+
+    bound_role_ids = {str(binding.role_id) for binding in acl_rule.role_bindings}
+    return [str(role.id) for role in user.roles if str(role.id) in bound_role_ids]
+
+
 def _is_admin_user(user: Optional[User]) -> bool:
     """Check if user has admin or super_admin role.
 
@@ -326,10 +363,12 @@ class ACLResourceService:
                         return True
 
                 # Check conditions - role whitelist
-                if "roles" in conditions and conditions["roles"]:
-                    user_role_ids = [str(role.id) for role in user.roles] if user.roles else []
-                    if any(role_id in conditions["roles"] for role_id in user_role_ids):
-                        return True
+                if _matched_role_whitelist(user, conditions.get("roles")):
+                    return True
+
+            # A role bound to the rule grants access, same as in check_permission.
+            if _matched_role_bindings(user, acl_rule):
+                return True
 
         return False
 
@@ -667,19 +706,6 @@ class ACLResourceService:
 
         # RBAC mode - check user permissions
         if acl_rule.access_mode == AccessMode.RBAC:
-            # Get user's roles
-            # from models.user import User
-            # user = db.query(User).options(
-            #     joinedload(User.roles)
-            # ).filter(User.id == current_user.id).first()
-
-            # if not user:
-            #     return PermissionCheckResponse(
-            #         allowed=False,
-            #         reason="User not found",
-            #         access_mode="rbac"
-            #     )
-
             # Check conditions - user whitelist
             if acl_rule.conditions:
                 conditions = acl_rule.conditions
@@ -693,21 +719,30 @@ class ACLResourceService:
                         )
 
                 # Check conditions - role whitelist
-                if "roles" in conditions and conditions["roles"]:
-                    user_role_ids = [str(role.name) for role in current_user.roles]
-                    if any(role_id in conditions["roles"] for role_id in user_role_ids):
-                        return PermissionCheckResponse(
-                            allowed=True,
-                            reason="User's role in whitelist",
-                            access_mode="rbac",
-                            matched_conditions={"roles": list(set(user_role_ids) & set(conditions["roles"]))}
-                        )
+                matched_roles = _matched_role_whitelist(current_user, conditions.get("roles"))
+                if matched_roles:
+                    return PermissionCheckResponse(
+                        allowed=True,
+                        reason="User's role in whitelist",
+                        access_mode="rbac",
+                        matched_conditions={"roles": matched_roles}
+                    )
 
-
+            # Check role bindings. These are loaded above but used to be
+            # ignored entirely, which meant granting a role access through the
+            # ACL API had no effect on the gateway's authorization decision.
+            matched_bindings = _matched_role_bindings(current_user, acl_rule)
+            if matched_bindings:
+                return PermissionCheckResponse(
+                    allowed=True,
+                    reason="User's role is bound to this resource",
+                    access_mode="rbac",
+                    matched_conditions={"role_bindings": matched_bindings}
+                )
 
             return PermissionCheckResponse(
                 allowed=False,
-                reason=f"Permission '{current_user.username}' not granted",
+                reason=f"User '{current_user.username}' not granted access to this resource",
                 access_mode="rbac"
             )
 

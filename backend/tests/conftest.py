@@ -54,6 +54,8 @@ def db():
             cleanup_session.query(SsoLoginTicket).delete()
             cleanup_session.query(OidcLoginTransaction).delete()
             cleanup_session.query(SkillList).delete()
+            cleanup_session.query(MToken).delete()
+            cleanup_session.query(APIKey).delete()
             cleanup_session.query(Resource).delete()
             cleanup_session.query(RefreshToken).delete()
             cleanup_session.query(User).delete()
@@ -96,8 +98,14 @@ def test_user(db: SessionLocal):
         email="test@example.com",
         password="testpassword123"
     )
-    user = AuthService.register(db, user_data)
+    AuthService.register(db, user_data)
+    # AuthService.register() now creates accounts as inactive, and login rejects
+    # inactive accounts. Tests that log in need an activated account.
+    user = db.query(User).filter(User.username == "testuser").first()
+    assert user is not None
+    user.is_active = True
     db.commit()
+    db.refresh(user)
     return user
 
 
@@ -121,6 +129,7 @@ def admin_user(db: SessionLocal):
     # Query the actual User model
     user = db.query(User).filter(User.username == "admin").first()
     user.roles.append(admin_role)
+    user.is_active = True
     db.commit()
     db.refresh(user)
     return user
@@ -152,8 +161,12 @@ def user1(db: SessionLocal):
         email="user1@example.com",
         password="password123"
     )
-    user = AuthService.register(db, user_data)
+    AuthService.register(db, user_data)
+    user = db.query(User).filter(User.username == "user1").first()
+    assert user is not None
+    user.is_active = True
     db.commit()
+    db.refresh(user)
     return user
 
 
@@ -165,8 +178,12 @@ def user2(db: SessionLocal):
         email="user2@example.com",
         password="password123"
     )
-    user = AuthService.register(db, user_data)
+    AuthService.register(db, user_data)
+    user = db.query(User).filter(User.username == "user2").first()
+    assert user is not None
+    user.is_active = True
     db.commit()
+    db.refresh(user)
     return user
 
 

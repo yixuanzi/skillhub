@@ -388,11 +388,16 @@ async def check_permission(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Check if a user has permission to access a resource.
+    """Check whether the caller has permission to access a resource.
+
+    The decision is always made for the authenticated caller; ``check_data`` is
+    accepted for backwards compatibility with existing clients but its
+    ``user_id``/``required_permission`` fields are not honoured - a user must
+    not be able to probe someone else's permissions.
 
     Args:
         resource_id: Resource UUID
-        check_data: Permission check request data
+        check_data: Legacy request body (ignored)
         db: Database session
         current_user: Authenticated user
 
@@ -400,7 +405,7 @@ async def check_permission(
         Permission check response with allowed/rejected decision
     """
     try:
-        return ACLResourceService.check_permission(db, resource_id, check_data)
+        return ACLResourceService.check_permission(db, resource_id, current_user)
     except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
