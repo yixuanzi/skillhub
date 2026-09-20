@@ -12,7 +12,7 @@ DESCRIPTION
 
 USAGE
     skillhub list [search_term] [-page <number>]             List all skills or search by name
-    skillhub install [skill_name]           Install a skill to local directory
+    skillhub install [skill_name] [--outdir <path>]   Install a skill to local directory
     skillhub [res_type] [res_name] [options] Invoke a resource
     skillhub composio [search|schema|exec] [options] Call the composio integration
     skillhub getme                          Get current authenticated user info
@@ -27,9 +27,10 @@ LIST COMMAND
     Outputs: JSON with skill summary (id, name, description, category, tags, etc.)
 
 INSTALL COMMAND
-    skillhub install [skill_name]
+    skillhub install [skill_name] [--outdir <path>]
 
-    Downloads a skill from SkillHub and saves it to ./[skill_name]/SKILL.md
+    Downloads a skill from SkillHub and saves it to <path>/[skill_name]/SKILL.md.
+    --outdir sets the install path (created if missing); defaults to ~/.agents/skills.
 
 COMPOSIO COMMAND
     skillhub composio search "<use case>" [--known-fields '<k:v,...>']   COMPOSIO_SEARCH_TOOLS
@@ -214,6 +215,7 @@ OPTIONS
                         For 'composio exec' this is also spelled --inputs
     --known-fields <s>  Identifier hints for 'composio search' (optional)
     --tools <json>      JSON array of tools for 'composio exec' batch form (optional)
+    --outdir <path>     Install path for 'install' command (optional, default: ~/.agents/skills)
     -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)
     -timeout <seconds>  Request timeout in seconds (optional, default: 30)
     -v                  Verbose mode: show curl command being executed (optional)
@@ -232,6 +234,7 @@ EXAMPLES
     # Install a skill
     skillhub install weather-skill
     skillhub install customer-support -token your-api-token
+    skillhub install weather-skill --outdir ./my-skills
 
     # Third-party API call
     skillhub third weather-api -method GET -inputs '{"city":"Beijing"}'

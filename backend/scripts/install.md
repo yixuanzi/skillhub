@@ -91,6 +91,13 @@ fi
 "$INSTALL_PATH" install skillhub
 ```
 
+By default this saves the skill under `~/.agents/skills/skillhub/SKILL.md`. Pass
+`--outdir <path>` to install into a different location instead (created if it
+doesn't exist), e.g.:
+```bash
+"$INSTALL_PATH" install skillhub --outdir ./my-skills
+```
+
 ### Step 7: Output notice 、Suammry result and finish the workflow
 
 #### require
