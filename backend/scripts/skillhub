@@ -91,8 +91,9 @@ show_help() {
     printf "    Lists all available skills or searches by skill name.\n"
     printf "    Outputs: JSON with skill summary (id, name, description, category, tags, etc.)\n\n"
     printf "${BLUE}INSTALL COMMAND${NC}\n"
-    printf "    skillhub install [skill_name]\n\n"
-    printf "    Downloads a skill from SkillHub and saves it to ./[skill_name]/SKILL.md\n\n"
+    printf "    skillhub install [skill_name] [--outdir <path>]\n\n"
+    printf "    Downloads a skill from SkillHub and saves it to <path>/[skill_name]/SKILL.md.\n"
+    printf "    --outdir sets the install path (created if missing); defaults to ~/.agents/skills.\n\n"
     printf "${BLUE}GETME COMMAND${NC}\n"
     printf "    skillhub getme [-token <token>]\n\n"
     printf "    Returns the current authenticated user's profile information.\n\n"
@@ -131,6 +132,7 @@ show_help() {
     printf "                        Also spelled --inputs for 'composio exec'\n"
     printf "    --known-fields <s>  Identifier hints for 'composio search' (optional)\n"
     printf "    --tools <json>      JSON array of tools for 'composio exec' batch form (optional)\n"
+    printf "    --outdir <path>     Install path for 'install' command (optional, default: ~/.agents/skills)\n"
     printf "    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)\n"
     printf "    -timeout <seconds>  Request timeout in seconds (optional, default: 30)\n"
     printf "    -page <number>      Page number for list command (optional)\n"
@@ -145,7 +147,8 @@ show_help() {
     printf "    skillhub list ai -page 2\n\n"
     printf "    ${YELLOW}# Install a skill${NC}\n"
     printf "    skillhub install weather-skill\n"
-    printf "    skillhub install customer-support -token your-api-token\n\n"
+    printf "    skillhub install customer-support -token your-api-token\n"
+    printf "    skillhub install weather-skill --outdir ./my-skills\n\n"
     printf "    ${YELLOW}# Third-party API call${NC}\n"
     printf "    skillhub third weather-api -method GET -inputs '{\"city\":\"Beijing\"}'\n"
     printf "    skillhub third user-service -method POST -inputs '{\"name\":\"John\",\"email\":\"john@example.com\"}'\n\n"
@@ -210,6 +213,7 @@ getme_user() {
 # Install a skill from SkillHub to local directory
 install_skill() {
     local skill_name="$1"
+    local outdir="$2"
 
     if [ -z "$skill_name" ]; then
         error "install command requires a skill name"
@@ -226,8 +230,8 @@ install_skill() {
 
     info "Installing skill: $skill_name"
 
-    # Define storage locations
-    local skillhub_home="$HOME/.agents/skills"
+    # Define storage locations. --outdir overrides the default skillhub home.
+    local skillhub_home="${outdir:-$HOME/.agents/skills}"
     local actual_dir="$skillhub_home/$skill_name"
     # local link_dir="./skills/$skill_name"
 
@@ -498,6 +502,8 @@ fi
 if [ "$1" = "install" ]; then
     shift
     # Parse options for install command
+    OUTDIR=""
+    SKILL_NAME=""
     while [ $# -gt 0 ]; do
         case "$1" in
             -token)
@@ -514,18 +520,31 @@ if [ "$1" = "install" ]; then
                 TIMEOUT="$2"
                 shift 2
                 ;;
+            --outdir)
+                if [ $# -lt 2 ]; then
+                    error "Option --outdir requires a value"
+                fi
+                OUTDIR="$2"
+                shift 2
+                ;;
             -*)
                 # Error on unexpected dash-prefixed options
                 error "Unknown option for install command: $1"
                 ;;
             *)
-                # First non-option argument is the skill name
-                install_skill "$1"
-                exit 0
+                if [ -n "$SKILL_NAME" ]; then
+                    error "install command accepts only one skill name"
+                fi
+                SKILL_NAME="$1"
+                shift
                 ;;
         esac
     done
-    error "install command requires a skill name"
+    if [ -z "$SKILL_NAME" ]; then
+        error "install command requires a skill name"
+    fi
+    install_skill "$SKILL_NAME" "$OUTDIR"
+    exit 0
 fi
 
 # Check for getme command

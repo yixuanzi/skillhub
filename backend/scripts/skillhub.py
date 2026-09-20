@@ -70,8 +70,9 @@ def show_help() -> None:
     print("    Lists all available skills or searches by skill name.")
     print("    Outputs: JSON with skill summary (id, name, description, category, tags, etc.)\n")
     print(f"{BLUE}INSTALL COMMAND{NC}")
-    print("    skillhub install [skill_name]\n")
-    print("    Downloads a skill from SkillHub and saves it to ./[skill_name]/SKILL.md\n")
+    print("    skillhub install [skill_name] [--outdir <path>]\n")
+    print("    Downloads a skill from SkillHub and saves it to <path>/[skill_name]/SKILL.md.")
+    print("    --outdir sets the install path (created if missing); defaults to ~/.agents/skills.\n")
     print(f"{BLUE}GETME COMMAND{NC}")
     print("    skillhub getme [-token <token>]\n")
     print("    Returns the current authenticated user's profile information.\n")
@@ -110,6 +111,7 @@ def show_help() -> None:
     print("                        Also spelled --inputs for 'composio exec'")
     print("    --known-fields <s>  Identifier hints for 'composio search' (optional)")
     print("    --tools <json>      JSON array of tools for 'composio exec' batch form (optional)")
+    print("    --outdir <path>     Install path for 'install' command (optional, default: ~/.agents/skills)")
     print("    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)")
     print("    -timeout <seconds>  Request timeout in seconds (optional, default: 30)")
     print("    -page <number>      Page number for list command (optional)")
@@ -124,7 +126,8 @@ def show_help() -> None:
     print("    skillhub list ai -page 2\n")
     print(f"    {YELLOW}# Install a skill{NC}")
     print("    skillhub install weather-skill")
-    print("    skillhub install customer-support -token your-api-token\n")
+    print("    skillhub install customer-support -token your-api-token")
+    print("    skillhub install weather-skill --outdir ./my-skills\n")
     print(f"    {YELLOW}# Third-party API call{NC}")
     print("    skillhub third weather-api -method GET -inputs '{\"city\":\"Beijing\"}'")
     print("    skillhub third user-service -method POST -inputs '{\"name\":\"John\",\"email\":\"john@example.com\"}'\n")
@@ -238,7 +241,7 @@ def getme_user(token: str, timeout_value: str) -> None:
         print(response)
 
 
-def install_skill(skill_name: str, token: str, timeout_value: str) -> None:
+def install_skill(skill_name: str, token: str, timeout_value: str, outdir: str = "") -> None:
     if not skill_name:
         error("install command requires a skill name")
 
@@ -247,7 +250,8 @@ def install_skill(skill_name: str, token: str, timeout_value: str) -> None:
 
     info(f"Installing skill: {skill_name}")
 
-    skillhub_home = os.path.join(os.path.expanduser("~"), ".agents", "skills")
+    # --outdir overrides the default skillhub home.
+    skillhub_home = os.path.expanduser(outdir) if outdir else os.path.join(os.path.expanduser("~"), ".agents", "skills")
     actual_dir = os.path.join(skillhub_home, skill_name)
 
     if not os.path.isdir(skillhub_home):
@@ -454,6 +458,8 @@ def main() -> None:
 
     if args[0] == "install":
         rest = args[1:]
+        outdir = ""
+        skill_name = ""
         i = 0
         while i < len(rest):
             a = rest[i]
@@ -467,12 +473,22 @@ def main() -> None:
                     error("Option -timeout requires a value")
                 timeout_value = rest[i + 1]
                 i += 2
+            elif a == "--outdir":
+                if i + 1 >= len(rest):
+                    error("Option --outdir requires a value")
+                outdir = rest[i + 1]
+                i += 2
             elif a.startswith("-"):
                 error(f"Unknown option for install command: {a}")
             else:
-                install_skill(a, token, timeout_value)
-                sys.exit(0)
-        error("install command requires a skill name")
+                if skill_name:
+                    error("install command accepts only one skill name")
+                skill_name = a
+                i += 1
+        if not skill_name:
+            error("install command requires a skill name")
+        install_skill(skill_name, token, timeout_value, outdir)
+        sys.exit(0)
 
     if args[0] == "getme":
         rest = args[1:]
