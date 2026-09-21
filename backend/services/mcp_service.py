@@ -259,10 +259,20 @@ class MCPService:
                 logger.info(f"Using cached MCP client for resource={resource_name} user={user_id}")
                 return cached["client"], cached["tools"]
 
-            # Create new client, resolving tokens for the current user
+            # Import up front so a genuine "package missing" error is not confused
+            # with an ImportError raised from deeper inside the client/tool code.
             try:
                 from langchain_mcp_adapters.client import MultiServerMCPClient
+            except ImportError as e:
+                logger.error(f"Cannot import langchain_mcp_adapters: {e}")
+                raise ExternalServiceException(
+                    f"Failed to import langchain_mcp_adapters: {e}. "
+                    "Check that langchain-mcp-adapters and a compatible mcp "
+                    "version (mcp<2) are installed."
+                )
 
+            # Create new client, resolving tokens for the current user
+            try:
                 mcp_config = MCPService._convert_config_to_mcp_client_format(
                     resource_name, config, db, user_id
                 )
@@ -310,11 +320,6 @@ class MCPService:
                         f"Timeout connecting to MCP server: {resource_name}"
                     )
 
-            except ImportError:
-                raise ExternalServiceException(
-                    "langchain_mcp_adapters package is required. "
-                    "Install it with: pip install langchain-mcp-adapters"
-                )
             except Exception as e:
                 logger.error(f"Failed to create MCP client for {resource_name}: {e}")
                 raise ExternalServiceException(

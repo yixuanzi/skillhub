@@ -4,6 +4,10 @@ email-validator==2.2.0
 fastapi==0.135.1
 httpx==0.28.1
 langchain_mcp_adapters==0.2.1
+# mcp 2.x is a breaking rewrite (mcp.shared.context.RequestContext was removed),
+# which langchain_mcp_adapters 0.2.1 / claude_agent_sdk 0.1.48 cannot import.
+# Both only declare "mcp>=", so an unpinned build picks up 2.x and breaks at runtime.
+mcp==1.27.0
 passlib==1.7.4
 bcrypt==4.0.1
 pydantic==2.12.5

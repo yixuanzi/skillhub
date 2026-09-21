@@ -58,7 +58,7 @@ def show_help() -> None:
     print("    plus a dedicated 'composio' command for the built-in Composio integration.\n")
     print(f"{BLUE}USAGE{NC}")
     print("    skillhub list [search_term]              List all skills or search by name")
-    print("    skillhub install [skill_name]           Install a skill to local directory")
+    print("    skillhub install [skill_name] [--outdir <path>]   Install a skill to local directory")
     print("    skillhub getme                          Get current user info")
     print("    skillhub [res_type] [res_name] [options] Invoke a resource")
     print("    skillhub composio [search|schema|exec] [options] Call the composio integration")

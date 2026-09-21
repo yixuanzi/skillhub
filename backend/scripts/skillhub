@@ -79,7 +79,7 @@ show_help() {
     printf "    plus a dedicated 'composio' command for the built-in Composio integration.\n\n"
     printf "${BLUE}USAGE${NC}\n"
     printf "    skillhub list [search_term]              List all skills or search by name\n"
-    printf "    skillhub install [skill_name]           Install a skill to local directory\n"
+    printf "    skillhub install [skill_name] [--outdir <path>]   Install a skill to local directory\n"
     printf "    skillhub getme                          Get current user info\n"
     printf "    skillhub [res_type] [res_name] [options] Invoke a resource\n"
     printf "    skillhub composio [search|schema|exec] [options] Call the composio integration\n"
