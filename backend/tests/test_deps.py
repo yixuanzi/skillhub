@@ -15,7 +15,6 @@ def test_get_current_user_with_api_key(db_session, create_user):
         mock_api_key = Mock()
         mock_api_key.user_id = str(user.id)
         mock_api_key.id = "api-key-id-123"
-        mock_api_key.scopes = ["read", "write"]
         mock_api_service.authenticate.return_value = mock_api_key
 
         # Mock credentials
@@ -27,4 +26,4 @@ def test_get_current_user_with_api_key(db_session, create_user):
             assert result.id == user.id
             assert result.auth_type == "api_key"
             assert result.api_key_id == "api-key-id-123"
-            assert result.api_key_scopes == ["read", "write"]
+            assert not hasattr(result, "api_key_scopes")

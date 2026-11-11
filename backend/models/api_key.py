@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, JSON, Index
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from database import Base
 import uuid
@@ -6,11 +6,12 @@ from datetime import timezone, datetime
 
 
 class APIKey(Base):
-    """User-scoped API key for authentication.
+    """A long-lived credential that stands in for its owner.
 
-    API keys provide programmatic access to the SkillHub API.
-    Each key is scoped to a specific user and has limited permissions
-    based on configured scopes.
+    API keys provide programmatic access to the SkillHub API. A key carries no
+    permissions of its own: a request authenticated with it is that user, with
+    exactly the access the user has. Narrow what a key can reach by narrowing
+    what its user can reach (ownership, ACL rules), or disable/expire the key.
     """
     __tablename__ = "api_keys"
     __table_args__ = (
@@ -24,7 +25,6 @@ class APIKey(Base):
     name = Column(String(255), nullable=False)
     key_hash = Column(String(255), nullable=False, unique=True)
     key_prefix = Column(String(10), nullable=False)
-    scopes = Column(JSON, nullable=False, default=list)
     expires_at = Column(DateTime(timezone=True), nullable=True)
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)

@@ -5,7 +5,6 @@ export interface APIKey {
   id: string;
   name: string;
   key_prefix: string;
-  scopes: string[];
   expires_at: string | null;
   last_used_at: string | null;
   is_active: boolean;
@@ -14,7 +13,6 @@ export interface APIKey {
 
 export interface APIKeyCreate {
   name: string;
-  scopes: string[];
   expires_at?: string;
 }
 
@@ -25,7 +23,6 @@ export interface APIKeyCreateResponse {
 
 export interface APIKeyUpdate {
   name?: string;
-  scopes?: string[];
   expires_at?: string;
   is_active?: boolean;
 }

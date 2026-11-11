@@ -6,9 +6,8 @@ This guide covers how to create, use, and manage API keys in SkillHub.
 
 API keys provide programmatic access to the SkillHub API without requiring interactive authentication. Each API key is:
 
-- **User-scoped**: Belongs to a specific user
+- **Its owner**: Belongs to a specific user and acts as that user. A request made with the key can do exactly what the user can do - no more, no less. Keys have no scopes or permissions of their own.
 - **Secure**: SHA256 hashed, only shown once during creation
-- **Scoped**: Limited to specific permissions based on configured scopes
 - **Temporarily disableable**: Can be disabled and re-enabled at any time
 - **Deletable**: Can be permanently removed when no longer needed
 - **Rotatable**: Can be regenerated without changing settings
@@ -20,10 +19,9 @@ API keys provide programmatic access to the SkillHub API without requiring inter
 1. Navigate to **Settings** → **API Keys**
 2. Click **Create New Key**
 3. Enter a name for the key (e.g., "Production Integration")
-4. Select the required scopes (permissions)
-5. Optionally set an expiration date
-6. Click **Create**
-7. **Copy the key immediately** - it won't be shown again!
+4. Optionally set an expiration date
+5. Click **Create**
+6. **Copy the key immediately** - it won't be shown again!
 
 ### Via API
 
@@ -33,7 +31,6 @@ curl -X POST "https://api.skillhub.com/api/v1/api-keys/" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "My Integration",
-    "scopes": ["skills:call", "skills:read"],
     "expires_at": "2026-12-31T23:59:59Z"
   }'
 ```
@@ -46,7 +43,6 @@ Response (includes full key - shown only once):
     "id": "uuid",
     "name": "My Integration",
     "key_prefix": "sk_abc123",
-    "scopes": ["skills:call", "skills:read"],
     "expires_at": "2026-12-31T23:59:59Z",
     "last_used_at": null,
     "is_active": true,
@@ -66,19 +62,18 @@ curl -X GET "https://api.skillhub.com/api/v1/skills/" \
 
 The API key format is: `sk_` followed by 43 characters (URL-safe base64).
 
-## Available Scopes
+## What a Key Can Do
 
-| Scope | Description |
-|-------|-------------|
-| `resources:read` | Read gateway resources |
-| `resources:write` | Create/modify gateway resources |
-| `skills:read` | View skills |
-| `skills:call` | Execute/invoke skills |
-| `skills:write` | Create/modify skills |
-| `acl:read` | View ACL rules |
-| `acl:write` | Create/modify ACL rules |
-| `tokens:read` | View stored tokens |
-| `tokens:write` | Create/modify stored tokens |
+Whatever its owner can do. Authorization is decided for the user, exactly as if
+they had signed in:
+
+- they manage what they own (skills, resources, ACL rules, tokens, keys);
+- `admin` / `super_admin` accounts keep their management rights when using a key;
+- calling a resource still requires that resource's ACL rule to grant the user access.
+
+There is no way to make a key weaker than its user. To give an integration
+narrow access, create a dedicated account for it and grant that account only
+what it needs through ACL rules, then issue the key from that account.
 
 ## Security Best Practices
 
@@ -88,9 +83,9 @@ The API key format is: `sk_` followed by 43 characters (URL-safe base64).
 - Consider using a `.env` file (add to `.gitignore`)
 
 ### 2. Principle of Least Privilege
-- Only grant scopes that are actually needed
+- A key is as powerful as its user, so avoid issuing keys from admin accounts
+- Use a dedicated low-privilege account for automation, with access granted through ACL rules
 - Create separate keys for different environments (dev, staging, prod)
-- Use read-only scopes when write access isn't required
 
 ### 3. Key Rotation
 - Rotate keys regularly (recommended: every 90 days)
@@ -123,7 +118,6 @@ curl -X PUT "https://api.skillhub.com/api/v1/api-keys/{key_id}/" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Updated Name",
-    "scopes": ["skills:call"],
     "expires_at": "2026-06-30T23:59:59Z"
   }'
 ```
@@ -170,15 +164,15 @@ Deletion permanently removes the API key and it cannot be enabled again.
 
 | HTTP Code | Description |
 |-----------|-------------|
-| 401 | Invalid or expired API key |
-| 403 | API key missing required scope |
+| 401 | Invalid, disabled or expired API key |
+| 403 | The key's user is not allowed to do this |
 | 404 | API key not found |
-| 400 | Validation error (e.g., invalid scopes) |
+| 400 | Validation error (e.g., active key limit reached) |
 
 Example error response:
 ```json
 {
-  "detail": "API key missing required scope: skills:call"
+  "detail": "Invalid authentication credentials"
 }
 ```
 

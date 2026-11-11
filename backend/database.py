@@ -46,3 +46,21 @@ def init_db():
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_oidc_subject "
                 "ON users (oidc_subject) WHERE oidc_subject IS NOT NULL"
             ))
+
+    drop_api_key_scopes(engine)
+
+
+def drop_api_key_scopes(bind) -> bool:
+    """Drop the `api_keys.scopes` column left behind by older versions.
+
+    API keys no longer have scopes: a key is simply its owner. create_all does
+    not alter existing tables, and the old column is NOT NULL with no database
+    default, so leaving it in place would make every new key fail to insert.
+    Returns whether the column was dropped.
+    """
+    columns = {column["name"] for column in inspect(bind).get_columns("api_keys")}
+    if "scopes" not in columns:
+        return False
+    with bind.begin() as connection:
+        connection.execute(text("ALTER TABLE api_keys DROP COLUMN scopes"))
+    return True

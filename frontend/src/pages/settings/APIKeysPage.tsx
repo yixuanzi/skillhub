@@ -52,7 +52,7 @@ export const APIKeysPage = () => {
 
   const allKeys = apiKeys || [];
 
-  const handleCreateKey = async (data: { name: string; scopes: string[]; expires_at?: string }) => {
+  const handleCreateKey = async (data: { name: string; expires_at?: string }) => {
     try {
       setErrorMessage('');
       const response = await createMutation.mutateAsync(data);
@@ -149,9 +149,9 @@ export const APIKeysPage = () => {
           <div className="space-y-1">
             <p className="text-sm font-medium text-cyber-secondary">About API Keys</p>
             <p className="text-xs text-gray-400">
-              API keys allow you to authenticate with the SkillHub API programmatically. Each key
-              can have specific scopes (permissions), can be disabled temporarily, and can be
-              deleted permanently. Store your keys securely and treat them like passwords.
+              API keys allow you to authenticate with the SkillHub API programmatically. A key
+              acts as you: it can do exactly what your account can do. Keys can be disabled
+              temporarily or deleted permanently. Store them securely and treat them like passwords.
             </p>
           </div>
         </div>

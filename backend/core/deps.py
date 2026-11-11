@@ -44,7 +44,6 @@ def _authenticate_user(db: Session, token: str) -> Optional[User]:
                 setattr(user, "auth_type", "api_key")
                 setattr(user, "access_token", token)
                 setattr(user, "api_key_id", api_key.id)
-                setattr(user, "api_key_scopes", api_key.scopes)
                 return user
 
     # 然后尝试 JWT token 认证

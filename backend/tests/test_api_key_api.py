@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from models.user import User
 from models.api_key import APIKey
-from schemas.api_key import APIKeyCreate, APIScope
+from schemas.api_key import APIKeyCreate
 from services.api_key_service import APIKeyService
 from core.security import create_access_token
 
@@ -41,8 +41,7 @@ class TestAPIKeyCreateEndpoint:
         response = client.post(
             "/api/v1/api-keys/",
             json={
-                "name": "Test Key",
-                "scopes": [APIScope.SKILLS_READ, APIScope.RESOURCES_READ]
+                "name": "Test Key"
             },
             headers={"Authorization": f"Bearer {token}"}
         )
@@ -55,7 +54,7 @@ class TestAPIKeyCreateEndpoint:
         assert data["api_key"]["name"] == "Test Key"
         assert data["api_key"]["key_prefix"] == data["key"][:10]
         assert data["api_key"]["is_active"] is True
-        assert len(data["api_key"]["scopes"]) == 2
+        assert "scopes" not in data["api_key"]
 
     def test_create_api_key_with_expiration(self, client: TestClient, test_user: User):
         """Test creating API key with expiration date."""
@@ -71,7 +70,6 @@ class TestAPIKeyCreateEndpoint:
             "/api/v1/api-keys/",
             json={
                 "name": "Expiring Key",
-                "scopes": [APIScope.SKILLS_READ],
                 "expires_at": expires_at
             },
             headers={"Authorization": f"Bearer {token}"}
@@ -81,33 +79,12 @@ class TestAPIKeyCreateEndpoint:
         data = response.json()
         assert data["api_key"]["expires_at"] is not None
 
-    def test_create_api_key_invalid_scope(self, client: TestClient, test_user: User):
-        """Test creating API key with invalid scope fails."""
-        login_response = client.post("/api/v1/auth/login", json={
-            "username": "testuser",
-            "password": "testpassword123"
-        })
-        token = login_response.json()["access_token"]
-
-        response = client.post(
-            "/api/v1/api-keys/",
-            json={
-                "name": "Invalid Key",
-                "scopes": ["invalid:scope"]
-            },
-            headers={"Authorization": f"Bearer {token}"}
-        )
-
-        assert response.status_code == 400
-        assert "Invalid scopes" in response.json()["detail"]
-
     def test_create_api_key_unauthorized(self, client: TestClient):
         """Test creating API key without authentication fails."""
         response = client.post(
             "/api/v1/api-keys/",
             json={
-                "name": "Test Key",
-                "scopes": [APIScope.SKILLS_READ]
+                "name": "Test Key"
             }
         )
 
@@ -124,8 +101,7 @@ class TestAPIKeyCreateEndpoint:
         response = client.post(
             "/api/v1/api-keys/",
             json={
-                "name": "",
-                "scopes": [APIScope.SKILLS_READ]
+                "name": ""
             },
             headers={"Authorization": f"Bearer {token}"}
         )
@@ -156,7 +132,7 @@ class TestAPIKeyListEndpoint:
         """Test listing API keys returns user's keys only."""
         # Create some keys
         for i in range(3):
-            data = APIKeyCreate(name=f"Key {i}", scopes=[APIScope.SKILLS_READ])
+            data = APIKeyCreate(name=f"Key {i}")
             APIKeyService.create(db, test_user, data)
 
         login_response = client.post("/api/v1/auth/login", json={
@@ -178,7 +154,7 @@ class TestAPIKeyListEndpoint:
         """Test pagination of API key listing."""
         # Create 5 keys
         for i in range(5):
-            data = APIKeyCreate(name=f"Key {i}", scopes=[APIScope.SKILLS_READ])
+            data = APIKeyCreate(name=f"Key {i}")
             APIKeyService.create(db, test_user, data)
 
         login_response = client.post("/api/v1/auth/login", json={
@@ -216,7 +192,7 @@ class TestAPIKeyGetEndpoint:
         """Test getting API key by ID."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         login_response = client.post("/api/v1/auth/login", json={
@@ -255,7 +231,7 @@ class TestAPIKeyGetEndpoint:
         """Test getting API key without authentication fails."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         response = client.get(f"/api/v1/api-keys/{created_key.id}/")
@@ -269,7 +245,7 @@ class TestAPIKeyUpdateEndpoint:
         """Test updating API key name."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Old Name", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Old Name")
         )
 
         login_response = client.post("/api/v1/auth/login", json={
@@ -288,34 +264,11 @@ class TestAPIKeyUpdateEndpoint:
         data = response.json()
         assert data["name"] == "New Name"
 
-    def test_update_api_key_scopes(self, client: TestClient, test_user: User, db: Session):
-        """Test updating API key scopes."""
-        created_key, _ = APIKeyService.create(
-            db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
-        )
-
-        login_response = client.post("/api/v1/auth/login", json={
-            "username": "testuser",
-            "password": "testpassword123"
-        })
-        token = login_response.json()["access_token"]
-
-        response = client.put(
-            f"/api/v1/api-keys/{created_key.id}/",
-            json={"scopes": [APIScope.SKILLS_READ, APIScope.SKILLS_CALL]},
-            headers={"Authorization": f"Bearer {token}"}
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["scopes"]) == 2
-
     def test_update_api_key_deactivate(self, client: TestClient, test_user: User, db: Session):
         """Test deactivating API key via update."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         login_response = client.post("/api/v1/auth/login", json={
@@ -332,27 +285,6 @@ class TestAPIKeyUpdateEndpoint:
 
         assert response.status_code == 200
         assert response.json()["is_active"] is False
-
-    def test_update_api_key_invalid_scopes(self, client: TestClient, test_user: User, db: Session):
-        """Test updating with invalid scopes fails."""
-        created_key, _ = APIKeyService.create(
-            db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
-        )
-
-        login_response = client.post("/api/v1/auth/login", json={
-            "username": "testuser",
-            "password": "testpassword123"
-        })
-        token = login_response.json()["access_token"]
-
-        response = client.put(
-            f"/api/v1/api-keys/{created_key.id}/",
-            json={"scopes": ["invalid:scope"]},
-            headers={"Authorization": f"Bearer {token}"}
-        )
-
-        assert response.status_code == 400
 
     def test_update_api_key_not_found(self, client: TestClient, test_user: User):
         """Test updating non-existent API key returns 404."""
@@ -379,7 +311,7 @@ class TestAPIKeyToggleEndpoint:
         user = create_user("api-key-toggle", "api-key-toggle@example.com")
         created_key, _ = APIKeyService.create(
             db, user,
-            APIKeyCreate(name="Toggle Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Toggle Key")
         )
         headers = active_user_headers(user)
 
@@ -408,7 +340,7 @@ class TestAPIKeyDeleteEndpoint:
         user = create_user("api-key-delete", "api-key-delete@example.com")
         created_key, _ = APIKeyService.create(
             db, user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         response = client.delete(
@@ -439,7 +371,7 @@ class TestAPIKeyRotateEndpoint:
         """Test rotating an API key."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         login_response = client.post("/api/v1/auth/login", json={
@@ -484,7 +416,7 @@ class TestAPIKeyUserIsolation:
         # Create key for admin user
         admin_key, _ = APIKeyService.create(
             db, admin_user,
-            APIKeyCreate(name="Admin Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Admin Key")
         )
 
         # Login as test user
@@ -506,7 +438,7 @@ class TestAPIKeyUserIsolation:
         """Test users cannot update other users' API keys."""
         admin_key, _ = APIKeyService.create(
             db, admin_user,
-            APIKeyCreate(name="Admin Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Admin Key")
         )
 
         login_response = client.post("/api/v1/auth/login", json={
@@ -527,7 +459,7 @@ class TestAPIKeyUserIsolation:
         """Test users cannot delete other users' API keys."""
         admin_key, _ = APIKeyService.create(
             db, admin_user,
-            APIKeyCreate(name="Admin Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Admin Key")
         )
 
         login_response = client.post("/api/v1/auth/login", json={
@@ -542,3 +474,67 @@ class TestAPIKeyUserIsolation:
         )
 
         assert response.status_code == 404
+
+
+class TestAPIKeyIsItsOwner:
+    """A key carries no permissions of its own: a request made with it is its user."""
+
+    def test_key_has_no_scopes(self, client: TestClient, auth_headers: dict):
+        """Scopes are gone; a payload from an older client that still sends them is accepted."""
+        response = client.post(
+            "/api/v1/api-keys/",
+            json={"name": "Legacy Client Key", "scopes": ["skills:read"]},
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 201
+        assert "scopes" not in response.json()["api_key"]
+
+        listed = client.get("/api/v1/api-keys/", headers=auth_headers).json()
+        assert all("scopes" not in key for key in listed)
+
+    def test_key_reaches_what_its_user_reaches(self, client: TestClient, test_user: User, admin_user: User, db: Session):
+        """The same request succeeds or fails depending only on whose key it is."""
+        _, admin_key = APIKeyService.create(db, admin_user, APIKeyCreate(name="Admin Key"))
+        _, user_key = APIKeyService.create(db, test_user, APIKeyCreate(name="User Key"))
+
+        as_admin = client.get("/api/v1/admin/users/list/", headers={"Authorization": f"Bearer {admin_key}"})
+        as_user = client.get("/api/v1/admin/users/list/", headers={"Authorization": f"Bearer {user_key}"})
+
+        assert as_admin.status_code == 200
+        assert as_user.status_code == 403
+
+    def test_key_identifies_its_user(self, client: TestClient, test_user: User, db: Session):
+        _, key = APIKeyService.create(db, test_user, APIKeyCreate(name="Me"))
+
+        response = client.get("/api/v1/auth/me/", headers={"Authorization": f"Bearer {key}"})
+
+        assert response.status_code == 200
+        assert response.json()["username"] == test_user.username
+
+
+class TestLegacyScopesColumn:
+    """database.drop_api_key_scopes: upgrading a database created before scopes were removed."""
+
+    def test_column_is_dropped_and_rows_are_kept(self, tmp_path):
+        from sqlalchemy import create_engine, inspect, text
+        from database import drop_api_key_scopes
+
+        legacy = create_engine(f"sqlite:///{tmp_path / 'legacy.db'}")
+        with legacy.begin() as connection:
+            # NOT NULL with no default, as the old model created it: without
+            # the drop, inserting a key without scopes would fail.
+            connection.execute(text(
+                "CREATE TABLE api_keys (id VARCHAR(36) PRIMARY KEY, name VARCHAR(255) NOT NULL, scopes JSON NOT NULL)"
+            ))
+            connection.execute(text("INSERT INTO api_keys VALUES ('k1', 'old key', '[\"skills:read\"]')"))
+
+        assert drop_api_key_scopes(legacy) is True
+
+        assert [column["name"] for column in inspect(legacy).get_columns("api_keys")] == ["id", "name"]
+        with legacy.begin() as connection:
+            assert connection.execute(text("SELECT id, name FROM api_keys")).all() == [("k1", "old key")]
+            connection.execute(text("INSERT INTO api_keys (id, name) VALUES ('k2', 'new key')"))
+
+        # Nothing left to do the second time.
+        assert drop_api_key_scopes(legacy) is False

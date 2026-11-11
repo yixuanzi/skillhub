@@ -162,7 +162,9 @@ All endpoints are prefixed with `/api/v1/`
 
 ### Authentication
 - JWT tokens via `Authorization: Bearer <token>` header
-- API keys via `X-API-Key` header
+- API keys (`sk_...`) via the same `Authorization: Bearer` header. A key has
+  no scopes: it stands in for its owner, so a request made with it is
+  authorized exactly as that user would be.
 - Refresh token rotation for enhanced security
 
 ### Response Format

@@ -261,7 +261,7 @@ return denied()
 
 资源没有 ACL 规则时一律拒绝。新建资源会自动生成一条 RBAC 规则，并把创建者加入用户白名单。
 
-> **尚未生效的字段**：`conditions` 中的 `ip_whitelist`、`rate_limit`、`time_windows`，角色绑定上的 `permissions`，以及权限检查接口的 `required_permission` 参数，目前可以保存但不参与判断。API Key 的 `scopes` 同样只保存、不校验。下面 4.3 的限流实现是设计稿，尚未接入。
+> **尚未生效的字段**：`conditions` 中的 `ip_whitelist`、`rate_limit`、`time_windows`，角色绑定上的 `permissions`，以及权限检查接口的 `required_permission` 参数，目前可以保存但不参与判断。API Key 没有 scopes：一把 Key 就代表它所属的用户，能做的事与该用户完全相同。下面 4.3 的限流实现是设计稿，尚未接入。
 
 ### 4.3 限流实现
 

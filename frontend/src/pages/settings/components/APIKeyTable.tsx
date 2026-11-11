@@ -62,9 +62,6 @@ export const APIKeyTable = ({
               Key Prefix
             </th>
             <th className="text-left py-3 px-4 font-mono text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Scopes
-            </th>
-            <th className="text-left py-3 px-4 font-mono text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Expires
             </th>
             <th className="text-left py-3 px-4 font-mono text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -105,15 +102,6 @@ export const APIKeyTable = ({
                   <code className="font-mono text-sm text-gray-400 bg-void-900/50 px-2 py-1 rounded">
                     {key.key_prefix}••••••••
                   </code>
-                </td>
-                <td className="py-3 px-4">
-                  <div className="flex gap-1 flex-wrap">
-                    {key.scopes.map((scope) => (
-                      <Badge key={scope} variant="secondary" className="text-xs">
-                        {scope}
-                      </Badge>
-                    ))}
-                  </div>
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-2 text-sm">

@@ -680,7 +680,8 @@ MCP 典型示例：
 | --- | --- | --- |
 | `Key Name` | 当前 key 的用途名称 | 例如 `ci-readonly`、`ops-automation` |
 | `Expiration` | 过期策略 | 按用途选择是否长期有效 |
-| `Permissions (Scopes)` | 允许的能力范围 | 按最小权限原则选择 |
+
+API Key 没有单独的权限范围：一把 key 就代表创建它的用户，能做的事与该用户完全相同。需要给自动化脚本收窄权限时，请为它单独建一个账号，通过 ACL 规则只授权所需的资源，再用该账号创建 key。
 
 #### 9.3.1 Expiration 可选项
 
@@ -695,41 +696,6 @@ MCP 典型示例：
 
 - 自动化脚本优先设置明确过期时间。
 - 长期凭证要配合定期轮换制度。
-
-#### 9.3.2 Scopes 可选项
-
-当前前端创建弹窗中可选的 scopes 通常包括：
-
-- `resources:read`
-- `resources:write`
-- `skills:read`
-- `skills:call`
-- `skills:write`
-- `acl:read`
-- `acl:write`
-- `users:read`
-- `audit:read`
-
-作用示例：
-
-| Scope | 典型用途 |
-| --- | --- |
-| `resources:read` | 读取资源列表或详情 |
-| `resources:write` | 新建、修改资源 |
-| `skills:read` | 读取技能信息 |
-| `skills:call` | 调用技能 |
-| `skills:write` | 创建或编辑技能 |
-| `acl:read` | 查看 ACL 规则 |
-| `acl:write` | 创建或修改 ACL 规则 |
-| `users:read` | 读取用户信息 |
-| `audit:read` | 查询审计日志 |
-
-当前实现差异：
-
-- 后端 scope 定义中还支持 `tokens:read` 与 `tokens:write`。
-- 但当前前端创建弹窗没有提供这两个 scope 选项。
-
-因此，本文档应以“当前页面可选项”为准，同时保留这一差异提示。
 
 ### 9.4 创建成功后的完整 Key 展示
 
@@ -755,7 +721,6 @@ API key 列表中常见字段如下：
 | --- | --- |
 | `name` | key 名称 |
 | `key_prefix` | key 前缀，用于识别是哪一把 key |
-| `scopes` | 当前 key 具备的权限范围 |
 | `expires_at` | 过期时间 |
 | `last_used_at` | 最近使用时间 |
 | `is_active` | 当前是否有效 |
@@ -903,7 +868,7 @@ API key 列表中常见字段如下：
 
 1. ACL 的 `role_bindings` 后端已支持，但当前前端没有编辑入口。
 2. `Export Logs` 按钮当前未实现真正的导出能力。
-3. API Key 前端创建弹窗未开放 `tokens:read`、`tokens:write` scopes。
+3. API Key 代表其所属用户，没有单独的权限范围，请不要用管理员账号为自动化脚本创建 key。
 4. `gateway`、`third` 的 `timeout` 按秒配置，`mcp` 的 `timeout` 按毫秒配置。
 5. Skill 名称由 `content` 中 YAML frontmatter 的 `name` 决定，不由表单直接输入决定。
 6. MCP 当前更建议使用 `sse` 或 `httpstream`，`stdio`、`ws` 虽可见但当前不建议依赖。
@@ -963,7 +928,6 @@ API key 列表中常见字段如下：
 | --- | --- |
 | `Key Name` | key 名称 |
 | `Expiration` | 过期策略 |
-| `Permissions (Scopes)` | 权限范围 |
 | `key_prefix` | key 前缀 |
 | `expires_at` | 到期时间 |
 | `last_used_at` | 最近使用时间 |

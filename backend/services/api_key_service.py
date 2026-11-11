@@ -50,14 +50,8 @@ class APIKeyService:
             Tuple of (APIKey object, full_key)
 
         Raises:
-            ValidationException: If validation fails (invalid scopes or max keys reached)
+            ValidationException: If the user already has the maximum number of active keys
         """
-        # Validate scopes
-        try:
-            data.validate_scopes()
-        except ValueError as e:
-            raise ValidationException(str(e))
-
         # Check max keys limit
         active_count = db.query(APIKey).filter(
             APIKey.user_id == user.id,
@@ -76,7 +70,6 @@ class APIKeyService:
             name=data.name,
             key_hash=key_hash,
             key_prefix=key_prefix,
-            scopes=data.scopes,
             expires_at=data.expires_at,
         )
         db.add(api_key)
@@ -142,15 +135,9 @@ class APIKeyService:
 
         Raises:
             NotFoundException: If key not found or not owned by user
-            ValidationException: If scope validation fails
+            ValidationException: If re-enabling the key would exceed the active-key limit
         """
         api_key = APIKeyService.get_by_id(db, key_id, user_id)
-
-        # Validate scopes if provided
-        try:
-            data.validate_scopes()
-        except ValueError as e:
-            raise ValidationException(str(e))
 
         update_data = data.model_dump(exclude_unset=True)
 
@@ -230,7 +217,7 @@ class APIKeyService:
         # Generate new key
         key, key_hash, key_prefix = APIKeyService.generate_api_key()
 
-        # Update but keep name, scopes, expires_at
+        # Update but keep name, expires_at
         api_key.key_hash = key_hash
         api_key.key_prefix = key_prefix
 
@@ -272,16 +259,3 @@ class APIKeyService:
         db.commit()
 
         return api_key
-
-    @staticmethod
-    def has_scope(api_key: APIKey, required_scope: str) -> bool:
-        """Check if API key has required scope.
-
-        Args:
-            api_key: APIKey object
-            required_scope: Scope to check
-
-        Returns:
-            True if key has the required scope, False otherwise
-        """
-        return required_scope in api_key.scopes

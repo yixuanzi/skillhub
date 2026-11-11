@@ -8,7 +8,6 @@ This test suite covers:
 - API key revocation
 - API key rotation
 - API key authentication
-- Scope validation
 """
 import pytest
 from datetime import datetime, timezone, timedelta
@@ -16,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from models.api_key import APIKey
 from models.user import User
-from schemas.api_key import APIKeyCreate, APIKeyUpdate, APIScope
+from schemas.api_key import APIKeyCreate, APIKeyUpdate
 from services.api_key_service import APIKeyService
 from core.exceptions import ValidationException, NotFoundException
 
@@ -62,8 +61,7 @@ class TestAPIKeyCreate:
     def test_create_api_key_success(self, db: Session, test_user: User):
         """Test successful API key creation."""
         data = APIKeyCreate(
-            name="Test Key",
-            scopes=[APIScope.SKILLS_READ, APIScope.RESOURCES_READ]
+            name="Test Key"
         )
 
         api_key, full_key = APIKeyService.create(db, test_user, data)
@@ -72,7 +70,6 @@ class TestAPIKeyCreate:
         assert api_key.name == "Test Key"
         assert api_key.user_id == test_user.id
         assert api_key.is_active is True
-        assert len(api_key.scopes) == 2
         assert api_key.key_prefix == full_key[:10]
         assert full_key.startswith("sk_")
 
@@ -81,7 +78,6 @@ class TestAPIKeyCreate:
         expires_at = datetime.now(timezone.utc) + timedelta(days=30)
         data = APIKeyCreate(
             name="Expiring Key",
-            scopes=[APIScope.SKILLS_READ],
             expires_at=expires_at
         )
 
@@ -93,32 +89,18 @@ class TestAPIKeyCreate:
         api_key_expires_naive = api_key.expires_at.replace(tzinfo=None) if api_key.expires_at.tzinfo else api_key.expires_at
         assert abs((api_key_expires_naive - expires_at_naive).total_seconds()) < 5
 
-    def test_create_api_key_invalid_scope(self, db: Session, test_user: User):
-        """Test API key creation with invalid scope fails."""
-        data = APIKeyCreate(
-            name="Invalid Scope Key",
-            scopes=["invalid:scope"]
-        )
-
-        with pytest.raises(ValidationException) as exc:
-            APIKeyService.create(db, test_user, data)
-
-        assert "Invalid scopes" in str(exc.value)
-
     def test_create_api_key_max_keys_limit(self, db: Session, test_user: User):
         """Test that max active keys limit is enforced."""
         # Create MAX_ACTIVE_KEYS keys
         for i in range(APIKeyService.MAX_ACTIVE_KEYS):
             data = APIKeyCreate(
-                name=f"Key {i}",
-                scopes=[APIScope.SKILLS_READ]
+                name=f"Key {i}"
             )
             APIKeyService.create(db, test_user, data)
 
         # Try to create one more
         data = APIKeyCreate(
-            name="Extra Key",
-            scopes=[APIScope.SKILLS_READ]
+            name="Extra Key"
         )
 
         with pytest.raises(ValidationException) as exc:
@@ -140,7 +122,7 @@ class TestAPIKeyList:
         """Test listing API keys returns user's keys only."""
         # Create keys for test user
         for i in range(3):
-            data = APIKeyCreate(name=f"Key {i}", scopes=[APIScope.SKILLS_READ])
+            data = APIKeyCreate(name=f"Key {i}")
             APIKeyService.create(db, test_user, data)
 
         keys = APIKeyService.list_by_user(db, str(test_user.id))
@@ -150,7 +132,7 @@ class TestAPIKeyList:
         """Test pagination of API key listing."""
         # Create 5 keys
         for i in range(5):
-            data = APIKeyCreate(name=f"Key {i}", scopes=[APIScope.SKILLS_READ])
+            data = APIKeyCreate(name=f"Key {i}")
             APIKeyService.create(db, test_user, data)
 
         # Get first page
@@ -164,8 +146,8 @@ class TestAPIKeyList:
     def test_list_by_user_returns_newest_first(self, db: Session, test_user: User):
         """Test that keys are ordered by creation date descending."""
         # Create keys with delays
-        key1, _ = APIKeyService.create(db, test_user, APIKeyCreate(name="Key 1", scopes=[APIScope.SKILLS_READ]))
-        key2, _ = APIKeyService.create(db, test_user, APIKeyCreate(name="Key 2", scopes=[APIScope.SKILLS_READ]))
+        key1, _ = APIKeyService.create(db, test_user, APIKeyCreate(name="Key 1"))
+        key2, _ = APIKeyService.create(db, test_user, APIKeyCreate(name="Key 2"))
 
         keys = APIKeyService.list_by_user(db, str(test_user.id))
         assert keys[0].id == key2.id  # Newest first
@@ -179,7 +161,7 @@ class TestAPIKeyGet:
         """Test getting API key by ID."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         retrieved_key = APIKeyService.get_by_id(db, created_key.id, str(test_user.id))
@@ -198,7 +180,7 @@ class TestAPIKeyGet:
         """Test getting another user's API key raises error."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         with pytest.raises(NotFoundException):
@@ -212,7 +194,7 @@ class TestAPIKeyUpdate:
         """Test updating API key name."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Old Name", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Old Name")
         )
 
         updated_key = APIKeyService.update(
@@ -221,28 +203,12 @@ class TestAPIKeyUpdate:
         )
 
         assert updated_key.name == "New Name"
-        assert updated_key.scopes == created_key.scopes  # Scopes unchanged
-
-    def test_update_scopes(self, db: Session, test_user: User):
-        """Test updating API key scopes."""
-        created_key, _ = APIKeyService.create(
-            db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
-        )
-
-        updated_key = APIKeyService.update(
-            db, created_key.id, str(test_user.id),
-            APIKeyUpdate(scopes=[APIScope.SKILLS_READ, APIScope.SKILLS_CALL])
-        )
-
-        assert len(updated_key.scopes) == 2
-        assert APIScope.SKILLS_CALL in updated_key.scopes
 
     def test_update_expiration(self, db: Session, test_user: User):
         """Test updating API key expiration."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         new_expires_at = datetime.now(timezone.utc) + timedelta(days=60)
@@ -261,7 +227,7 @@ class TestAPIKeyUpdate:
         """Test deactivating API key via update."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         updated_key = APIKeyService.update(
@@ -275,7 +241,7 @@ class TestAPIKeyUpdate:
         """Test re-enabling a previously disabled API key."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         APIKeyService.update(
@@ -295,14 +261,14 @@ class TestAPIKeyUpdate:
 
         first_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="First Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="First Key")
         )
         APIKeyService.update(
             db, first_key.id, str(test_user.id), APIKeyUpdate(is_active=False)
         )
         APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Second Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Second Key")
         )
 
         with pytest.raises(ValidationException) as exc:
@@ -312,22 +278,6 @@ class TestAPIKeyUpdate:
 
         assert "Maximum 1 active API keys allowed" in str(exc.value)
 
-    def test_update_invalid_scopes(self, db: Session, test_user: User):
-        """Test update with invalid scopes raises error."""
-        created_key, _ = APIKeyService.create(
-            db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
-        )
-
-        with pytest.raises(ValidationException) as exc:
-            APIKeyService.update(
-                db, created_key.id, str(test_user.id),
-                APIKeyUpdate(scopes=["invalid:scope"])
-            )
-
-        assert "Invalid scopes" in str(exc.value)
-
-
 class TestAPIKeyRevoke:
     """Test suite for API key revocation."""
 
@@ -335,7 +285,7 @@ class TestAPIKeyRevoke:
         """Test revoking an API key."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         revoked_key = APIKeyService.revoke(db, created_key.id, str(test_user.id))
@@ -347,7 +297,7 @@ class TestAPIKeyRevoke:
         """Test revoking an already revoked key."""
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         # Revoke once
@@ -365,7 +315,7 @@ class TestAPIKeyDelete:
         """Deleting an API key permanently removes it from storage."""
         created_key, full_key = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         APIKeyService.delete(db, created_key.id, str(test_user.id))
@@ -384,13 +334,12 @@ class TestAPIKeyRotate:
         """Test rotating an API key generates new key."""
         created_key, old_key = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         # Store original prefix before rotation
         original_prefix = created_key.key_prefix
         original_name = created_key.name
-        original_scopes = created_key.scopes
 
         rotated_key, new_key = APIKeyService.rotate(db, created_key.id, str(test_user.id))
 
@@ -400,9 +349,8 @@ class TestAPIKeyRotate:
         # Prefix should be different from the original
         assert rotated_key.key_prefix != original_prefix
 
-        # Name, scopes, expiration should be preserved
+        # Name and expiration should be preserved
         assert rotated_key.name == original_name
-        assert rotated_key.scopes == original_scopes
         assert rotated_key.is_active is True
         assert rotated_key.id == created_key.id  # Same record
 
@@ -411,7 +359,7 @@ class TestAPIKeyRotate:
         expires_at = datetime.now(timezone.utc) + timedelta(days=30)
         created_key, _ = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ], expires_at=expires_at)
+            APIKeyCreate(name="Test Key", expires_at=expires_at)
         )
 
         rotated_key, _ = APIKeyService.rotate(db, created_key.id, str(test_user.id))
@@ -430,7 +378,7 @@ class TestAPIKeyAuthentication:
         """Test authenticating with valid API key."""
         _, full_key = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         authenticated_key = APIKeyService.authenticate(db, full_key)
@@ -443,7 +391,7 @@ class TestAPIKeyAuthentication:
         """Test that authentication updates last_used_at timestamp."""
         created_key, full_key = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         assert created_key.last_used_at is None
@@ -463,7 +411,7 @@ class TestAPIKeyAuthentication:
         """Test authenticating with inactive key returns None."""
         created_key, full_key = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
+            APIKeyCreate(name="Test Key")
         )
 
         # Revoke the key
@@ -478,7 +426,7 @@ class TestAPIKeyAuthentication:
         expires_at = datetime.now(timezone.utc) - timedelta(hours=1)
         created_key, full_key = APIKeyService.create(
             db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ], expires_at=expires_at)
+            APIKeyCreate(name="Test Key", expires_at=expires_at)
         )
 
         # Force refresh to see the actual stored value
@@ -487,55 +435,3 @@ class TestAPIKeyAuthentication:
         result = APIKeyService.authenticate(db, full_key)
         assert result is None
 
-
-class TestAPIKeyScopes:
-    """Test suite for API key scope checking."""
-
-    def test_has_scope_true(self, db: Session, test_user: User):
-        """Test checking existing scope returns True."""
-        created_key, _ = APIKeyService.create(
-            db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ, APIScope.SKILLS_CALL])
-        )
-
-        assert APIKeyService.has_scope(created_key, APIScope.SKILLS_READ) is True
-        assert APIKeyService.has_scope(created_key, APIScope.SKILLS_CALL) is True
-
-    def test_has_scope_false(self, db: Session, test_user: User):
-        """Test checking non-existing scope returns False."""
-        created_key, _ = APIKeyService.create(
-            db, test_user,
-            APIKeyCreate(name="Test Key", scopes=[APIScope.SKILLS_READ])
-        )
-
-        assert APIKeyService.has_scope(created_key, APIScope.SKILLS_CALL) is False
-        assert APIKeyService.has_scope(created_key, APIScope.RESOURCES_WRITE) is False
-
-
-class TestAPIScope:
-    """Test suite for APIScope utility class."""
-
-    def test_all_scopes_returns_valid_list(self):
-        """Test that all_scopes returns non-empty list."""
-        scopes = APIScope.all_scopes()
-        assert len(scopes) > 0
-        assert APIScope.SKILLS_READ in scopes
-        assert APIScope.RESOURCES_READ in scopes
-
-    def test_validate_scopes_with_valid_scopes(self):
-        """Test validating valid scopes returns them."""
-        scopes = [APIScope.SKILLS_READ, APIScope.RESOURCES_READ]
-        result = APIScope.validate_scopes(scopes)
-        assert result == scopes
-
-    def test_validate_scopes_with_invalid_scopes(self):
-        """Test validating invalid scopes raises ValueError."""
-        with pytest.raises(ValueError) as exc:
-            APIScope.validate_scopes(["invalid:scope"])
-
-        assert "Invalid scopes" in str(exc.value)
-
-    def test_validate_scopes_with_mixed_scopes(self):
-        """Test validating mixed valid/invalid scopes raises error."""
-        with pytest.raises(ValueError):
-            APIScope.validate_scopes([APIScope.SKILLS_READ, "invalid:scope"])

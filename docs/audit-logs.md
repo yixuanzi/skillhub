@@ -108,8 +108,7 @@ curl -X GET "https://api.skillhub.com/api/v1/audit-logs/{log_id}/" \
       "resource_type": "api_key",
       "resource_id": "key-uuid",
       "details": {
-        "key_name": "Production Key",
-        "scopes": ["skills:call"]
+        "key_name": "Production Key"
       },
       "ip_address": "192.168.1.1",
       "user_agent": "Mozilla/5.0...",
