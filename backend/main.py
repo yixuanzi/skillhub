@@ -5,6 +5,7 @@ import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from starlette.routing import Route
 from config import settings
 from database import init_db
 from api.auth import router as auth_router
@@ -19,6 +20,7 @@ from api.user_management import router as user_management_router, role_router, p
 from api.skill_creator import router as skill_creator_router
 from api.script import router as script_router
 from api.sso import router as sso_router
+from api.mcp_server import skillhub_mcp_app, MCP_PATH
 from middleware.audit_middleware import audit_middleware
 from tasks.audit_cleanup import audit_log_cleanup_task
 
@@ -29,13 +31,17 @@ async def lifespan(app: FastAPI):
     # Startup
     init_db()
     cleanup_task = asyncio.create_task(audit_log_cleanup_task())
-    yield
-    # Shutdown
-    cleanup_task.cancel()
     try:
-        await cleanup_task
-    except asyncio.CancelledError:
-        pass
+        # The MCP endpoint needs its session manager running for the app's lifetime.
+        async with skillhub_mcp_app.run():
+            yield
+    finally:
+        # Shutdown
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(
@@ -71,6 +77,12 @@ app.include_router(permission_router, prefix="/api/v1")
 app.include_router(skill_creator_router, prefix="/api/v1")
 app.include_router(script_router, prefix="/api/v1")
 app.include_router(sso_router, prefix="/api/v1")
+
+# MCP server (Streamable HTTP). Registered as plain routes rather than a mount so
+# the endpoint answers at exactly /api/v1/mcp - a mount would 307-redirect to the
+# trailing-slash form, which MCP clients do not reliably follow on POST.
+app.router.routes.append(Route(MCP_PATH, endpoint=skillhub_mcp_app))
+app.router.routes.append(Route(MCP_PATH + "/", endpoint=skillhub_mcp_app))
 
 
 @app.get("/")

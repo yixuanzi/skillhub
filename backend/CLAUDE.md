@@ -91,6 +91,7 @@ backend/
 │   ├── skill_list.py # Skill marketplace
 │   ├── skill_creator.py # Skill content generation
 │   ├── script.py     # Script serving (no auth required)
+│   ├── mcp_server.py # SkillHub's own MCP server (Streamable HTTP, /api/v1/mcp)
 │   ├── api_key.py    # API key management
 │   ├── mtoken.py     # Managed tokens
 │   ├── audit_log.py  # System audit logs
@@ -277,6 +278,20 @@ Users with `admin` or `super_admin` roles have:
 
 ### Script
 - `GET /api/v1/script/bash` - Download skillhub.sh CLI tool (no auth required)
+
+### MCP Server
+- `POST /api/v1/mcp` - SkillHub as a standard MCP server (Streamable HTTP,
+  stateless, JSON responses). Auth is `Authorization: Bearer <API key | JWT>`;
+  without a token only `list`/`install` of public skills work, and an invalid
+  token is rejected with 401.
+- Tools mirror the `scripts/skillhub` CLI one-to-one, with the same argument
+  names: `list`, `install`, `getme`, `third`, `gateway`, `mcp`,
+  `composio_search`, `composio_schema`, `composio_exec`. They call the same
+  service layer as the REST routes, so ACL enforcement is identical. When a CLI
+  command or flag changes, update `api/mcp_server.py` (and its tool table in
+  the frontend's Settings > MCP tab) to match.
+- Not to be confused with `services/mcp_service.py`, which is the MCP *client*
+  used to call MCP-type resources.
 
 ### User Management
 - `GET /api/v1/users/` - List users

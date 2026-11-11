@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Settings, Key, FileText } from 'lucide-react';
+import { Settings, Key, FileText, Plug } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { APIKeysPage } from './APIKeysPage';
 import { AuditLogsPage } from './AuditLogsPage';
+import { McpGuidePage } from './McpGuidePage';
 
 interface TabType {
   id: string;
@@ -14,6 +15,7 @@ interface TabType {
 const tabs: TabType[] = [
   { id: 'api-keys', label: 'API Keys', icon: Key },
   { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
+  { id: 'mcp', label: 'MCP', icon: Plug },
 ];
 const validTabIds = tabs.map((tab) => tab.id);
 
@@ -41,7 +43,7 @@ export const SettingsPage = () => {
           <h1 className="font-display text-3xl font-bold text-gray-100">Settings</h1>
         </div>
         <p className="font-mono text-sm text-gray-500">
-          Manage your API keys and review audit logs
+          Manage your API keys, review audit logs and connect agents over MCP
         </p>
       </div>
 
@@ -71,6 +73,7 @@ export const SettingsPage = () => {
       {/* Tab Content */}
       {currentTab === 'api-keys' && <APIKeysPage />}
       {currentTab === 'audit-logs' && <AuditLogsPage />}
+      {currentTab === 'mcp' && <McpGuidePage />}
     </div>
   );
 };
