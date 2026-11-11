@@ -241,7 +241,12 @@ pip install -r requirements.txt
 DATABASE_URL=sqlite:///./data/skillhub.db
 
 # JWT 密钥（生产环境请修改）
-SECRET_KEY=your-secret-key-change-in-production
+# 必填：使用占位值或短于 32 个字符的密钥时服务拒绝启动。生成方式：
+#   python -c "import secrets; print(secrets.token_urlsafe(48))"
+SECRET_KEY=<粘贴生成的值>
+
+# 允许资源访问的内网目标（JSON 数组：CIDR、主机名或 "*.后缀"）。默认只允许公网地址。
+GATEWAY_ALLOWED_HOSTS=[]
 
 # Token 过期时间（分钟）
 ACCESS_TOKEN_EXPIRE_MINUTES=60
@@ -305,7 +310,11 @@ python main.py
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `DATABASE_URL` | 数据库连接字符串 | `sqlite:///./data/skillhub.db` |
-| `SECRET_KEY` | JWT 加密密钥 | `your-secret-key-change-in-production` |
+| `SECRET_KEY` | JWT 签名密钥，必填。占位值或短于 32 个字符时服务拒绝启动 | 无可用默认值 |
+| `GATEWAY_ALLOWED_HOSTS` | 允许资源访问的内网目标（CIDR、主机名、`*.后缀`），JSON 数组 | `[]`（仅公网地址） |
+| `LOGIN_MAX_FAILURES` | 同一用户名在窗口期内允许的登录失败次数，0 为不限 | 5 |
+| `LOGIN_MAX_FAILURES_PER_IP` | 同一 IP 在窗口期内允许的登录失败次数，0 为不限 | 50 |
+| `LOGIN_FAILURE_WINDOW_SECONDS` | 登录失败计数的滑动窗口（秒） | 900 |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access Token 有效期（分钟） | 60 |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh Token 有效期（天） | 7 |
 | `CORS_ORIGINS` | 允许的 CORS 源 | `["http://localhost:5173"]` |

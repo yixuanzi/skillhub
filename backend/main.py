@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from starlette.routing import Route
 from config import settings
 from database import init_db
+from core.security import ensure_secret_key_is_safe
 from api.auth import router as auth_router
 from api.resource import router as resource_router
 from api.acl_resource import router as acl_resource_router
@@ -29,6 +30,7 @@ from tasks.audit_cleanup import audit_log_cleanup_task
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
     # Startup
+    ensure_secret_key_is_safe()
     init_db()
     cleanup_task = asyncio.create_task(audit_log_cleanup_task())
     try:

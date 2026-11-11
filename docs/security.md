@@ -21,6 +21,9 @@
 | ACL | ✅ | Any + RBAC 模式，决定资源能否被调用 |
 | 审计日志 | ✅ | 记录访问决策 |
 | HTTPS | ⚠️ | 开发环境 HTTP，生产环境需配置 |
+| 登录限流 | ✅ | 按用户名和 IP 统计失败次数 |
+| 出站地址限制 | ✅ | 资源不能指向本地或内网地址（SSRF 防护） |
+| 审计日志脱敏 | ✅ | 密码、令牌、凭证不落库 |
 | 多因素认证 | ❌ | 未实现 |
 | API 限流 | ✅ | 基础限流（内存） |
 | IP 白名单 | ✅ | ACL 条件支持 |
@@ -83,6 +86,19 @@ class AuthService:
             expires_in=900  # 15 分钟
         )
 ```
+
+**登录限流**（`backend/core/login_throttle.py`）：登录失败按 15 分钟滑动窗口计数，达到上限后返回 429 和 `Retry-After`，窗口滑过后自动恢复。
+
+| 维度 | 默认上限 | 配置项 | 作用 |
+|------|----------|--------|------|
+| 同一用户名（不区分大小写，不论来源 IP） | 5 次 | `LOGIN_MAX_FAILURES` | 防止针对单个账号猜密码 |
+| 同一客户端 IP | 50 次 | `LOGIN_MAX_FAILURES_PER_IP` | 防止同一来源遍历多个账号 |
+
+- 被限流期间即使密码正确也会被拒绝，否则限流只能减慢错误的猜测。
+- 登录成功会清零该用户名的计数；不存在的用户名同样计数。
+- 窗口长度由 `LOGIN_FAILURE_WINDOW_SECONDS` 控制，上限设为 0 表示关闭对应维度。
+- 计数保存在进程内存中：重启后清零；多 worker 部署时每个进程各自计数，实际上限会乘以进程数。
+- 有意接受的代价：知道用户名的人可以用错误密码让该账号暂时无法用密码登录（SSO 登录不受影响）。
 
 ### 2.3 JWT Token 生成
 
@@ -312,6 +328,8 @@ def parse_rate_limit(rate_limit: str) -> tuple:
 
 ## 5. 审计日志
 
+> **敏感信息脱敏**：审计中间件会记录请求体和查询参数，写入前统一经过 `backend/core/redaction.py` 处理，密码、令牌、密钥、上游凭证等一律替换为 `***`，无法逐字段检查的原始文本不落库。规则详见 [audit-logs.md](audit-logs.md) 的 “Sensitive Data Handling”。脱敏上线之前写入的记录用 `python scripts/redact_audit_logs.py --apply` 清理；清理不等于没泄露过，被记录过的密码和令牌应当更换。
+
 ### 5.1 日志记录
 
 ```python
@@ -503,17 +521,49 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 ### 8.1 环境变量
 
 ```bash
-# .env (不提交到 Git)
-DATABASE_URL=sqlite:///data/skillhub.db
-JWT_SECRET_KEY=change-this-in-production-use-openssl-rand-base64-32
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=15
+# backend/.env (不提交到 Git)
+DATABASE_URL=sqlite:///./data/skillhub.db
+SECRET_KEY=<随机字符串，至少 32 个字符>
+ACCESS_TOKEN_EXPIRE_MINUTES=60
 REFRESH_TOKEN_EXPIRE_DAYS=7
-
-# 生产环境
-# JWT_SECRET_KEY 应该使用强随机字符串
-# 生成方式: openssl rand -base64 32
+GATEWAY_ALLOWED_HOSTS=[]
 ```
+
+**签名密钥检查**：`SECRET_KEY` 用于签发所有访问令牌和刷新令牌，知道它的人可以伪造任意用户（包括 `super_admin`）的登录态。服务启动时会检查（`core/security.ensure_secret_key_is_safe`），遇到以下情况直接拒绝启动：
+
+- 仍是仓库里的占位值（如 `your-secret-key-change-in-production`）
+- 长度不足 32 个字符
+
+生成方式：
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+更换密钥会使已签发的令牌全部失效，用户需要重新登录。
+
+### 8.1.1 出站地址限制（SSRF 防护）
+
+任何登录用户都能创建资源并让网关代为请求其地址，所以资源的目标地址必须受限（`backend/core/url_guard.py`）：
+
+- 只允许 `http` / `https`。
+- 默认只允许公网可路由的地址。回环、私网（10/8、172.16/12、192.168/16）、链路本地（含云厂商元数据地址 169.254.169.254）、IPv6 本地地址、运营商级 NAT 等一律拒绝。
+- 需要访问内网服务时，由管理员在 `GATEWAY_ALLOWED_HOSTS` 中显式放行，JSON 数组，条目可以是：
+  - CIDR 或单个 IP：`"10.20.0.0/16"`
+  - 主机名：`"billing.internal"`（该名称无论解析到哪里都放行）
+  - 通配后缀：`"*.corp.example.com"`
+  - `"*"`：完全关闭检查，仅用于开发环境
+
+检查发生在两个时机：
+
+| 时机 | 做什么 |
+|------|--------|
+| 保存资源（创建、修改） | 不做 DNS 解析，直接拒绝协议不对、字面量为本地或私网 IP、`localhost` 的地址 |
+| 每次调用前（gateway、third、mcp） | 解析域名，解析结果中只要有一个地址不被允许就拒绝，请求不会发出 |
+
+对调用方的报错不包含解析出的 IP，避免被用来探测内网 DNS；具体地址记录在服务端日志里。
+
+已知局限：HTTP 客户端建立连接时会再解析一次域名，检查与连接之间如果 DNS 记录被切换（DNS rebinding），这里拦不住。网关不跟随重定向，所以公网地址无法把请求跳转到内网。
 
 ### 8.2 CORS 配置
 
@@ -591,14 +641,17 @@ user = db.query(User).filter(User.username == username).first()
 
 | 配置 | 开发环境 | 生产环境 |
 |------|----------|----------|
-| JWT_SECRET_KEY | 简单字符串 | 强随机字符串 |
+| SECRET_KEY | 随机字符串（占位值无法启动） | 独立生成的强随机字符串 |
+| GATEWAY_ALLOWED_HOSTS | 按需放行本机或内网 | 只放行确实需要的内网目标 |
 | 数据库密码 | 无 | 强密码 |
 | HTTPS | HTTP | HTTPS |
 | CORS | 允许所有源 | 限制源 |
 
 ### 10.2 部署前检查清单
 
-- [ ] 修改 JWT_SECRET_KEY
+- [ ] 设置独立生成的 SECRET_KEY
+- [ ] 核对 GATEWAY_ALLOWED_HOSTS 只包含必要的内网目标
+- [ ] 修改默认管理员密码（`admin / admin123`）
 - [ ] 启用 HTTPS
 - [ ] 配置 CORS 白名单
 - [ ] 配置 TrustedHost

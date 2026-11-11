@@ -610,10 +610,9 @@ class TestEdgeCases:
 
         assert response.status_code == 422  # Validation error
 
-    def test_multiple_failed_logins(self, client: TestClient, test_user: User):
-        """Test multiple failed login attempts."""
-        # Attempt multiple failed logins
-        for i in range(5):
+    def test_a_few_failed_logins_do_not_lock_the_account(self, client: TestClient, test_user: User):
+        """Below the limit (LOGIN_MAX_FAILURES, 5 by default) the correct password still works."""
+        for i in range(4):
             response = client.post(
                 "/api/v1/auth/login",
                 json={
@@ -623,8 +622,6 @@ class TestEdgeCases:
             )
             assert response.status_code == 401
 
-        # Verify correct password still works
-        # (no rate limiting in MVP, but good to verify)
         response = client.post(
             "/api/v1/auth/login",
             json={

@@ -14,8 +14,23 @@ class Settings(BaseSettings):
     ANTHROPIC_BASE_URL:str=""
     ANTHROPIC_AUTH_TOKEN:str=""
     GATEWAY_FORCE_PLAINTEXT: bool = False
+    # Outbound targets that resources may point at even though they are not
+    # publicly routable (see core/url_guard.py). By default the gateway refuses
+    # loopback, private, link-local and other non-public addresses, so that a
+    # resource cannot be used to reach the internal network. Entries are CIDRs
+    # or IPs ("10.20.0.0/16"), hostnames ("billing.internal"), wildcard
+    # suffixes ("*.corp.example.com"), or "*" to disable the check.
+    GATEWAY_ALLOWED_HOSTS: List[str] = []
     SKIP_VERIFY: bool = False
     AUDIT_LOG_RETENTION_DAYS: int = 120
+
+    # Password login throttling (core/login_throttle.py). Failed logins are
+    # counted over a sliding window, per username and per client IP; at the
+    # limit further attempts get 429 until the window moves on. 0 disables a
+    # limit. The per-IP limit is higher because many users can share an address.
+    LOGIN_MAX_FAILURES: int = 5
+    LOGIN_MAX_FAILURES_PER_IP: int = 50
+    LOGIN_FAILURE_WINDOW_SECONDS: int = 900
 
     # MCP client cache: entries are keyed per (resource, user) so each user's
     # resolved token never leaks to another user. TTL bounds how long a stale

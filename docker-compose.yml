@@ -21,7 +21,11 @@ services:
       - DATABASE_URL=sqlite:///./data/skillhub.db
 
       # Security (CHANGE IN PRODUCTION!)
-      - SECRET_KEY=your-secret-key-change-in-production
+      # Required: the server refuses to start with a placeholder or short key.
+      # Generate one with: python -c "import secrets; print(secrets.token_urlsafe(48))"
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in .env to a private random value}
+      # Internal targets that resources may call, as a JSON list (default: none).
+      - GATEWAY_ALLOWED_HOSTS=${GATEWAY_ALLOWED_HOSTS:-[]}
 
       # CORS Origins
       - CORS_ORIGINS=["http://localhost","http://localhost:80"]

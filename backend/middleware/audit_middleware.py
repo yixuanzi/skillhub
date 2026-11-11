@@ -4,6 +4,10 @@ This middleware logs all HTTP requests to the system audit logs for
 security monitoring, compliance, and debugging.
 
 Supports logging of both GET query parameters and POST body content.
+
+Everything recorded goes through core.redaction first: request bodies carry
+passwords, token values and upstream credentials, and audit logs are readable
+by every admin.
 """
 from fastapi import Request
 from sqlalchemy.orm import Session
@@ -16,6 +20,7 @@ import hashlib
 
 from database import get_db
 from services.system_audit_log_service import SystemAuditLogService
+from core.redaction import redact_request
 from core.security import verify_token
 from core.deps import get_current_user
 
@@ -53,9 +58,10 @@ async def _parse_body_for_logging(content_type: str, body_bytes: bytes) -> Dict[
     body_info = {"body_type": content_type}
 
     if len(body_bytes) > MAX_BODY_LOG_SIZE:
+        # No preview: a cut-off body cannot be parsed, so it cannot be
+        # redacted field by field either.
         body_info["truncated"] = True
         body_info["content_length"] = len(body_bytes)
-        body_info["preview"] = body_bytes[:MAX_BODY_LOG_SIZE].decode("utf-8", errors="ignore") + "..."
         return body_info
 
     try:
@@ -73,10 +79,8 @@ async def _parse_body_for_logging(content_type: str, body_bytes: bytes) -> Dict[
 
         # Other content types - store as text
         else:
-            try:
-                body_info["text"] = body_bytes.decode("utf-8")
-            except UnicodeDecodeError:
-                body_info["bytes_length"] = len(body_bytes)
+            # Free text has no fields to redact, so only its size is kept.
+            body_info["bytes_length"] = len(body_bytes)
 
     except Exception as e:
         body_info["parse_error"] = str(e)
@@ -218,6 +222,9 @@ async def audit_middleware(request: Request, call_next):
         # Add body info
         if body_info:
             details["body"] = body_info
+
+        # Passwords, token values and upstream credentials must never be stored.
+        details = redact_request(request.url.path, details)
 
         # Log the request
         SystemAuditLogService.log_action(

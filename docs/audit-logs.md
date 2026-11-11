@@ -148,16 +148,26 @@ Logs older than the retention period should be archived or deleted via a schedul
 
 ## Sensitive Data Handling
 
-Certain fields are automatically redacted from audit logs to prevent sensitive data exposure:
+Request bodies and query strings are redacted before they are stored
+(`backend/core/redaction.py`); secrets are replaced with `***`:
 
-- Passwords
-- Tokens
-- Secrets
+- Any field whose name contains `password`, `secret`, `token`, `authorization`,
+  `credential`, `api_key` / `api-key`, `private_key` or `cookie`, at any depth.
+- Every string under a `headers` or `ext` object (upstream credentials), except
+  values that are only a `{placeholder}` naming a managed token.
+- `value` on the managed-token endpoints, and `code` / `state` / `ticket` on the
+  SSO endpoints.
+- JSON passed as a string (for example a tool's `inputs`) is parsed and redacted
+  the same way.
+- Bodies that cannot be inspected field by field are not stored at all: only the
+  size of a non-JSON, non-form body or of a body over 10 KB is kept.
 
-Configure sensitive fields via environment variable:
-```
-AUDIT_LOG_SENSITIVE_FIELDS=password,token,secret,api_key
-```
+The list of field names is fixed in code, not configurable.
+
+Rows written before redaction existed can be cleaned with
+`python scripts/redact_audit_logs.py` (dry run) and `--apply`. It rewrites only
+the `details` of affected rows and vacuums SQLite afterwards. Cleaning the rows
+does not un-leak them: change any password or token that had been logged.
 
 ## Performance Considerations
 
@@ -187,7 +197,6 @@ Certain paths are excluded from audit logging to reduce noise:
 | `AUDIT_LOG_ENABLED` | `true` | Enable/disable audit logging |
 | `AUDIT_LOG_RETENTION_DAYS` | `90` | Days to retain logs |
 | `AUDIT_LOG_ASYNC` | `true` | Use async logging |
-| `AUDIT_LOG_SENSITIVE_FIELDS` | `password,token,secret` | Fields to redact |
 
 ## Security
 

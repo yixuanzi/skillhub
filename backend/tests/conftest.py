@@ -6,6 +6,10 @@ import os
 # sqlite file the dev server uses — and setup_database()/db() below drop and
 # wipe it on every test run.
 os.environ.setdefault("DATABASE_URL", "sqlite:///./data/test_skillhub.db")
+# The app refuses to start with the placeholder SECRET_KEY (see
+# core.security.ensure_secret_key_is_safe); tests that run the lifespan need a
+# real-looking one. Same import-order constraint as DATABASE_URL above.
+os.environ.setdefault("SECRET_KEY", "test-only-secret-key-not-for-production-0123456789")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,6 +37,30 @@ def setup_database():
     yield
     # Clean up after all tests
     Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture(autouse=True)
+def reset_login_throttle():
+    """Failed logins are counted in process memory; do not let one test's
+    wrong passwords lock the shared test usernames out of the next test."""
+    from core.login_throttle import login_throttle
+
+    login_throttle.reset()
+    yield
+    login_throttle.reset()
+
+
+@pytest.fixture(autouse=True)
+def offline_dns(monkeypatch):
+    """The outbound URL guard resolves hostnames before each call. Tests use
+    made-up names (api.example.com, ...), so answer with a public address
+    instead of asking a real resolver. Tests of the guard itself override this."""
+    from core import url_guard
+
+    async def resolve(host, port):
+        return ["93.184.216.34"]
+
+    monkeypatch.setattr(url_guard, "_resolve", resolve)
 
 
 @pytest.fixture(scope="function")

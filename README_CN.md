@@ -173,7 +173,12 @@ npm run dev
 DATABASE_URL=sqlite:///./data/skillhub.db
 
 # JWT 密钥（生产环境请修改）
-SECRET_KEY=your-secret-key-change-in-production
+# 必填：使用占位值或短于 32 个字符的密钥时服务拒绝启动。生成方式：
+#   python -c "import secrets; print(secrets.token_urlsafe(48))"
+SECRET_KEY=<粘贴生成的值>
+
+# 允许资源访问的内网目标（JSON 数组：CIDR、主机名或 "*.后缀"）。默认只允许公网地址。
+GATEWAY_ALLOWED_HOSTS=[]
 
 # Token 过期时间
 ACCESS_TOKEN_EXPIRE_MINUTES=60

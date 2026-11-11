@@ -16,6 +16,7 @@ from models.acl import ACLRule, AccessMode
 from schemas.resource import ResourceCreate, ResourceUpdate, ResourceResponse
 from core.exceptions import ValidationException, NotFoundException
 from core.roles import ADMIN_ROLES
+from core.url_guard import check_url
 from typing import Optional, List
 import json
 import re
@@ -60,6 +61,26 @@ def _redact_ext(value):
     if isinstance(value, str):
         return value if _PLACEHOLDER_ONLY.match(value) else REDACTED
     return value
+
+
+def _check_outbound_targets(resource_type, url: Optional[str], ext) -> None:
+    """Reject a resource whose target the gateway would refuse to call.
+
+    Gateway and third resources are called at `url`, MCP resources at
+    `ext["endpoint"]`. This is the early, DNS-free half of the SSRF guard
+    (core/url_guard.py); the authoritative check happens at call time.
+    """
+    type_value = getattr(resource_type, "value", resource_type)
+    if type_value in (ResourceType.GATEWAY.value, ResourceType.THIRD.value):
+        if url:
+            check_url(url, "Resource URL")
+    elif type_value == ResourceType.MCP.value:
+        # Same two shapes MCPService.parse_mcp_config accepts: the config
+        # directly in ext, or nested under ext["mcp_config"].
+        config = ext.get("mcp_config", ext) if isinstance(ext, dict) else None
+        endpoint = config.get("endpoint") if isinstance(config, dict) else None
+        if endpoint:
+            check_url(endpoint, "MCP endpoint")
 
 
 def _can_write(resource: Resource, user: Optional[User]) -> bool:
@@ -143,6 +164,8 @@ class ResourceService:
 
         if resource_data.type == ResourceType.COMPOSIO:
             ResourceService._ensure_composio_singleton(db)
+
+        _check_outbound_targets(resource_data.type, resource_data.url, resource_data.ext)
 
         # Get view_scope value (Pydantic schema has default value)
         view_scope = resource_data.view_scope.value if resource_data.view_scope else "private"
@@ -531,6 +554,14 @@ class ResourceService:
                 raise ValidationException(f"Resource with name '{resource_data.name}' already exists")
             resource.name = resource_data.name
 
+        # Only what this update changes is re-checked; a target saved before
+        # the guard existed is still refused when it is called.
+        _check_outbound_targets(
+            resource_data.type if resource_data.type is not None else resource.type,
+            resource_data.url,
+            resource_data.ext,
+        )
+
         # 更新字段
         if resource_data.desc is not None:
             resource.desc = resource_data.desc
@@ -735,6 +766,14 @@ class ResourceService:
             if existing:
                 raise ValidationException(f"Resource with name '{resource_data.name}' already exists")
             resource.name = resource_data.name
+
+        # Only what this update changes is re-checked; a target saved before
+        # the guard existed is still refused when it is called.
+        _check_outbound_targets(
+            resource_data.type if resource_data.type is not None else resource.type,
+            resource_data.url,
+            resource_data.ext,
+        )
 
         # 更新字段
         if resource_data.desc is not None:

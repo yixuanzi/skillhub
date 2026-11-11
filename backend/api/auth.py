@@ -7,7 +7,7 @@ This module provides FastAPI endpoints for authentication operations including:
 - User logout
 - Current user info retrieval
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Annotated
@@ -27,6 +27,7 @@ from services.auth_service import AuthService
 from core.deps import get_current_active_user
 from models.user import User
 from core.exceptions import AuthException, ValidationException, NotFoundException
+from core.login_throttle import login_throttle
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -61,6 +62,7 @@ async def register(
 @router.post("/login/", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def login(
     login_data: LoginRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """Authenticate user and return JWT tokens.
@@ -74,16 +76,33 @@ async def login(
 
     Raises:
         HTTPException 401: If credentials are invalid or user is inactive
+        HTTPException 429: If there were too many failed attempts for this
+            username or from this address (see core/login_throttle.py)
     """
+    client_ip = request.client.host if request.client else None
+
+    # Checked before the password, so that a correct guess does not get
+    # through while the account is being hammered.
+    retry_after = login_throttle.retry_after(login_data.username, client_ip)
+    if retry_after:
+        minutes = max(1, round(retry_after / 60))
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed login attempts. Try again in about {minutes} minute(s).",
+            headers={"Retry-After": str(retry_after)}
+        )
+
     try:
         # Authenticate user
         user = AuthService.authenticate(db, login_data.username, login_data.password)
+        login_throttle.record_success(login_data.username)
 
         # Create tokens
         tokens = AuthService.create_tokens(db, user)
         return tokens
 
     except AuthException as e:
+        login_throttle.record_failure(login_data.username, client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),

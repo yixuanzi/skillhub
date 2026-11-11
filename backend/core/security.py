@@ -8,6 +8,43 @@ from config import settings
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# SECRET_KEY signs every access and refresh token: whoever knows it can mint a
+# token for any user, including a super_admin. These are the values that ship
+# in the repository and its docs, so they are public knowledge.
+PLACEHOLDER_SECRET_KEYS = frozenset({
+    "your-secret-key-change-in-production",
+    "your-secret-key",
+    "change-me",
+    "changeme",
+    "secret",
+})
+MIN_SECRET_KEY_LENGTH = 32
+
+
+def ensure_secret_key_is_safe() -> None:
+    """Refuse to serve with a SECRET_KEY that is a known placeholder or too short.
+
+    Called once at startup. Raising here stops the server instead of letting it
+    run with tokens anyone could forge.
+
+    Raises:
+        RuntimeError: If SECRET_KEY is unset, a shipped placeholder, or shorter
+            than MIN_SECRET_KEY_LENGTH characters.
+    """
+    key = (settings.SECRET_KEY or "").strip()
+    if key.lower() in PLACEHOLDER_SECRET_KEYS:
+        problem = "is still the placeholder value from the repository"
+    elif len(key) < MIN_SECRET_KEY_LENGTH:
+        problem = f"is shorter than {MIN_SECRET_KEY_LENGTH} characters"
+    else:
+        return
+    raise RuntimeError(
+        f"Refusing to start: SECRET_KEY {problem}. It signs every login token, so "
+        "anyone who knows it can sign in as any user. Set a private random value in "
+        "the environment or .env, for example the output of:\n"
+        '    python -c "import secrets; print(secrets.token_urlsafe(48))"'
+    )
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against a hash.
