@@ -34,12 +34,6 @@ export const mapBackendUser = (response: BackendUserResponse): User => ({
   roles: response.roles.map(role => ({
     id: role.id,
     name: role.name,
-    permissions: role.permissions.map(perm => ({
-      id: perm.id,
-      resource: perm.resource,
-      action: perm.action,
-      conditions: perm.description ? { description: perm.description } : undefined,
-    })),
     createdAt: role.created_at,
   })),
   createdAt: response.created_at,

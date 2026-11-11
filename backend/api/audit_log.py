@@ -17,11 +17,10 @@ from schemas.audit_log import SystemAuditLogResponse, SystemAuditLogListResponse
 from services.system_audit_log_service import SystemAuditLogService
 from core.deps import get_current_active_user
 from models.user import User as UserModel
+from core.roles import ADMIN_ROLES
 
 router = APIRouter(prefix="/audit-logs", tags=["Audit Logs"])
 
-# Admin role names
-ADMIN_ROLES = {"admin", "super_admin"}
 
 
 def _is_admin_user(user: UserModel) -> bool:

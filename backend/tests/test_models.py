@@ -1,5 +1,5 @@
 import pytest
-from models.user import User, Role, Permission, RefreshToken
+from models.user import User, Role, RefreshToken
 from models.skill import Skill, SkillVersion, SkillType, SkillRuntime, SkillStatus
 from models.acl import ACLRule, ACLRuleRole, AuditLog, AccessMode, AuditResult
 from database import SessionLocal
@@ -24,7 +24,6 @@ def cleanup_db(db):
     db.query(Skill).delete()
     db.query(RefreshToken).delete()
     db.query(User).delete()
-    db.query(Permission).delete()
     db.query(Role).delete()
     db.commit()
     yield
@@ -45,25 +44,20 @@ def test_create_user(db):
     assert user.email == "test@example.com"
     assert user.is_active is True
 
-def test_create_role_with_permissions(db):
+def test_create_role(db):
     role = Role(name="admin", description="Administrator")
-    perm1 = Permission(resource="skills", action="read")
-    perm2 = Permission(resource="skills", action="write")
-
-    role.permissions.extend([perm1, perm2])
     db.add(role)
     db.commit()
     db.refresh(role)
 
-    assert len(role.permissions) == 2
-    assert "read" in [p.action for p in role.permissions]
-    assert "write" in [p.action for p in role.permissions]
+    assert role.id is not None
+    assert role.name == "admin"
+    # Roles are plain named groups: there is no permission matrix behind them.
+    assert not hasattr(role, "permissions")
 
 def test_user_role_relationship(db):
-    # Create role and permissions
+    # Create role
     role = Role(name="editor", description="Content editor")
-    perm = Permission(resource="skills", action="write")
-    role.permissions.append(perm)
     db.add(role)
     db.commit()
 
@@ -316,8 +310,8 @@ def test_acl_rule_with_multiple_roles(db):
     """Test ACL rule with multiple role bindings."""
     # Create roles
     admin_role = Role(name="admin", description="Administrator")
-    viewer_role = Role(name="viewer", description="Read-only access")
-    db.add_all([admin_role, viewer_role])
+    user_role = Role(name="user", description="Regular user")
+    db.add_all([admin_role, user_role])
     db.commit()
 
     rule = ACLRule(
@@ -337,7 +331,7 @@ def test_acl_rule_with_multiple_roles(db):
     )
     binding2 = ACLRuleRole(
         acl_rule_id=rule.id,
-        role_id=viewer_role.id,
+        role_id=user_role.id,
         permissions=["read"]
     )
     db.add_all([binding1, binding2])
@@ -346,9 +340,9 @@ def test_acl_rule_with_multiple_roles(db):
 
     assert len(rule.role_bindings) == 2
     admin_perms = [b.permissions for b in rule.role_bindings if b.role_id == admin_role.id][0]
-    viewer_perms = [b.permissions for b in rule.role_bindings if b.role_id == viewer_role.id][0]
+    user_perms = [b.permissions for b in rule.role_bindings if b.role_id == user_role.id][0]
     assert "delete" in admin_perms
-    assert "delete" not in viewer_perms
+    assert "delete" not in user_perms
 
 
 def test_audit_log_creation(db):

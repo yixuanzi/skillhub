@@ -20,8 +20,6 @@
 erDiagram
     USERS ||--o{ USER_ROLES : has
     USER_ROLES }o--|| ROLES : references
-    ROLES ||--o{ ROLE_PERMISSIONS : has
-    ROLE_PERMISSIONS }o--|| PERMISSIONS : references
 
     USERS ||--o{ SKILLS : creates
     SKILLS ||--o{ SKILL_VERSIONS : has
@@ -48,21 +46,9 @@ erDiagram
         TIMESTAMP created_at
     }
 
-    PERMISSIONS {
-        TEXT id PK
-        TEXT resource
-        TEXT action
-        TEXT description
-    }
-
     USER_ROLES {
         TEXT user_id FK
         TEXT role_id FK
-    }
-
-    ROLE_PERMISSIONS {
-        TEXT role_id FK
-        TEXT permission_id FK
     }
 
     SKILLS {
@@ -165,7 +151,9 @@ CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
 CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
 ```
 
-### 3.2 角色和权限表
+### 3.2 角色表
+
+角色只是“一组用户”的名字，不带任何权限点，因此没有权限表。授权模型见 [security.md](security.md) 第 3 节。
 
 #### roles（角色表）
 
@@ -176,29 +164,17 @@ CREATE TABLE roles (
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-
--- 预置角色
-INSERT INTO roles (id, name, description) VALUES
-    ('role-super-admin', 'super_admin', '超级管理员，拥有所有权限'),
-    ('role-admin', 'admin', '系统管理员'),
-    ('role-developer', 'developer', '开发者，可以构建和发布技能'),
-    ('role-operator', 'operator', '运营人员，可以调用技能'),
-    ('role-viewer', 'viewer', '只读用户');
 ```
 
-#### permissions（权限表）
+内置角色（由 `backend/scripts/seed_db.py` 创建，缺失时在首次需要时自动补建）：
 
-```sql
-CREATE TABLE permissions (
-    id TEXT PRIMARY KEY,                       -- UUID
-    resource TEXT NOT NULL,                    -- e.g., 'skills', 'users', 'acl'
-    action TEXT NOT NULL,                      -- e.g., 'read', 'write', 'delete', 'execute'
-    description TEXT,
-    UNIQUE(resource, action)
-);
+| name | 说明 |
+|------|------|
+| `super_admin` | 超级管理员 |
+| `admin` | 管理员 |
+| `user` | 普通用户，每个账号的默认角色 |
 
-CREATE INDEX idx_permissions_resource ON permissions(resource);
-```
+除此之外的角色都是管理员创建的自定义角色，只用于在 ACL 规则中成组授权。
 
 #### user_roles（用户角色关联表）
 
@@ -207,27 +183,12 @@ CREATE TABLE user_roles (
     user_id TEXT NOT NULL,
     role_id TEXT NOT NULL,
     PRIMARY KEY (user_id, role_id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (role_id) REFERENCES roles(id)
 );
-
-CREATE INDEX idx_user_roles_user_id ON user_roles(user_id);
-CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 ```
 
-#### role_permissions（角色权限关联表）
-
-```sql
-CREATE TABLE role_permissions (
-    role_id TEXT NOT NULL,
-    permission_id TEXT NOT NULL,
-    PRIMARY KEY (role_id, permission_id),
-    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
-    FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
-);
-
-CREATE INDEX idx_role_permissions_role_id ON role_permissions(role_id);
-```
+> 早期版本还有 `permissions` 和 `role_permissions` 两张表，以及 `developer`、`operator`、`viewer` 三个预置角色，它们从未参与过权限判断，现已移除。存量数据库用 `python scripts/migrate_roles.py` 迁移（默认只预演，加 `--apply` 才写入）：`viewer` 改名为 `user`，`developer`、`operator` 被删除、其成员改为 `user`，两张旧表被删除。
 
 ### 3.3 技能相关表
 
@@ -297,7 +258,7 @@ CREATE INDEX idx_acl_rules_access_mode ON acl_rules(access_mode);
 CREATE TABLE acl_rule_roles (
     acl_rule_id TEXT NOT NULL,
     role_id TEXT NOT NULL,
-    permissions TEXT NOT NULL,                -- JSON array: ['read', 'execute']
+    permissions TEXT,                         -- JSON array，可保存，尚未参与判断
     PRIMARY KEY (acl_rule_id, role_id),
     FOREIGN KEY (acl_rule_id) REFERENCES acl_rules(id) ON DELETE CASCADE,
     FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
@@ -366,14 +327,6 @@ class Role(Base):
     description = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-class Permission(Base):
-    __tablename__ = "permissions"
-
-    id = Column(String, primary_key=True)
-    resource = Column(String, nullable=False)
-    action = Column(String, nullable=False)
-    description = Column(Text)
-
 class Skill(Base):
     __tablename__ = "skills"
 
@@ -435,62 +388,22 @@ class RefreshToken(Base):
 
 ### 4.2 初始化脚本
 
+```bash
+cd backend
+python scripts/init_db.py     # 建表
+python scripts/seed_db.py     # 创建内置角色和默认管理员账号
+```
+
+`seed_db.py` 创建三个内置角色，以及一个持有 `super_admin` 的默认账号 `admin`：
+
 ```python
-# backend/init_db.py
-from backend.models import Base, User, Role, Permission
-from backend.database import engine
-import uuid
+# backend/scripts/seed_db.py（节选）
+from core.roles import BUILTIN_ROLES   # super_admin / admin / user
 
-def init_db():
-    # 创建所有表
-    Base.metadata.create_all(bind=engine)
-
-    # 创建预置角色
-    roles = [
-        Role(id=str(uuid.uuid4()), name="super_admin", description="超级管理员"),
-        Role(id=str(uuid.uuid4()), name="admin", description="系统管理员"),
-        Role(id=str(uuid.uuid4()), name="developer", description="开发者"),
-        Role(id=str(uuid.uuid4()), name="operator", description="运营人员"),
-        Role(id=str(uuid.uuid4()), name="viewer", description="只读用户"),
-    ]
-
-    # 创建预置权限
-    permissions = [
-        Permission(id=str(uuid.uuid4()), resource="skills", action="create"),
-        Permission(id=str(uuid.uuid4()), resource="skills", action="read"),
-        Permission(id=str(uuid.uuid4()), resource="skills", action="write"),
-        Permission(id=str(uuid.uuid4()), resource="skills", action="delete"),
-        Permission(id=str(uuid.uuid4()), resource="skills", action="execute"),
-        Permission(id=str(uuid.uuid4()), resource="users", action="read"),
-        Permission(id=str(uuid.uuid4()), resource="users", action="create"),
-        Permission(id=str(uuid.uuid4()), resource="users", action="write"),
-        Permission(id=str(uuid.uuid4()), resource="users", action="delete"),
-        Permission(id=str(uuid.uuid4()), resource="acl", action="read"),
-        Permission(id=str(uuid.uuid4()), resource="acl", action="create"),
-        Permission(id=str(uuid.uuid4()), resource="acl", action="write"),
-        Permission(id=str(uuid.uuid4()), resource="acl", action="delete"),
-    ]
-
-    from sqlalchemy.orm import Session
-    session = Session(bind=engine)
-
-    try:
-        # 检查是否已初始化
-        if session.query(Role).count() == 0:
-            session.add_all(roles)
-            session.add_all(permissions)
-            session.commit()
-            print("Database initialized successfully!")
-        else:
-            print("Database already initialized.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error initializing database: {e}")
-    finally:
-        session.close()
-
-if __name__ == "__main__":
-    init_db()
+def seed_roles(db):
+    for name, description in BUILTIN_ROLES.items():
+        if not db.query(Role).filter(Role.name == name).first():
+            db.add(Role(name=name, description=description))
 ```
 
 ---
@@ -632,6 +545,8 @@ alembic downgrade -1
 ```json
 ["read", "execute", "write", "delete"]
 ```
+
+该字段可以保存，但目前不参与判断：角色一旦绑定到规则，其成员即可调用该资源。
 
 ---
 

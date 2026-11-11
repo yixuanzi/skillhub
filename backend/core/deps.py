@@ -3,7 +3,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session, joinedload
 from database import get_db
-from models.user import User, Role
+from models.user import User
 from core.security import verify_token
 # from core.tmpkey_manager import get_user_id_by_tmpkey  # REMOVE THIS LINE
 from services.api_key_service import APIKeyService  # ADD THIS LINE
@@ -38,7 +38,7 @@ def _authenticate_user(db: Session, token: str) -> Optional[User]:
         api_key = APIKeyService.authenticate(db, token)
         if api_key:
             user = db.query(User).options(
-                joinedload(User.roles).joinedload(Role.permissions)
+                joinedload(User.roles)
             ).filter(User.id == api_key.user_id).first()
             if user and user.is_active:
                 setattr(user, "auth_type", "api_key")
@@ -53,7 +53,7 @@ def _authenticate_user(db: Session, token: str) -> Optional[User]:
         if payload is not None:
             user_id = payload.get("sub")
             user = db.query(User).options(
-                joinedload(User.roles).joinedload(Role.permissions)
+                joinedload(User.roles)
             ).filter(User.id == user_id).first()
             if user and user.is_active:
                 setattr(user, "auth_type", "jwt")

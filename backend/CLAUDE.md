@@ -51,9 +51,21 @@ open a resource to everyone, set its ACL to `any` mode rather than making it
 public.
 
 ### User Roles
-- `admin` - Full administrative access
-- `super_admin` - Full administrative access
-- Custom roles - Defined via role management
+There is no permission matrix: roles carry no permissions. The rule is
+"whoever owns it manages it", plus a limited admin override. Definitions and
+helpers live in `core/roles.py`.
+- `user` - Every account gets it (registration, SSO, admin-created). Manages
+  only what it owns.
+- `admin` - Also manages other people's resources, ACL rules and skills, reads
+  all audit logs, manages users and roles. Limited: cannot grant `super_admin`
+  or edit/delete/re-role a `super_admin` account.
+- `super_admin` - Everything `admin` can do, without that limit.
+- Custom roles - Created by an admin; grant nothing by themselves and exist
+  only so an ACL rule can whitelist a group of users.
+
+The three built-in roles cannot be renamed, deleted or re-created through the
+API. No role - not even `super_admin` - may invoke a resource without an ACL
+grant.
 
 ## Development Commands
 
@@ -95,7 +107,7 @@ backend/
 │   ├── api_key.py    # API key management
 │   ├── mtoken.py     # Managed tokens
 │   ├── audit_log.py  # System audit logs
-│   └── user_management.py # User/role/permission management
+│   └── user_management.py # User/role management (admin-only)
 ├── services/         # Business logic layer
 │   ├── resource_service.py
 │   ├── acl_resource_service.py
@@ -104,7 +116,7 @@ backend/
 │   ├── gateway_service.py
 │   └── mcp_service.py
 ├── models/           # SQLAlchemy ORM models
-│   ├── user.py       # User, Role, Permission, RefreshToken
+│   ├── user.py       # User, Role, RefreshToken
 │   ├── resource.py   # Resource (gateway, third, mcp)
 │   ├── acl.py        # ACLRule, ACLRuleRole
 │   ├── skill_list.py # Skill marketplace
@@ -113,8 +125,11 @@ backend/
 ├── schemas/          # Pydantic schemas
 ├── core/             # Core utilities
 │   ├── deps.py       # Dependencies (get_current_active_user)
+│   ├── roles.py      # Built-in roles and is_admin_user / is_super_admin
 │   └── exceptions.py # Custom exceptions
 ├── scripts/          # Utility scripts
+│   ├── seed_db.py    # Built-in roles + default admin account
+│   ├── migrate_roles.py # Convert a pre-existing DB to the built-in roles
 │   └── skillhub.sh   # CLI tool for resource invocation
 └── main.py           # Application entry point
 ```
@@ -195,13 +210,13 @@ Error responses (HTTPException):
    - Created_by tracks ownership (username)
 
 ### Helper Functions
+Role names and checks come from `core/roles.py`; do not hard-code role names
+elsewhere.
 ```python
-def _is_admin_user(user: Optional[User]) -> bool:
-    """Check if user has admin or super_admin role."""
-    if not user or not user.roles:
-        return False
-    user_role_names = {role.name for role in user.roles}
-    return bool(user_role_names & {"admin", "super_admin"})
+from core.roles import ADMIN_ROLES, is_admin_user, is_super_admin
+
+is_admin_user(user)    # admin or super_admin
+is_super_admin(user)   # super_admin only
 ```
 
 ### MCP Integration
@@ -221,9 +236,10 @@ def _is_admin_user(user: Optional[User]) -> bool:
   resource types. Ownership, admin role and `view_scope` grant nothing here.
 
 ### Write Operations
-- **Resources**: Only owner can modify (update/delete)
+- **Resources**: Owner or admin/super_admin (an ownerless resource is admin-only)
 - **ACL Rules**: Resource owner or admin/super_admin
-- **Skills**: Only creator can modify (update/delete)
+- **Skills**: Creator or admin/super_admin
+- **API keys, managed tokens**: Owner only
 
 ### Admin Privileges
 Users with `admin` or `super_admin` roles have:
@@ -231,7 +247,11 @@ Users with `admin` or `super_admin` roles have:
   managing them; invoking still requires an ACL grant
 - Ability to modify ACL rules (for any resource)
 - Access to all audit logs
-- Full user/role/permission management
+- User and role management (`/api/v1/admin/users/`, `/api/v1/admin/roles/`)
+
+`admin` is limited relative to `super_admin`: granting or revoking
+`super_admin`, and editing, deleting or re-roling an account that holds it, are
+`super_admin`-only (`api/user_management.py`).
 
 ## API Endpoints Summary
 
@@ -245,8 +265,8 @@ Users with `admin` or `super_admin` roles have:
 - `GET /api/v1/resources/` - List accessible resources
 - `POST /api/v1/resources/` - Create resource (owner_id set to current user)
 - `GET /api/v1/resources/{id}/` - Get resource (access controlled)
-- `PUT /api/v1/resources/{id}/` - Update resource (owner only)
-- `DELETE /api/v1/resources/{id}/` - Delete resource (owner only)
+- `PUT /api/v1/resources/{id}/` - Update resource (owner/admin)
+- `DELETE /api/v1/resources/{id}/` - Delete resource (owner/admin)
 
 ### ACL Rules
 - `GET /api/v1/acl/resources/` - List accessible ACL rules
@@ -293,14 +313,17 @@ Users with `admin` or `super_admin` roles have:
 - Not to be confused with `services/mcp_service.py`, which is the MCP *client*
   used to call MCP-type resources.
 
-### User Management
-- `GET /api/v1/users/` - List users
-- `GET /api/v1/users/{id}/` - Get user
-- `PUT /api/v1/users/{id}/` - Update user
-- `DELETE /api/v1/users/{id}/` - Delete user
-- `GET /api/v1/roles/` - List roles
-- `POST /api/v1/roles/` - Create role
-- `GET /api/v1/permissions/` - List permissions
+### User Management (admin/super_admin only)
+- `GET /api/v1/admin/users/list/` - List users
+- `POST /api/v1/admin/users/` - Create user (defaults to the `user` role)
+- `GET /api/v1/admin/users/{id}/` - Get user
+- `PUT /api/v1/admin/users/{id}/` - Update user
+- `DELETE /api/v1/admin/users/{id}/` - Delete user
+- `PUT /api/v1/admin/users/{id}/roles/` - Replace a user's roles
+- `GET /api/v1/admin/roles/list/` - List roles
+- `POST /api/v1/admin/roles/` - Create a custom role
+- `GET|PUT|DELETE /api/v1/admin/roles/{id}/` - Get/update/delete a role
+  (built-in roles cannot be renamed or deleted)
 
 ### API Keys
 - `GET /api/v1/api-keys/` - List user's API keys

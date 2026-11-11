@@ -11,15 +11,7 @@ export interface User {
 export interface Role {
   id: string;
   name: string;
-  permissions: Permission[];
   createdAt: string;
-}
-
-export interface Permission {
-  id: string;
-  resource: string;
-  action: string;
-  conditions?: Record<string, unknown>;
 }
 
 export interface LoginRequest {

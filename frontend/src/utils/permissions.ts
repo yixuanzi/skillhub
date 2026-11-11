@@ -4,6 +4,18 @@ import { ACLRule, Resource, User } from '@/types';
 export const isAdminUser = (user?: User | null): boolean =>
   user?.roles?.some((role) => role.name === 'admin' || role.name === 'super_admin') ?? false;
 
+/** True when the user holds the `super_admin` role. */
+export const isSuperAdminUser = (user?: User | null): boolean =>
+  user?.roles?.some((role) => role.name === 'super_admin') ?? false;
+
+/**
+ * True for the roles the server defines itself (`super_admin`, `admin`,
+ * `user`). They cannot be renamed or deleted; every other role is a custom
+ * group that only matters to ACL rules.
+ */
+export const isBuiltinRole = (roleName: string): boolean =>
+  roleName === 'super_admin' || roleName === 'admin' || roleName === 'user';
+
 /**
  * True when the user may edit or delete `resource`.
  *

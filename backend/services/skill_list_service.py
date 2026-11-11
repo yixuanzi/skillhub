@@ -14,6 +14,7 @@ from models.skill_list import SkillList
 from models.user import User
 from schemas.skill_list import SkillListCreate, SkillListUpdate, SkillListResponse
 from core.exceptions import ValidationException, NotFoundException
+from core.roles import ADMIN_ROLES
 from typing import Optional, List
 import re
 
@@ -79,8 +80,6 @@ def _validate_and_extract_skill_name(content: str) -> str:
 
     return skill_name
 
-# Admin role names
-ADMIN_ROLES = {"admin", "super_admin"}
 
 
 def _tag_token_condition(tag: str):

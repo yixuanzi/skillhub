@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/Label';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Alert } from '@/components/ui/Alert';
 import { useRoles, useAssignRoles } from '@/hooks/use-user-management';
+import { useAuthStore } from '@/store/authStore';
+import { isSuperAdminUser } from '@/utils/permissions';
 
 interface Props {
   user: {
@@ -27,6 +29,9 @@ export const RoleManagerModal: React.FC<Props> = ({ user, open, onOpenChange }) 
   const { data: rolesData, isLoading } = useRoles();
   const roles = rolesData?.items;
   const assignRoles = useAssignRoles();
+  // Only a super_admin may grant or revoke super_admin; the server enforces
+  // this, the checkbox is just disabled so an admin is not offered it.
+  const canGrantSuperAdmin = isSuperAdminUser(useAuthStore((state) => state.user));
 
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>(
     user.roles.map(r => r.id)
@@ -109,6 +114,7 @@ export const RoleManagerModal: React.FC<Props> = ({ user, open, onOpenChange }) 
                     id={role.id}
                     checked={selectedRoleIds.includes(role.id)}
                     onCheckedChange={() => toggleRole(role.id)}
+                    disabled={role.name === 'super_admin' && !canGrantSuperAdmin}
                   />
                   <div className="flex-1">
                     <Label htmlFor={role.id} className="text-sm cursor-pointer font-mono">

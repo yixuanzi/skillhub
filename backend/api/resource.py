@@ -36,11 +36,10 @@ from services.resource_service import ResourceService
 
 from core.deps import get_current_active_user
 from models.user import User
+from core.roles import ADMIN_ROLES
 
 router = APIRouter(prefix="/resources", tags=["Resources"])
 
-# Admin role names
-ADMIN_ROLES = {"admin", "super_admin"}
 
 
 def _is_admin_user(user: Optional[User]) -> bool:

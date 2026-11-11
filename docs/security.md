@@ -17,8 +17,8 @@
 |----------|----------|------|
 | 密码哈希 | ✅ | bcrypt |
 | JWT Token | ✅ | Access Token + Refresh Token |
-| RBAC | ✅ | 用户-角色-权限 |
-| ACL | ✅ | Any + RBAC 模式 |
+| 角色 | ✅ | 三个内置角色 + 自定义角色，无权限矩阵 |
+| ACL | ✅ | Any + RBAC 模式，决定资源能否被调用 |
 | 审计日志 | ✅ | 记录访问决策 |
 | HTTPS | ⚠️ | 开发环境 HTTP，生产环境需配置 |
 | 多因素认证 | ❌ | 未实现 |
@@ -53,7 +53,7 @@ class AuthService:
             password_hash=password_hash
         )
 
-        # 5. 分配默认角色（viewer）
+        # 5. 分配默认角色（user）
         # ...
         return user
 ```
@@ -168,119 +168,100 @@ def create_refresh_token(self, user: User) -> str:
 
 ## 3. 授权机制
 
-### 3.1 RBAC 模型
+### 3.1 授权模型
 
-```
-用户 (User)
-  └─ 拥有 ──> 角色 (Role)
-      └─ 包含 ──> 权限 (Permission)
-          └─ 作用于 ──> 资源 (Resource)
-```
+SkillHub 不使用权限矩阵，也没有“权限点”。一次操作是否被允许，只取决于三个问题：
 
-### 3.2 权限检查
+1. **是不是你的**：技能、资源、ACL 规则、API Key、托管令牌，由创建者自己管理。
+2. **是不是管理员**：`admin` 和 `super_admin` 可以额外查看并管理他人的技能、资源和 ACL 规则，查看全部审计日志，管理用户和角色。
+3. **能不能调用**：只看资源的 ACL 规则（见第 4 节）。归属、管理员角色、资源是否 public 都不构成调用权限。
 
-```python
-# backend/services/rbac_service.py
-class RBACService:
-    def check_permission(self, user_id: str, resource: str, action: str) -> bool:
-        # 1. 获取用户的角色
-        roles = db.query(Role).join(UserRole).filter(
-            UserRole.user_id == user_id
-        ).all()
+### 3.2 内置角色
 
-        # 2. 获取角色的权限
-        permissions = db.query(Permission).join(RolePermission).filter(
-            RolePermission.role_id.in_([r.id for r in roles])
-        ).all()
+| 角色 | 描述 | 说明 |
+|------|------|------|
+| `super_admin` | 超级管理员 | 拥有 `admin` 的全部能力，并且可以管理 `super_admin` 账号 |
+| `admin` | 管理员 | 有限的管理权限：不能授予 `super_admin`，也不能编辑、删除 `super_admin` 账号或调整其角色 |
+| `user` | 普通用户 | 每个账号的默认角色，只管理自己的东西 |
 
-        # 3. 检查是否有匹配的权限
-        for perm in permissions:
-            if perm.resource == resource and perm.action == action:
-                return True
-
-        return False
-```
-
-### 3.3 预定义角色和权限
+- 角色只是“一组用户”的名字，不带任何权限点。角色定义和判断集中在 `backend/core/roles.py`。
+- 三个内置角色不能改名、删除，名称也不能被新建角色占用。
+- 注册、SSO 首次登录、管理员创建账号时，自动赋予 `user` 角色。
+- 管理员可以创建自定义角色。自定义角色不带来任何管理能力，唯一用途是在 ACL 规则里被授权调用某个资源。
 
 ```python
-# 初始化脚本
-PREDEFINED_ROLES = {
-    "super_admin": {
-        "permissions": ["*:*"]  # 所有权限
-    },
-    "admin": {
-        "permissions": [
-            "users:*",
-            "skills:*",
-            "acl:*"
-        ]
-    },
-    "developer": {
-        "permissions": [
-            "skills:create",
-            "skills:read",
-            "skills:write",
-            "skills:execute"
-        ]
-    },
-    "operator": {
-        "permissions": [
-            "skills:read",
-            "skills:execute"
-        ]
-    },
-    "viewer": {
-        "permissions": [
-            "skills:read"
-        ]
-    }
-}
+# backend/core/roles.py
+ADMIN_ROLES = frozenset({"admin", "super_admin"})
+
+def is_admin_user(user) -> bool:
+    return bool(role_names(user) & ADMIN_ROLES)
+
+def is_super_admin(user) -> bool:
+    return "super_admin" in role_names(user)
 ```
+
+### 3.3 谁能做什么
+
+| 操作 | `user` | `admin` | `super_admin` |
+|------|--------|---------|---------------|
+| 创建技能、资源、API Key、托管令牌 | ✅ | ✅ | ✅ |
+| 查看技能 | 已发布的，以及自己创建的 | 全部 | 全部 |
+| 查看资源 | public 的、自己创建的、ACL 授权给自己的 | 全部 | 全部 |
+| 编辑、删除技能和资源 | 仅自己创建的 | 全部 | 全部 |
+| 配置资源的 ACL 规则 | 仅自己资源的 | 全部 | 全部 |
+| 调用资源 | 由该资源的 ACL 规则决定 | 同左，无特权 | 同左，无特权 |
+| 管理 API Key、托管令牌 | 仅自己的 | 仅自己的 | 仅自己的 |
+| 查看审计日志 | 仅自己的 | 全部 | 全部 |
+| 管理用户（创建、编辑、停用、删除、分配角色） | ❌ | ✅，`super_admin` 账号除外 | ✅ |
+| 授予或收回 `super_admin` 角色 | ❌ | ❌ | ✅ |
+| 创建、改名、删除自定义角色 | ❌ | ✅ | ✅ |
+
+没有归属人的资源（历史数据）只有管理员可以编辑和删除。
+
+### 3.4 对 admin 的限制
+
+`admin` 只有有限的管理权限，以下操作仅 `super_admin` 可以执行，由 `backend/api/user_management.py` 强制：
+
+- 授予或收回 `super_admin` 角色（包括在创建账号时指定）
+- 编辑、停用、删除持有 `super_admin` 的账号，或调整其角色
+
+任何人都不能删除自己的账号。
 
 ---
 
 ## 4. ACL 规则
 
+调用资源时的授权由 `ACLResourceService.enforce_permission` 统一判断，gateway、third、mcp、composio 四类资源走同一条路径，SkillHub 自身的 MCP 服务（`/api/v1/mcp`）也一样。
+
 ### 4.1 Any 模式
 
-```python
-# backend/services/acl_service.py
-class ACLService:
-    def check_any_mode(self, rule: ACLRule, context: dict) -> bool:
-        # 1. 检查限流
-        if "rateLimit" in rule.conditions:
-            if not self._check_rate_limit(rule.resource_id, rule.conditions["rateLimit"]):
-                return False
-
-        # 2. 检查 IP 白名单
-        if "ipWhitelist" in rule.conditions:
-            client_ip = context.get("ip_address")
-            if not self._check_ip_whitelist(client_ip, rule.conditions["ipWhitelist"]):
-                return False
-
-        return True
-```
+任何已登录用户都可以调用。
 
 ### 4.2 RBAC 模式
 
+命中以下任意一项即允许，否则拒绝：
+
+- `conditions.users`：用户名白名单
+- `conditions.roles`：角色白名单，写角色名或角色 ID 均可
+- 角色绑定（`acl_rule_roles`）：绑定到这条规则的角色
+
 ```python
-def check_rbac_mode(self, rule: ACLRule, user_id: str, action: str) -> bool:
-    # 1. 获取用户角色
-    user_roles = db.query(Role).join(UserRole).filter(
-        UserRole.user_id == user_id
-    ).all()
+# backend/services/acl_resource_service.py（节选）
+if acl_rule.access_mode == AccessMode.ANY:
+    return allowed("Public access (any mode)")
 
-    # 2. 检查规则中的角色配置
-    for rule_role in rule.acl_rule_roles:
-        if rule_role.role in [r.id for r in user_roles]:
-            # 3. 检查权限
-            permissions = json.loads(rule_role.permissions)
-            if action in permissions:
-                return True
-
-    return False
+if current_user.username in conditions.get("users", []):
+    return allowed("User in whitelist")
+if _matched_role_whitelist(current_user, conditions.get("roles")):
+    return allowed("User's role in whitelist")
+if _matched_role_bindings(current_user, acl_rule):
+    return allowed("User's role is bound to this resource")
+return denied()
 ```
+
+资源没有 ACL 规则时一律拒绝。新建资源会自动生成一条 RBAC 规则，并把创建者加入用户白名单。
+
+> **尚未生效的字段**：`conditions` 中的 `ip_whitelist`、`rate_limit`、`time_windows`，角色绑定上的 `permissions`，以及权限检查接口的 `required_permission` 参数，目前可以保存但不参与判断。API Key 的 `scopes` 同样只保存、不校验。下面 4.3 的限流实现是设计稿，尚未接入。
 
 ### 4.3 限流实现
 

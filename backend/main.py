@@ -16,7 +16,7 @@ from api.skill_list import router as skill_list_router
 from api.mtoken import router as mtoken_router
 from api.api_key import router as api_key_router
 from api.audit_log import router as audit_log_router
-from api.user_management import router as user_management_router, role_router, permission_router
+from api.user_management import router as user_management_router, role_router
 from api.skill_creator import router as skill_creator_router
 from api.script import router as script_router
 from api.sso import router as sso_router
@@ -73,7 +73,6 @@ app.include_router(api_key_router, prefix="/api/v1")
 app.include_router(audit_log_router, prefix="/api/v1")
 app.include_router(user_management_router, prefix="/api/v1")
 app.include_router(role_router, prefix="/api/v1")
-app.include_router(permission_router, prefix="/api/v1")
 app.include_router(skill_creator_router, prefix="/api/v1")
 app.include_router(script_router, prefix="/api/v1")
 app.include_router(sso_router, prefix="/api/v1")

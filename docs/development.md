@@ -122,7 +122,6 @@ skillhub/
 │   ├── services/               # 业务逻辑
 │   │   ├── __init__.py
 │   │   ├── auth_service.py
-│   │   ├── rbac_service.py
 │   │   ├── skill_service.py
 │   │   ├── acl_service.py
 │   │   └── gateway_service.py

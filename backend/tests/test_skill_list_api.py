@@ -10,7 +10,7 @@ This module contains tests for skill market CRUD operations including:
 import pytest
 from fastapi.testclient import TestClient
 from database import Base, engine, SessionLocal
-from models.user import User, RefreshToken, Role, Permission
+from models.user import User, RefreshToken, Role
 from models.skill_list import SkillList
 from schemas.auth import UserCreate
 from schemas.skill_list import SkillListCreate, SkillListUpdate
@@ -55,7 +55,6 @@ def db():
             cleanup_session.query(SkillList).delete()
             cleanup_session.query(RefreshToken).delete()
             cleanup_session.query(User).delete()
-            cleanup_session.query(Permission).delete()
             cleanup_session.query(Role).delete()
             cleanup_session.commit()
         except Exception:

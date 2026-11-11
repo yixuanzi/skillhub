@@ -123,7 +123,7 @@ client secret.
   existing local JWT session.
 - The browser never receives a `subscription_id`, access token, or refresh
   token in the OIDC redirect URL. OIDC users are linked by `oidc_subject` or
-  provisioned as active `viewer` users.
+  provisioned as active users holding the `user` role.
 
 For the local Compose setup, use `OIDC_ISSUER=http://127.0.0.1:8080` and
 `OIDC_BACKCHANNEL_URL=http://host.docker.internal:8000`. The latter is the

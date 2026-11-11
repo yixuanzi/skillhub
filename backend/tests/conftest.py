@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from database import Base, engine, SessionLocal
 # Import all models to ensure they're registered with Base
-from models.user import User, RefreshToken, Role, Permission
+from models.user import User, RefreshToken, Role
 from models.resource import Resource
 from models.skill_list import SkillList
 from models.api_key import APIKey
@@ -59,7 +59,6 @@ def db():
             cleanup_session.query(Resource).delete()
             cleanup_session.query(RefreshToken).delete()
             cleanup_session.query(User).delete()
-            cleanup_session.query(Permission).delete()
             cleanup_session.query(Role).delete()
             cleanup_session.commit()
         except Exception:
@@ -114,8 +113,6 @@ def admin_user(db: SessionLocal):
     """Create admin user with role."""
     # Create admin role
     admin_role = Role(name="admin", description="Administrator")
-    perm = Permission(resource="*", action="*")
-    admin_role.permissions.append(perm)
     db.add(admin_role)
     db.commit()
 

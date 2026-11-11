@@ -19,6 +19,7 @@ from core.security import (
 )
 #from core.tmpkey_manager import generate_tmpkey, store_tmpkey
 from core.exceptions import AuthException, ValidationException, NotFoundException
+from core.roles import USER, get_or_create_role
 from config import settings
 
 
@@ -63,6 +64,9 @@ class AuthService:
             hashed_password=hashed_password,
             is_active=False
         )
+        # Every account holds the plain `user` role; admin roles are granted
+        # afterwards through user management.
+        new_user.roles = [get_or_create_role(db, USER)]
 
         db.add(new_user)
         db.commit()

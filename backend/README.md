@@ -62,7 +62,7 @@ backend/
 │   ├── api_key.py              # API 密钥管理端点
 │   ├── mtoken.py               # Token 托管端点
 │   ├── audit_log.py            # 审计日志端点
-│   ├── user_management.py      # 用户/角色/权限管理端点
+│   ├── user_management.py      # 用户/角色管理端点
 │   └── sso.py                  # Aegis Portal OIDC 客户端端点
 │
 ├── services/                   # 业务逻辑层
@@ -74,7 +74,7 @@ backend/
 │   └── skill_creator_service.py # 技能生成服务
 │
 ├── models/                     # 数据模型层
-│   ├── user.py                 # 用户、角色、权限模型
+│   ├── user.py                 # 用户、角色模型
 │   ├── resource.py             # 资源模型
 │   ├── acl.py                  # 访问控制模型
 │   ├── skill_list.py           # 技能市场模型
@@ -127,7 +127,7 @@ backend/
 
 Portal 多组织选择由 Portal 提供；SkillHub 不接收或传递
 `subscription_id`。OIDC 用户按 `users.oidc_subject` 绑定，未匹配时自动创建 active
-`viewer` 用户；本地已有角色不会被 Portal roles 直接提权。
+用户并赋予 `user` 角色；本地已有角色不会被 Portal roles 直接提权。
 
 ### 2. 资源管理模块 (`/api/v1/resources/`)
 - 创建资源（gateway、third、mcp）
@@ -181,9 +181,9 @@ Portal 多组织选择由 Portal 提供；SkillHub 不接收或传递
 - 支持多维度过滤（action、resource_type、user_id、status、date range）
 
 ### 11. 用户管理模块 (`/api/v1/`)
-- 用户管理（CRUD）
-- 角色管理（CRUD）
-- 权限管理
+- 用户管理（CRUD、分配角色），路径 `/admin/users/`
+- 角色管理（CRUD），路径 `/admin/roles/`
+- 仅 `admin` / `super_admin` 可用；涉及 `super_admin` 的操作仅 `super_admin` 可做
 
 ---
 
@@ -389,7 +389,6 @@ python main.py
 #### 用户相关
 - **User** - 用户表
 - **Role** - 角色表
-- **Permission** - 权限表
 - **RefreshToken** - 刷新令牌表
 
 #### 资源相关
@@ -459,21 +458,30 @@ chmod +x skillhub.sh
 
 ### 安全模型
 
-**资源访问控制**
-- **Public 资源**: 所有认证用户可访问
-- **Private 资源**: 仅所有者、admin 或 ACL 授权用户可访问
+没有权限矩阵，规则是“谁的资源谁管理”，管理员有限地多管一些。内置角色只有三个：`super_admin`、`admin`、`user`（定义见 `core/roles.py`）。
 
-**写操作权限**
-- **资源**: 仅所有者可修改
-- **ACL 规则**: 资源所有者或 admin 可修改
-- **技能**: 仅创建者可修改
+**查看**
+- **Public 资源**: 所有认证用户可见
+- **Private 资源**: 仅所有者、管理员或 ACL 授权用户可见
 
-**管理员权限**
-拥有 `admin` 或 `super_admin` 角色的用户具有：
-- 访问所有资源（无视 view_scope）
-- 修改任何资源的 ACL 规则
+**写操作**
+- **资源、技能**: 创建者或管理员可修改、删除
+- **ACL 规则**: 资源所有者或管理员可修改
+- **API Key、托管令牌**: 仅本人
+
+**调用**
+- 只看资源的 ACL 规则；所有者、管理员、public 都不构成调用权限
+
+**管理员（`admin` / `super_admin`）额外可以**
+- 查看并管理所有资源、技能和 ACL 规则（无视 view_scope）
 - 查看所有审计日志
-- 完整的用户/角色/权限管理
+- 管理用户和角色
+
+**`admin` 的限制（仅 `super_admin` 可做）**
+- 授予或收回 `super_admin` 角色
+- 编辑、删除 `super_admin` 账号或调整其角色
+
+内置角色不能改名、删除。自定义角色只用于在 ACL 规则中成组授权。旧数据库（含 `developer` / `operator` / `viewer`）用 `python scripts/migrate_roles.py` 迁移，默认只预演，加 `--apply` 才写入。
 
 ---
 

@@ -15,12 +15,11 @@ from models.user import User, Role
 from models.acl import ACLRule, AccessMode
 from schemas.resource import ResourceCreate, ResourceUpdate, ResourceResponse
 from core.exceptions import ValidationException, NotFoundException
+from core.roles import ADMIN_ROLES
 from typing import Optional, List
 import json
 import re
 
-# Admin role names
-ADMIN_ROLES = {"admin", "super_admin"}
 
 
 def _is_admin_user(user: Optional[User]) -> bool:
@@ -518,7 +517,7 @@ class ResourceService:
 
         # Check ownership for private resources
         if resource.view_scope == "private" and resource.owner_id:
-            if not user or (resource.owner_id != user.id and not getattr(user, 'is_superuser', False)):
+            if not user or (resource.owner_id != user.id and not _is_admin_user(user)):
                 raise ValidationException("You do not have permission to update this resource")
 
         old_name = resource.name
@@ -585,7 +584,7 @@ class ResourceService:
 
         # Check ownership for private resources
         if resource.view_scope == "private" and resource.owner_id:
-            if not user or (resource.owner_id != user.id and not getattr(user, 'is_superuser', False)):
+            if not user or (resource.owner_id != user.id and not _is_admin_user(user)):
                 raise ValidationException("You do not have permission to delete this resource")
 
         resource_name = resource.name

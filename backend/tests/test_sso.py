@@ -91,7 +91,7 @@ def test_callback_creates_local_viewer_and_ticket_is_one_time(
 
     user = db.query(User).filter(User.oidc_subject == "portal-user-1").one()
     assert user.is_active is True
-    assert [role.name for role in user.roles] == ["viewer"]
+    assert [role.name for role in user.roles] == ["user"]
 
 
 def test_existing_same_email_user_is_bound_without_role_escalation(client, db, oidc_settings):

@@ -74,7 +74,7 @@ GET    /api/v1/auth/me          # 获取当前用户信息
 {
     "sub": "user-id",           # 用户 ID
     "username": "john.doe",
-    "roles": ["developer"],
+    "roles": ["user"],
     "exp": 1709050500,          # 过期时间 (15 分钟)
     "iat": 1709049600,          # 签发时间
     "jti": "token-unique-id"    # Token ID
@@ -102,98 +102,94 @@ class AuthService:
 
 ---
 
-## 3. 权限模块 (RBAC Module)
+## 3. 角色模块 (Role Module)
 
 ### 3.1 职责
 
-- 角色和权限管理
-- 用户角色分配
-- 权限检查
+- 用户管理和角色分配
+- 判断“是否管理员”
+
+SkillHub 不使用权限矩阵，没有权限点和权限检查服务。授权只有三条规则：普通用户管理自己创建的东西；管理员额外管理他人的技能、资源、ACL 规则以及用户和角色；资源能否被调用只看 ACL 规则（第 5 节）。详见 [security.md](security.md) 第 3 节。
 
 ### 3.2 代码结构
 
 ```
 backend/
-├── api/users.py              # 用户管理 API
-├── api/roles.py              # 角色管理 API
-├── services/rbac_service.py  # RBAC 业务逻辑
-└── models/user.py            # Role, Permission 模型
+├── api/user_management.py    # 用户、角色管理 API（仅管理员）
+├── core/roles.py             # 内置角色定义和判断函数
+├── scripts/seed_db.py        # 创建内置角色和默认管理员
+├── scripts/migrate_roles.py  # 把旧的五角色数据库迁移到现在的三角色
+└── models/user.py            # User, Role 模型
 ```
 
 ### 3.3 数据模型
 
 ```python
 # models/user.py
+user_roles = Table(
+    "user_roles", Base.metadata,
+    Column("user_id", String(36), ForeignKey("users.id"), primary_key=True),
+    Column("role_id", String(36), ForeignKey("roles.id"), primary_key=True),
+)
+
 class Role(Base):
     __tablename__ = "roles"
 
-    id: str = Column(String, primary_key=True)
-    name: str = Column(String, unique=True, nullable=False)
-    description: str = Column(String)
-    created_at: datetime = Column(DateTime, default=datetime.utcnow)
+    id = Column(String(36), primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+    description = Column(String)
+    created_at = Column(DateTime)
 
-class Permission(Base):
-    __tablename__ = "permissions"
-
-    id: str = Column(String, primary_key=True)
-    resource: str = Column(String, nullable=False)  # e.g., "skills", "users"
-    action: str = Column(String, nullable=False)    # e.g., "read", "write", "delete"
-    description: str = Column(String)
-
-class UserRole(Base):
-    __tablename__ = "user_roles"
-
-    user_id: str = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    role_id: str = Column(String, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
-
-class RolePermission(Base):
-    __tablename__ = "role_permissions"
-
-    role_id: str = Column(String, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
-    permission_id: str = Column(String, ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True)
+    users = relationship("User", secondary=user_roles, back_populates="roles")
 ```
 
-### 3.4 预定义角色
+角色不带权限点，没有 `permissions` 表。
 
-| 角色名称 | 描述 | 权限范围 |
-|----------|------|----------|
-| `super_admin` | 超级管理员 | 所有资源的完全控制 |
-| `admin` | 系统管理员 | 用户管理、技能管理、配置管理 |
-| `developer` | 开发者 | 技能构建、发布、测试 |
-| `operator` | 运营人员 | 技能调用、日志查看 |
-| `viewer` | 只读用户 | 仅查看权限 |
+### 3.4 内置角色
+
+| 角色 | 描述 | 说明 |
+|------|------|------|
+| `super_admin` | 超级管理员 | 拥有 `admin` 的全部能力，并且可以管理 `super_admin` 账号 |
+| `admin` | 管理员 | 有限的管理权限：不能授予 `super_admin`，也不能编辑、删除 `super_admin` 账号或调整其角色 |
+| `user` | 普通用户 | 每个账号的默认角色，只管理自己的东西 |
+
+- 内置角色不能改名或删除，名称也不能被新建角色占用。
+- 注册、SSO 首次登录、管理员创建账号时自动赋予 `user`。
+- 管理员可以创建自定义角色，它们只用于在 ACL 规则中成组授权。
 
 ### 3.5 API 端点
 
+全部要求 `admin` 或 `super_admin`：
+
 ```
 # 用户管理
-GET    /api/v1/users           # 列出用户 (admin only)
-POST   /api/v1/users           # 创建用户 (admin only)
-GET    /api/v1/users/{id}      # 获取用户详情
-PUT    /api/v1/users/{id}      # 更新用户
-DELETE /api/v1/users/{id}      # 删除用户 (admin only)
+GET    /api/v1/admin/users/list/         # 列出用户
+POST   /api/v1/admin/users/              # 创建用户（未指定角色时默认 user）
+GET    /api/v1/admin/users/{id}/         # 获取用户详情
+PUT    /api/v1/admin/users/{id}/         # 更新用户
+DELETE /api/v1/admin/users/{id}/         # 删除用户
+PUT    /api/v1/admin/users/{id}/roles/   # 分配角色（整体替换）
 
 # 角色管理
-GET    /api/v1/roles           # 列出角色
-POST   /api/v1/roles           # 创建角色 (admin only)
-GET    /api/v1/roles/{id}      # 获取角色详情
-PUT    /api/v1/roles/{id}      # 更新角色
-DELETE /api/v1/roles/{id}      # 删除角色 (admin only)
-POST   /api/v1/roles/{id}/permissions  # 分配权限
+GET    /api/v1/admin/roles/list/         # 列出角色
+POST   /api/v1/admin/roles/              # 创建自定义角色
+GET    /api/v1/admin/roles/{id}/         # 获取角色详情
+PUT    /api/v1/admin/roles/{id}/         # 更新角色
+DELETE /api/v1/admin/roles/{id}/         # 删除角色（仍有成员时拒绝）
 ```
 
-### 3.6 核心服务方法
+涉及 `super_admin` 的操作（授予或收回该角色；编辑、删除持有该角色的账号或调整其角色）只有 `super_admin` 可以执行，`admin` 调用返回 403。
+
+### 3.6 核心函数
 
 ```python
-# services/rbac_service.py
-class RBACService:
-    def create_role(self, name: str, description: str) -> Role
-    def assign_role_to_user(self, user_id: str, role_id: str) -> None
-    def remove_role_from_user(self, user_id: str, role_id: str) -> None
-    def get_user_roles(self, user_id: str) -> List[Role]
-    def get_user_permissions(self, user_id: str) -> List[Permission]
-    def check_permission(self, user_id: str, resource: str, action: str) -> bool
-    def assign_permission_to_role(self, role_id: str, permission_id: str) -> None
+# core/roles.py
+SUPER_ADMIN, ADMIN, USER = "super_admin", "admin", "user"
+
+def is_admin_user(user) -> bool        # admin 或 super_admin
+def is_super_admin(user) -> bool
+def is_builtin_role(name) -> bool
+def get_or_create_role(db, name) -> Role
 ```
 
 ---
@@ -470,12 +466,9 @@ class AuditLog(Base):
 {
     "resource_id": "payment-api",
     "access_mode": "rbac",
-    "roles": [
-        {"role_id": "admin", "permissions": ["read", "write", "delete"]},
-        {"role_id": "operator", "permissions": ["read", "write"]}
-    ],
     "conditions": {
-        "rateLimit": "50/minute"
+        "users": ["alice"],
+        "roles": ["admin", "payment-team"]
     }
 }
 ```
@@ -502,10 +495,10 @@ class AuditLog(Base):
 │         └─> 条件满足 → ALLOW, 否则 → DENY                       │
 │                                                                  │
 │     └─> IF mode == 'rbac':                                      │
-│         └─> 获取用户角色                                        │
-│         └─> 检查角色是否有所需权限                              │
-│         └─> 检查条件                                            │
-│         └─> 满足 → ALLOW, 否则 → DENY                           │
+│         └─> 用户在 conditions.users 白名单中？                  │
+│         └─> 用户的角色在 conditions.roles 白名单中？            │
+│         └─> 用户的角色已绑定到该规则？                          │
+│         └─> 任一命中 → ALLOW, 否则 → DENY                       │
 │                                                                  │
 │  5. 记录审计日志                                                │
 │     └─> 插入 audit_logs 表                                      │

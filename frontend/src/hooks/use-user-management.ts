@@ -10,11 +10,6 @@ interface User {
     id: string;
     name: string;
     description?: string;
-    permissions?: Array<{
-      id: string;
-      resource: string;
-      action: string;
-    }>;
   }>;
   created_at: string;
   updated_at?: string;

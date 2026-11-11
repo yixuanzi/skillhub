@@ -28,7 +28,7 @@ graph TB
 
         subgraph "内部模块"
             Auth[认证模块<br/>JWT + bcrypt]
-            RBAC[权限模块<br/>用户-角色-权限]
+            RBAC[角色模块<br/>用户-角色]
             Skill[技能模块<br/>构建/发布/执行]
             ACL[访问控制模块<br/>Any/RBAC]
             Gateway[网关模块<br/>统一调用入口]
@@ -98,30 +98,29 @@ graph TB
 - `passlib` + `bcrypt` - 密码哈希
 
 **Token 有效期**：
-- Access Token: 15 分钟
+- Access Token: 60 分钟
 - Refresh Token: 7 天
 
-### 3.3 RBAC 权限模块 (RBAC Module)
+### 3.3 角色模块 (Role Module)
 
 **职责**：
-- 用户-角色-权限管理
-- 角色分配和权限配置
-- 权限检查逻辑
+- 用户、角色管理和角色分配
+- 判断“是否管理员”
+
+SkillHub 不使用权限矩阵：普通用户只管理自己创建的技能、资源、ACL 规则、API Key 和托管令牌；管理员可以额外管理他人的技能、资源、ACL 规则以及用户和角色；资源能否被调用只看 ACL 规则（3.5）。详见 [security.md](security.md) 第 3 节。
 
 **数据模型**：
 - `roles` - 角色表
-- `permissions` - 权限表
 - `user_roles` - 用户角色关联
-- `role_permissions` - 角色权限关联
 
-**预定义角色**：
-| 角色 | 描述 | 权限范围 |
-|------|------|----------|
-| `super_admin` | 超级管理员 | 所有资源的完全控制 |
-| `admin` | 系统管理员 | 用户管理、技能管理、配置管理 |
-| `developer` | 开发者 | 技能构建、发布、测试 |
-| `operator` | 运营人员 | 技能调用、日志查看 |
-| `viewer` | 只读用户 | 仅查看权限 |
+**内置角色**：
+| 角色 | 描述 | 说明 |
+|------|------|------|
+| `super_admin` | 超级管理员 | 拥有 `admin` 的全部能力，并且可以管理 `super_admin` 账号 |
+| `admin` | 管理员 | 有限的管理权限：不能授予 `super_admin`，也不能编辑、删除 `super_admin` 账号或调整其角色 |
+| `user` | 普通用户 | 每个账号的默认角色，只管理自己的东西 |
+
+内置角色不能改名或删除。管理员可以另外创建自定义角色，它们不带来任何管理能力，只用于在 ACL 规则中成组授权。
 
 ### 3.4 技能模块 (Skill Module)
 
@@ -149,22 +148,22 @@ graph TB
 
 **职责**：
 - ACL 规则管理
-- 访问权限检查（Any/RBAC 模式）
-- 条件约束执行（限流、IP 白名单）
+- 调用权限检查（Any/RBAC 模式）
 - 审计日志记录
 
 **数据模型**：
 - `acl_rules` - ACL 规则
-- `acl_rule_roles` - RBAC 角色映射
+- `acl_rule_roles` - 规则与角色的绑定
 - `audit_logs` - 审计日志
 
 **访问模式**：
-- `any` - 公开访问（带条件约束）
-- `rbac` - 基于角色的访问控制
+- `any` - 任何已登录用户都可调用
+- `rbac` - 仅用户白名单、角色白名单、角色绑定中的用户可调用
 
 **条件支持**：
-- `rateLimit` - 请求频率限制
-- `ipWhitelist` - IP 白名单
+- `users` - 用户名白名单
+- `roles` - 角色白名单（角色名或 ID）
+- `ip_whitelist`、`rate_limit`、`time_windows` - 可保存，尚未生效
 
 ### 3.6 网关模块 (Gateway Module)
 
@@ -189,7 +188,7 @@ skillhub/
 │   │
 │   ├── models/                 # SQLAlchemy ORM 模型
 │   │   ├── __init__.py
-│   │   ├── user.py             # User, Role, Permission
+│   │   ├── user.py             # User, Role
 │   │   ├── skill.py            # Skill, SkillVersion
 │   │   └── acl.py              # ACLRule, AuditLog
 │   │
@@ -211,7 +210,6 @@ skillhub/
 │   ├── services/               # 业务逻辑层
 │   │   ├── __init__.py
 │   │   ├── auth_service.py     # 认证服务
-│   │   ├── rbac_service.py     # 权限服务
 │   │   ├── skill_service.py    # 技能服务
 │   │   ├── acl_service.py      # ACL 服务
 │   │   └── gateway_service.py  # 网关服务

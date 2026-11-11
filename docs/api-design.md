@@ -159,8 +159,9 @@ FastAPI 自动生成交互式 API 文档：
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "username": "john_doe",
   "email": "john@example.com",
+  "is_active": true,
   "roles": [
-    {"id": "...", "name": "developer"}
+    {"id": "...", "name": "user", "description": "...", "created_at": "2025-02-28T10:00:00Z"}
   ],
   "created_at": "2025-02-28T10:00:00Z"
 }
@@ -170,18 +171,13 @@ FastAPI 自动生成交互式 API 文档：
 
 ## 4. 用户管理 API
 
+以下端点都要求调用者持有 `admin` 或 `super_admin` 角色，否则返回 403。`admin` 的管理权限是有限的，对 `super_admin` 的操作只有 `super_admin` 自己可以做（见各端点说明）。角色模型见 [security.md](security.md) 第 3 节。
+
 ### 4.1 列出用户
 
-**端点**: `GET /users`
+**端点**: `GET /admin/users/list/`
 
-**请求头**: `Authorization: Bearer {access_token}`
-
-**查询参数**:
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| page | int | 否 | 页码，默认 1 |
-| size | int | 否 | 每页数量，默认 20 |
-| search | str | 否 | 搜索关键词 |
+**查询参数**: `page`（默认 1）、`size`（默认 20，最大 100）、`search`（可选）
 
 **响应** (200):
 ```json
@@ -191,9 +187,10 @@ FastAPI 自动生成交互式 API 文档：
       "id": "550e8400-e29b-41d4-a716-446655440000",
       "username": "john_doe",
       "email": "john@example.com",
-      "roles": [{"name": "developer"}],
       "is_active": true,
-      "created_at": "2025-02-28T10:00:00Z"
+      "roles": [{"id": "...", "name": "user", "description": "...", "created_at": "..."}],
+      "created_at": "2025-02-28T10:00:00Z",
+      "updated_at": "2025-02-28T10:00:00Z"
     }
   ],
   "total": 1,
@@ -204,67 +201,70 @@ FastAPI 自动生成交互式 API 文档：
 
 ### 4.2 创建用户
 
-**端点**: `POST /users`
-
-**权限**: 仅管理员
+**端点**: `POST /admin/users/`
 
 **请求**:
 ```json
 {
   "username": "jane_doe",
   "email": "jane@example.com",
-  "password": "SecurePassword123!",
-  "role_ids": ["role-id-1"]
+  "password": "at-least-8-chars",
+  "role_ids": [],
+  "is_active": true
 }
 ```
 
-**响应** (201):
-```json
-{
-  "id": "...",
-  "username": "jane_doe",
-  "email": "jane@example.com",
-  "created_at": "2025-02-28T11:00:00Z"
-}
-```
+`role_ids` 为空时自动赋予 `user` 角色。`role_ids` 包含 `super_admin` 时，调用者必须是 `super_admin`，否则返回 403。
+
+**响应** (201): 返回创建的用户
 
 ### 4.3 获取用户详情
 
-**端点**: `GET /users/{id}`
+**端点**: `GET /admin/users/{id}/`
 
-**响应** (200):
-```json
-{
-  "id": "...",
-  "username": "john_doe",
-  "email": "john@example.com",
-  "roles": [
-    {"id": "...", "name": "developer", "description": "..."}
-  ],
-  "is_active": true,
-  "created_at": "2025-02-28T10:00:00Z"
-}
-```
+**响应** (200): 同 4.1 中的单个用户
 
 ### 4.4 更新用户
 
-**端点**: `PUT /users/{id}`
+**端点**: `PUT /admin/users/{id}/`
+
+**请求**（字段均可选）:
+```json
+{
+  "username": "new_name",
+  "email": "newemail@example.com",
+  "password": "new-password",
+  "is_active": false
+}
+```
+
+目标账号持有 `super_admin` 时，调用者必须是 `super_admin`，否则返回 403。
+
+**响应** (200): 返回更新后的用户信息
+
+### 4.5 分配角色
+
+**端点**: `PUT /admin/users/{id}/roles/`
 
 **请求**:
 ```json
 {
-  "email": "newemail@example.com",
   "role_ids": ["role-id-1", "role-id-2"]
 }
 ```
 
+用给定列表整体替换用户的角色。以下两种情况调用者必须是 `super_admin`，否则返回 403：
+
+- `role_ids` 中包含 `super_admin`
+- 目标账号当前持有 `super_admin`
+
 **响应** (200): 返回更新后的用户信息
 
-### 4.5 删除用户
+### 4.6 删除用户
 
-**端点**: `DELETE /users/{id}`
+**端点**: `DELETE /admin/users/{id}/`
 
-**权限**: 仅超级管理员
+不能删除自己的账号（400）。目标账号持有 `super_admin` 时，调用者必须是 `super_admin`，否则返回 403。
 
 **响应** (204)
 
@@ -272,9 +272,15 @@ FastAPI 自动生成交互式 API 文档：
 
 ## 5. 角色管理 API
 
+同样要求 `admin` 或 `super_admin`。角色只有名称和描述，不带权限点，因此没有权限相关的端点。
+
+内置角色 `super_admin`、`admin`、`user` 不能改名、删除，其名称也不能用于新建角色（400）；它们的描述可以修改。
+
 ### 5.1 列出角色
 
-**端点**: `GET /roles`
+**端点**: `GET /admin/roles/list/`
+
+**查询参数**: `page`、`size`、`search`
 
 **响应** (200):
 ```json
@@ -282,53 +288,58 @@ FastAPI 自动生成交互式 API 文档：
   "items": [
     {
       "id": "...",
-      "name": "developer",
-      "description": "Can build and publish skills",
-      "permissions": [
-        {"resource": "skills", "action": "read"},
-        {"resource": "skills", "action": "write"}
-      ]
+      "name": "data_analyst",
+      "description": "Data analysis team",
+      "created_at": "2025-02-28T10:00:00Z"
     }
-  ]
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 20
 }
 ```
 
 ### 5.2 创建角色
 
-**端点**: `POST /roles`
-
-**权限**: 仅管理员
+**端点**: `POST /admin/roles/`
 
 **请求**:
 ```json
 {
   "name": "data_analyst",
-  "description": "Data analysis role",
-  "permission_ids": ["perm-1", "perm-2"]
+  "description": "Data analysis team"
 }
 ```
 
+创建的是自定义角色：它不带来任何管理能力，只用于在 ACL 规则中成组授权（见第 8 节）。
+
 **响应** (201)
 
-### 5.3 更新角色
+### 5.3 获取角色详情
 
-**端点**: `PUT /roles/{id}`
+**端点**: `GET /admin/roles/{id}/`
 
-**请求**:
+**响应** (200)
+
+### 5.4 更新角色
+
+**端点**: `PUT /admin/roles/{id}/`
+
+**请求**（字段均可选）:
 ```json
 {
-  "description": "Updated description",
-  "permission_ids": ["perm-1", "perm-2", "perm-3"]
+  "name": "analytics",
+  "description": "Updated description"
 }
 ```
 
 **响应** (200)
 
-### 5.4 删除角色
+### 5.5 删除角色
 
-**端点**: `DELETE /roles/{id}`
+**端点**: `DELETE /admin/roles/{id}/`
 
-**权限**: 仅管理员
+仍有用户持有该角色时返回 400。
 
 **响应** (204)
 
@@ -648,18 +659,9 @@ version: "1.0.0"
   "resource_id": "payment-api",
   "resource_name": "Payment API",
   "access_mode": "rbac",
-  "roles": [
-    {
-      "role_id": "admin",
-      "permissions": ["read", "write", "delete"]
-    },
-    {
-      "role_id": "operator",
-      "permissions": ["read", "write"]
-    }
-  ],
   "conditions": {
-    "rateLimit": "50/minute"
+    "users": ["alice"],
+    "roles": ["admin", "payment-team"]
   }
 }
 ```

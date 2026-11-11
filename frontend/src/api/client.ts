@@ -23,17 +23,14 @@ const ensureTrailingSlash = (url: string): string => {
     /\/acl\/rules$/,
     /\/users$/,
     /\/roles$/,
-    /\/permissions$/,
     /\/gateways$/,
     /\/mtokens$/,
     /\/api-keys$/,
     /\/audit-logs$/,
     /\/admin\/users\/list$/,
     /\/admin\/roles\/list$/,
-    /\/admin\/permissions\/list$/,
     /\/admin\/users$/,
     /\/admin\/roles$/,
-    /\/admin\/permissions$/,
   ];
 
   for (const pattern of collectionPatterns) {

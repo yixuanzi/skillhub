@@ -14,10 +14,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from config import settings
+from core.roles import USER, get_or_create_role
 from core.security import get_password_hash
 from database import get_db
 from models.oidc import OidcLoginTransaction, SsoLoginTicket
-from models.user import Role, User
+from models.user import User
 from services.auth_service import AuthService
 
 
@@ -218,16 +219,6 @@ async def _exchange_code(transaction: OidcLoginTransaction, code: str) -> tuple[
     return claims, userinfo
 
 
-def _viewer_role(db: Session) -> Role:
-    role = db.query(Role).filter(Role.name == "viewer").first()
-    if role:
-        return role
-    role = Role(name="viewer", description="OIDC provisioned SkillHub viewer")
-    db.add(role)
-    db.flush()
-    return role
-
-
 def _new_username(db: Session, subject: str) -> str:
     prefix = f"oidc_{hashlib.sha256(subject.encode('utf-8')).hexdigest()[:16]}"
     username = prefix
@@ -276,7 +267,7 @@ def _upsert_local_user(db: Session, claims: dict, userinfo: dict) -> User:
         hashed_password=get_password_hash(secrets.token_urlsafe(32)),
         is_active=True,
     )
-    user.roles = [_viewer_role(db)]
+    user.roles = [get_or_create_role(db, USER)]
     db.add(user)
     db.flush()
     return user

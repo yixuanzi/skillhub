@@ -17,7 +17,6 @@ interface User {
     id: string;
     name: string;
     description?: string;
-    permissions?: Array<{ id: string; resource: string; action: string }>;
   }>;
   created_at: string;
   updated_at?: string;
@@ -221,11 +220,8 @@ export const UserDetailModal: React.FC<Props> = ({ user, open, onOpenChange }) =
           ) : (
             <div className="bg-void-900/50 rounded-lg px-3 py-1 border border-void-700 space-y-0">
               {currentUser.roles.map((role) => (
-                <div key={role.id} className="flex items-center justify-between py-1.5 border-b border-void-700/40 last:border-0">
+                <div key={role.id} className="py-1.5 border-b border-void-700/40 last:border-0">
                   <span className="text-gray-300 text-xs font-mono">{role.name}</span>
-                  <Badge className="text-xs bg-cyber-primary/10 border-cyber-primary/30 text-cyber-primary">
-                    {role.permissions?.length ?? 0} perms
-                  </Badge>
                 </div>
               ))}
             </div>

@@ -1,12 +1,12 @@
-"""User Management API endpoints (admin-only).
+"""User and role management API endpoints (admin-only).
 
-This module provides FastAPI endpoints for admin operations including:
-- List users
-- Update user
-- List roles
-- Create role
-- Assign roles to users
-- List permissions
+Every endpoint here requires `admin` or `super_admin`. `admin` is the limited
+of the two: it cannot grant the `super_admin` role, and cannot edit, delete or
+re-role an account that holds it. Those are reserved for `super_admin`.
+
+Roles carry no permissions (see core/roles.py). The built-in ones -
+`super_admin`, `admin`, `user` - cannot be renamed, deleted or re-created;
+custom roles are free-form groups used by ACL rules.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, selectinload
@@ -15,9 +15,10 @@ from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 
 from database import get_db
-from models.user import User, Role, Permission
+from models.user import User, Role
 from core.deps import get_current_active_user
 from core.exceptions import ValidationException, NotFoundException
+from core.roles import SUPER_ADMIN, USER, get_or_create_role, is_admin_user, is_builtin_role, is_super_admin
 
 router = APIRouter(prefix="/admin/users", tags=["Admin - User Management"])
 
@@ -89,17 +90,6 @@ class RoleListResponse(BaseModel):
     size: int
 
 
-class PermissionResponse(BaseModel):
-    """Permission response schema."""
-    id: str
-    resource: str
-    action: str
-    description: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-
 class AdminUserCreate(BaseModel):
     """Schema for admin user creation."""
     username: str = Field(..., min_length=3, max_length=50, description="Username for the new account")
@@ -110,14 +100,48 @@ class AdminUserCreate(BaseModel):
 
 
 def require_admin(user: User) -> User:
-    """Dependency to check if user is admin or super_admin."""
-    admin_roles = {"admin", "super_admin"}
-    if not any(role.name in admin_roles for role in user.roles):
+    """Raise 403 unless the user is admin or super_admin."""
+    if not is_admin_user(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
     return user
+
+
+def _require_can_manage_account(actor: User, target: User) -> None:
+    """Raise 403 if `actor` may not edit, delete or re-role `target`.
+
+    A super_admin account is off limits to a plain admin; otherwise an admin
+    could lock out, take over (password reset) or demote the people above it.
+    """
+    if is_super_admin(target) and not is_super_admin(actor):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only a super_admin can manage a super_admin account"
+        )
+
+
+def _require_can_grant(actor: User, roles: List[Role]) -> None:
+    """Raise 403 if `actor` may not hand out every role in `roles`.
+
+    Only a super_admin can grant super_admin - without this an admin could
+    simply promote itself.
+    """
+    if any(role.name == SUPER_ADMIN for role in roles) and not is_super_admin(actor):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only a super_admin can grant the super_admin role"
+        )
+
+
+def _require_custom_role(role: Role, action: str) -> None:
+    """Raise 400 if `role` is built in: the code depends on those names."""
+    if is_builtin_role(role.name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Built-in role '{role.name}' cannot be {action}"
+        )
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -169,7 +193,9 @@ async def create_user(
                 detail="One or more roles not found"
             )
     else:
-        roles = []
+        # Every account holds at least the plain `user` role.
+        roles = [get_or_create_role(db, USER)]
+    _require_can_grant(current_user, roles)
 
     # Create user
     new_user = User(
@@ -317,6 +343,7 @@ async def update_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User with id '{user_id}' not found"
         )
+    _require_can_manage_account(current_user, user)
 
     # Update username if provided
     if user_data.username is not None:
@@ -380,6 +407,7 @@ async def delete_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete your own account"
         )
+    _require_can_manage_account(current_user, user)
 
     db.delete(user)
     db.commit()
@@ -426,6 +454,8 @@ async def assign_user_roles(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="One or more roles not found"
         )
+    _require_can_manage_account(current_user, user)
+    _require_can_grant(current_user, roles)
 
     # Replace roles
     user.roles = roles
@@ -486,6 +516,14 @@ async def create_role(
         HTTPException 400: If role name already exists
     """
     require_admin(current_user)
+
+    # Built-in names are reserved even when the role row is missing (an
+    # unseeded database): they are created by seeding, not through this API.
+    if is_builtin_role(role_data.name):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Role name '{role_data.name}' is reserved for a built-in role"
+        )
 
     # Check if role already exists
     existing = db.query(Role).filter(Role.name == role_data.name).first()
@@ -556,6 +594,12 @@ async def update_role(
         )
 
     if role_data.name is not None and role_data.name != role.name:
+        _require_custom_role(role, "renamed")
+        if is_builtin_role(role_data.name):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Role name '{role_data.name}' is reserved for a built-in role"
+            )
         existing = db.query(Role).filter(Role.name == role_data.name).first()
         if existing:
             raise HTTPException(
@@ -588,6 +632,8 @@ async def delete_role(
             detail=f"Role with id '{role_id}' not found"
         )
 
+    _require_custom_role(role, "deleted")
+
     if role.users:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -597,62 +643,3 @@ async def delete_role(
     db.delete(role)
     db.commit()
     return None
-
-
-@role_router.get("/{role_id}/permissions/", response_model=List[PermissionResponse])
-async def get_role_permissions(
-    role_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """Get permissions for a role (admin-only).
-
-    Args:
-        role_id: Role UUID
-        db: Database session
-        current_user: Authenticated user (must be admin)
-
-    Returns:
-        List of permissions
-
-    Raises:
-        HTTPException 403: If user is not admin
-        HTTPException 404: If role not found
-    """
-    require_admin(current_user)
-
-    role = db.query(Role).filter(Role.id == role_id).first()
-    if not role:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Role with id '{role_id}' not found"
-        )
-
-    return [PermissionResponse.model_validate(p) for p in role.permissions]
-
-
-# Permission management endpoints
-permission_router = APIRouter(prefix="/admin/permissions", tags=["Admin - Permission Management"])
-
-
-@permission_router.get("/list/", response_model=List[PermissionResponse])
-async def list_permissions(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """List all permissions (admin-only).
-
-    Args:
-        db: Database session
-        current_user: Authenticated user (must be admin)
-
-    Returns:
-        List of permissions
-
-    Raises:
-        HTTPException 403: If user is not admin
-    """
-    require_admin(current_user)
-
-    permissions = db.query(Permission).all()
-    return [PermissionResponse.model_validate(p) for p in permissions]

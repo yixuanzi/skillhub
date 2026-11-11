@@ -259,17 +259,14 @@ conditions:
 ```yaml
 resource: internal-payment-api
 accessMode: rbac
-roles:
-  - name: admin
-    permissions: [read, write, delete]
-  - name: operator
-    permissions: [read, write]
-  - name: viewer
-    permissions: [read]
 conditions:
-  - rateLimit: 50/minute
-  - requireApproval: true
+  users: [alice, bob]            # 用户名白名单
+  roles: [admin, payment-team]   # 角色白名单：内置角色或自定义角色，写名称或 ID 均可
+roleBindings:                    # 也可以通过角色绑定授权，效果与角色白名单相同
+  - role: payment-ops
 ```
+
+命中用户白名单、角色白名单、角色绑定中的任意一项即允许调用，否则拒绝。新建资源时系统会自动生成一条 RBAC 规则，并把创建者加入用户白名单。
 
 #### 3.3 ACL 规则结构
 
@@ -303,6 +300,8 @@ interface ACLRule {
 }
 ```
 
+> **现状说明**：当前实现只判断“调用者是否被这条规则授权”。`rateLimit`、`ipWhitelist`、`timeWindow` 等附加条件，以及角色绑定上的 `permissions` 字段，可以保存但尚未生效；`effectiveFrom` / `effectiveUntil`、审批流程未实现。
+
 #### 3.4 权限检查流程
 
 ```
@@ -313,8 +312,9 @@ interface ACLRule {
 查找 ACL 规则
     ↓
 判断访问模式
-    ├─ Any → 检查附加条件 → 允许/拒绝
-    └─ RBAC → 检查用户角色 → 检查权限 → 检查附加条件 → 允许/拒绝
+    ├─ 没有规则 → 拒绝
+    ├─ Any → 允许（调用者需已登录）
+    └─ RBAC → 用户白名单 / 角色白名单 / 角色绑定，命中任意一项 → 允许，否则拒绝
     ↓
 记录审计日志
     ↓
@@ -478,7 +478,7 @@ resource:
 认证服务验证
     ↓
 生成 JWT Token
-    ├─ Access Token (15 分钟)
+    ├─ Access Token (60 分钟)
     └─ Refresh Token (7 天)
     ↓
 返回 Token 给客户端
@@ -490,91 +490,64 @@ resource:
 {
   "sub": "user-123",
   "username": "john.doe",
-  "roles": ["developer", "admin"],
-  "permissions": ["skill:read", "skill:write", "user:manage"],
-  "iat": 1709049600,
-  "exp": 1709050500,
-  "jti": "token-unique-id"
+  "exp": 1709053200
 }
 ```
 
-#### 4.2 RBAC 模型
+Token 中不携带角色，角色在每次请求时从数据库读取，因此调整角色后无需重新登录即可生效。
 
-```
-用户 (User)
-  ↓ 拥有
-角色 (Role)
-  ↓ 包含
-权限 (Permission)
-  ↓ 作用于
-资源 (Resource)
-```
+#### 4.2 角色模型
 
-**预置角色**:
+SkillHub 不使用权限矩阵。一次操作是否被允许，只取决于三个问题：
 
-| 角色名称 | 描述 | 权限范围 |
-|---------|------|---------|
-| `super_admin` | 超级管理员 | 所有资源的完全控制 |
-| `admin` | 系统管理员 | 用户管理、技能管理、配置管理 |
-| `developer` | 开发者 | 技能构建、发布、测试 |
-| `operator` | 运营人员 | 技能调用、日志查看 |
-| `viewer` | 只读用户 | 仅查看权限 |
+1. **是不是你的**：技能、资源、ACL 规则、API Key、托管令牌，由创建者自己管理。这是普通用户的全部规则。
+2. **是不是管理员**：`admin` 和 `super_admin` 可以额外查看并管理他人的技能、资源和 ACL 规则，查看全部审计日志，管理用户和角色。
+3. **能不能调用**：只看资源的 ACL 规则（见第 3 节），任何角色都没有调用特权，管理员也不例外。
 
-#### 4.3 权限矩阵
+**内置角色**:
 
-| 资源/操作 | super_admin | admin | developer | operator | viewer |
-|----------|------------|-------|-----------|----------|--------|
-| **技能管理** |
-| 查看技能 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 创建技能 | ✅ | ✅ | ✅ | ❌ | ❌ |
-| 编辑技能 | ✅ | ✅ | ✅ | ❌ | ❌ |
-| 删除技能 | ✅ | ✅ | ❌ | ❌ | ❌ |
-| 发布技能 | ✅ | ✅ | ✅ | ❌ | ❌ |
-| **用户管理** |
-| 查看用户 | ✅ | ✅ | ❌ | ❌ | ❌ |
-| 创建用户 | ✅ | ✅ | ❌ | ❌ | ❌ |
-| 编辑用户 | ✅ | ✅ | ❌ | ❌ | ❌ |
-| 删除用户 | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **ACL 配置** |
-| 查看规则 | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 创建规则 | ✅ | ✅ | ❌ | ❌ | ❌ |
-| 编辑规则 | ✅ | ✅ | ❌ | ❌ | ❌ |
-| 删除规则 | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **技能调用** |
-| 调用技能 | ✅ | ✅ | ✅ | ✅ | ❌ |
+| 角色名称 | 描述 | 说明 |
+|---------|------|------|
+| `super_admin` | 超级管理员 | 拥有 `admin` 的全部能力，并且可以管理 `super_admin` 账号 |
+| `admin` | 管理员 | 有限的管理权限：不能授予 `super_admin` 角色，也不能编辑、删除 `super_admin` 账号或调整其角色 |
+| `user` | 普通用户 | 每个账号的默认角色（注册、SSO 首次登录、管理员创建时自动赋予），只管理自己的东西 |
 
-#### 4.4 资源的 RBAC 设置
+角色本身不带任何权限点。三个内置角色不能改名、删除，其名称也不能被新建角色占用。
 
-**为资源配置权限**:
+**自定义角色**：管理员可以创建任意名称的角色并把用户加入其中。自定义角色不带来任何管理能力，唯一用途是在 ACL 规则里作为“一组用户”被授权调用某个资源。
+
+#### 4.3 谁能做什么
+
+| 操作 | `user` | `admin` | `super_admin` |
+|------|--------|---------|---------------|
+| 创建技能、资源、API Key、托管令牌 | ✅ | ✅ | ✅ |
+| 查看技能 | 已发布的，以及自己创建的 | 全部 | 全部 |
+| 查看资源 | public 的、自己创建的、ACL 授权给自己的 | 全部 | 全部 |
+| 编辑、删除技能和资源 | 仅自己创建的 | 全部 | 全部 |
+| 配置资源的 ACL 规则 | 仅自己资源的 | 全部 | 全部 |
+| 调用资源 | 由该资源的 ACL 规则决定 | 同左，无特权 | 同左，无特权 |
+| 管理 API Key、托管令牌 | 仅自己的 | 仅自己的 | 仅自己的 |
+| 查看审计日志 | 仅自己的 | 全部 | 全部 |
+| 管理用户（创建、编辑、停用、删除、分配角色） | ❌ | ✅，`super_admin` 账号除外 | ✅ |
+| 授予或收回 `super_admin` 角色 | ❌ | ❌ | ✅ |
+| 创建、改名、删除自定义角色 | ❌ | ✅ | ✅ |
+
+没有归属人的资源（历史数据）只有管理员可以编辑和删除。
+
+#### 4.4 资源的访问授权
+
+谁可以调用某个资源，由资源的创建者（或管理员）在该资源的 ACL 规则中配置：
 
 ```yaml
 resource:
-  id: payment-api
-  name: 支付服务 API
+  name: payment-api
   accessMode: rbac
-  
-  rbacConfig:
-    roles:
-      - name: payment_admin
-        permissions:
-          - action: read
-            conditions: []
-          - action: write
-            conditions: []
-          - action: delete
-            conditions:
-              - requireApproval: true
-                approvers: [super_admin]
-      
-      - name: payment_operator
-        permissions:
-          - action: read
-            conditions: []
-          - action: write
-            conditions:
-              - amountLimit: 10000
-                requireMFA: true
+  conditions:
+    users: [alice]              # 直接授权给用户
+    roles: [payment-team]       # 授权给一个角色下的所有用户
 ```
+
+要让所有登录用户都能调用，把 `accessMode` 设为 `any`。把资源设为 public 只影响“能否看到”，不影响“能否调用”。
 
 ---
 
@@ -582,7 +555,7 @@ resource:
 
 ### 场景 1: 开发者发布新技能
 
-**角色**: 开发者 (developer)
+**角色**: 普通用户（技能的创建者）
 
 **流程**:
 ```
@@ -591,18 +564,15 @@ resource:
 3. SkillHub 自动构建和测试
 4. 测试通过后，开发者发布到测试环境
 5. QA 验证通过后，开发者发布到生产环境
-6. 管理员配置 ACL 规则，控制访问权限
+6. 创建者（或管理员）配置 ACL 规则，控制访问权限
 ```
 
 **ACL 配置**:
 ```yaml
 resource: new-skill-api
 accessMode: rbac
-roles:
-  - name: tester
-    permissions: [execute]
-  - name: operator
-    permissions: [execute]
+conditions:
+  roles: [tester, ops-team]   # 自定义角色
 ```
 
 ---
@@ -640,27 +610,17 @@ conditions:
 **流程**:
 ```
 1. 管理员登录管理后台
-2. 创建新角色 "data_analyst"
-3. 为角色分配权限：
-   - 查看：所有数据分析技能
-   - 执行：特定的数据分析技能
-4. 将用户分配到该角色
-5. 配置 ACL 规则，限制访问条件和时间窗口
+2. 创建自定义角色 "data_analyst"
+3. 将用户分配到该角色
+4. 在需要开放的资源的 ACL 规则中授权该角色
 ```
 
 **ACL 配置**:
 ```yaml
 resource: data-analysis-api
 accessMode: rbac
-roles:
-  - name: data_analyst
-    permissions:
-      - action: read
-      - action: execute
-        conditions:
-          - timeWindow:
-              start: "09:00"
-              end: "18:00"
+conditions:
+  roles: [data_analyst]
 ```
 
 ---
@@ -735,7 +695,7 @@ resource:
 **目标**: 基础功能可用
 
 - [ ] 用户认证和 JWT Token 管理
-- [ ] 基础的 RBAC 权限系统
+- [ ] 基础的角色体系（super_admin / admin / user）
 - [ ] 技能构建和发布（支持 Node.js）
 - [ ] 简单的网关调用
 - [ ] ACL 规则管理（Any 模式）

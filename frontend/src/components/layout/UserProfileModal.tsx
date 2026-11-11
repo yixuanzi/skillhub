@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Mail, Calendar, Shield, Key, LogOut, Edit } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { User as UserType } from '@/types';
 import { EditProfileModal, ChangePasswordModal } from './UserEditModals';
@@ -69,11 +68,8 @@ export const UserProfileModal = ({ isOpen, onClose, user, onLogout }: UserProfil
             ) : (
               <div className="bg-void-900/50 rounded-lg px-3 py-1 border border-void-700">
                 {user.roles.map((role) => (
-                  <div key={role.id} className="flex items-center justify-between py-1.5 border-b border-void-700/40 last:border-0">
+                  <div key={role.id} className="py-1.5 border-b border-void-700/40 last:border-0">
                     <span className="text-gray-300 text-xs font-mono">{role.name}</span>
-                    <Badge className="text-xs bg-cyber-primary/10 border-cyber-primary/30 text-cyber-primary">
-                      {role.permissions.length} perms
-                    </Badge>
                   </div>
                 ))}
               </div>

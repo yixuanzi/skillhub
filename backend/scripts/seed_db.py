@@ -1,9 +1,12 @@
 """Database seeding script.
 
 Populates the database with default data:
-- Permissions for all resources and actions
-- Default roles (super_admin, admin, developer, operator, viewer)
-- Default admin user (admin/admin123)
+- The built-in roles (super_admin, admin, user) - see core/roles.py
+- Default admin user (admin/admin123), holding super_admin
+
+Roles carry no permissions, so there is nothing else to seed. To bring an
+existing database in line with the built-in roles, run
+scripts/migrate_roles.py instead.
 """
 import sys
 import os
@@ -12,136 +15,27 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import SessionLocal, init_db
-from models.user import User, Role, Permission
+from models.user import User, Role
+from core.roles import BUILTIN_ROLES, SUPER_ADMIN
 from core.security import get_password_hash
 
 
-def seed_permissions(db):
-    """Create all permissions for resources and actions."""
-    print("\nSeeding permissions...")
-
-    # Define all resource+action combinations
-    permissions_data = [
-        # User permissions
-        ("users", "read", "Read user information"),
-        ("users", "write", "Create and update users"),
-        ("users", "delete", "Delete users"),
-
-        # Skill permissions
-        ("skills", "read", "Read skill information"),
-        ("skills", "write", "Create and update skills"),
-        ("skills", "delete", "Delete skills"),
-        ("skills", "build", "Build skills"),
-        ("skills", "publish", "Publish skills"),
-        ("skills", "invoke", "Invoke/call skills"),
-
-        # ACL permissions
-        ("acl", "read", "Read ACL rules and audit logs"),
-        ("acl", "write", "Create and update ACL rules"),
-        ("acl", "delete", "Delete ACL rules"),
-    ]
-
-    permissions = []
-    for resource, action, description in permissions_data:
-        # Check if permission already exists
-        existing = db.query(Permission).filter(
-            Permission.resource == resource,
-            Permission.action == action
-        ).first()
-
-        if existing:
-            permissions.append(existing)
-            print(f"  ✓ Permission already exists: {resource}:{action}")
-        else:
-            permission = Permission(
-                resource=resource,
-                action=action,
-                description=description
-            )
-            db.add(permission)
-            permissions.append(permission)
-            print(f"  + Created permission: {resource}:{action}")
-
-    db.flush()  # Flush to get IDs
-    return permissions
-
-
-def seed_roles(db, permissions):
-    """Create default roles with assigned permissions."""
+def seed_roles(db):
+    """Create the built-in roles."""
     print("\nSeeding roles...")
 
-    # Create a lookup dictionary for permissions
-    perm_dict = {}
-    for perm in permissions:
-        key = f"{perm.resource}:{perm.action}"
-        perm_dict[key] = perm
-
-    # Define role configurations
-    roles_data = [
-        {
-            "name": "super_admin",
-            "description": "Super administrator with full system access",
-            "permissions": list(perm_dict.values())  # All permissions
-        },
-        {
-            "name": "admin",
-            "description": "Administrator with read/write access",
-            "permissions": [
-                perm_dict["users:read"],
-                perm_dict["users:write"],
-                perm_dict["skills:read"],
-                perm_dict["skills:write"],
-                perm_dict["acl:read"],
-                perm_dict["acl:write"],
-            ]
-        },
-        {
-            "name": "developer",
-            "description": "Developer with skill development access",
-            "permissions": [
-                perm_dict["skills:read"],
-                perm_dict["skills:write"],
-                perm_dict["skills:build"],
-                perm_dict["skills:publish"],
-            ]
-        },
-        {
-            "name": "operator",
-            "description": "Operator with skill execution access",
-            "permissions": [
-                perm_dict["skills:read"],
-                perm_dict["skills:invoke"],
-                perm_dict["acl:read"],
-            ]
-        },
-        {
-            "name": "viewer",
-            "description": "Viewer with read-only access",
-            "permissions": [
-                perm_dict["users:read"],
-                perm_dict["skills:read"],
-                perm_dict["acl:read"],
-            ]
-        },
-    ]
-
     roles = []
-    for role_data in roles_data:
-        # Check if role already exists
-        existing = db.query(Role).filter(Role.name == role_data["name"]).first()
+    for name, description in BUILTIN_ROLES.items():
+        existing = db.query(Role).filter(Role.name == name).first()
 
         if existing:
             roles.append(existing)
-            print(f"  ✓ Role already exists: {role_data['name']}")
+            print(f"  ✓ Role already exists: {name}")
         else:
-            role = Role(
-                name=role_data["name"],
-                description=role_data["description"]
-            )
-            role.permissions = role_data["permissions"]
+            role = Role(name=name, description=description)
             db.add(role)
             roles.append(role)
-            print(f"  + Created role: {role_data['name']}")
+            print(f"  + Created role: {name}")
 
     db.flush()  # Flush to get IDs
     return roles
@@ -159,7 +53,7 @@ def seed_admin_user(db, roles):
         return
 
     # Get super_admin role
-    super_admin_role = next((r for r in roles if r.name == "super_admin"), None)
+    super_admin_role = next((r for r in roles if r.name == SUPER_ADMIN), None)
     if not super_admin_role:
         raise ValueError("super_admin role not found!")
 
@@ -191,11 +85,7 @@ def main():
     db = SessionLocal()
 
     try:
-        # Create permissions first
-        permissions = seed_permissions(db)
-
-        # Create roles with permissions
-        roles = seed_roles(db, permissions)
+        roles = seed_roles(db)
 
         # Create admin user
         seed_admin_user(db, roles)
@@ -206,7 +96,6 @@ def main():
         print("\n" + "=" * 50)
         print("✓ Database seeded successfully!")
         print(f"\nSummary:")
-        print(f"  - Permissions: {len(permissions)}")
         print(f"  - Roles: {len(roles)}")
         print(f"  - Admin user: admin / admin123")
 

@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/Table';
 import { cn } from '@/utils/cn';
 import { useRoles, useCreateRole, useUpdateRole, useDeleteRole } from '@/hooks/use-user-management';
+import { isBuiltinRole } from '@/utils/permissions';
 
 interface Role {
   id: string;
@@ -279,6 +280,10 @@ export const RolesTab = () => {
                         </span>
                       </TableCell>
                       <TableCell>
+                        {/* Built-in roles are fixed: the server rejects renaming or deleting them. */}
+                        {isBuiltinRole(role.name) ? (
+                          <span className="text-xs text-gray-600 font-mono">Built-in</span>
+                        ) : (
                         <div className="flex items-center gap-1">
                           <Button
                             variant="ghost"
@@ -307,6 +312,7 @@ export const RolesTab = () => {
                             }
                           </Button>
                         </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

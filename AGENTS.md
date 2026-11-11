@@ -46,7 +46,7 @@ This is a **microservices architecture** with multiple languages:
 
 ### Access Control Modes
 - `any` - Public access (no authentication required)
-- `rbac` - Role-based access control (requires authentication + permissions)
+- `rbac` - Only the users/roles whitelisted in the resource's ACL rule may call it
 
 ## Development Commands
 
@@ -155,11 +155,13 @@ test: description
 
 ## Key Design Patterns
 
-### RBAC Permission Model
-- Users have Roles
-- Roles have Permissions
-- Permissions apply to Resources
-- ACL rules support `any` or `rbac` modes with conditional constraints (rate limits, IP whitelist, time windows)
+### Role Model
+- No permission matrix: roles carry no permissions
+- Three built-in roles: `super_admin`, `admin`, `user` (every account gets `user`)
+- Ownership first: users manage what they created (skills, resources, ACL rules, API keys, tokens)
+- `admin` / `super_admin` additionally manage other people's skills, resources and ACL rules, read all audit logs, and manage users and roles; only `super_admin` can grant `super_admin` or touch a `super_admin` account
+- Invocation is decided by the resource's ACL rule alone (`any`, or `rbac` with user/role whitelists); no role bypasses it
+- Custom roles exist only to grant a group of users access in an ACL rule
 
 ### Skill Lifecycle
 1. **Build**: Code upload → validation → dependency install → test → store artifact

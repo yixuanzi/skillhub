@@ -24,14 +24,13 @@ from schemas.acl_resource import (
     PermissionCheckResponse
 )
 from core.exceptions import ValidationException, NotFoundException
+from core.roles import ADMIN_ROLES
 from typing import Optional, List, Dict, Any
 import json
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Admin role names
-ADMIN_ROLES = {"admin", "super_admin"}
 
 
 def _matched_role_whitelist(user: Optional[User], allowed_roles: Optional[List[str]]) -> List[str]:

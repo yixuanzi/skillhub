@@ -19,7 +19,7 @@ def main():
     try:
         # Import all models to ensure they're registered with SQLAlchemy
         from models import (
-            User, Role, Permission, RefreshToken,
+            User, Role, RefreshToken,
             Skill, SkillVersion, SkillType, SkillRuntime, SkillStatus,
             ACLRule, ACLRuleRole, AuditLog, AccessMode, AuditResult
         )

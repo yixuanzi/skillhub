@@ -17,19 +17,11 @@ interface BackendRefreshResponse {
 }
 
 // Backend user response format
-interface BackendPermissionResponse {
-  id: string;
-  resource: string;
-  action: string;
-  description?: string;
-}
-
 interface BackendRoleResponse {
   id: string;
   name: string;
   description?: string;
   created_at: string;
-  permissions: BackendPermissionResponse[];
 }
 
 export interface BackendUserResponse {

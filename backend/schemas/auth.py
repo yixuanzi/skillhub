@@ -22,7 +22,7 @@ class UserResponse(UserBase):
     id: str  # UUID stored as string in SQLite
     is_active: bool
     created_at: datetime
-    roles: List['RoleWithPermissions'] = []
+    roles: List['RoleResponse'] = []
 
     class Config:
         from_attributes = True
@@ -59,18 +59,6 @@ class RoleResponse(RoleBase):
 
     class Config:
         from_attributes = True
-
-class PermissionResponse(BaseModel):
-    id: str  # UUID stored as string in SQLite
-    resource: str
-    action: str
-    description: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-class RoleWithPermissions(RoleResponse):
-    permissions: List[PermissionResponse] = []
 
 class UserUpdate(BaseModel):
     """Schema for updating user profile (username and/or email)."""
