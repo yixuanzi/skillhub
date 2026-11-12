@@ -102,6 +102,12 @@ doesn't exist), e.g.:
 
 #### require
 - `SKILLHUB_API_KEY` - Default API token for authentication (required for most operations,you can set in .bashrc/.zshrc/profile)
+  - Or store it in `~/.skillhub/.env`, which the CLI reads when neither `-token` nor the `SKILLHUB_API_KEY` env var is set:
+    ```bash
+    mkdir -p ~/.skillhub && chmod 700 ~/.skillhub
+    printf 'SKILLHUB_API_KEY=%s\n' 'sk_your_api_key' > ~/.skillhub/.env
+    chmod 600 ~/.skillhub/.env
+    ```
 
 
 #### "command not found: skillhub"

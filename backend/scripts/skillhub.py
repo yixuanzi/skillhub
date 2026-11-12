@@ -17,7 +17,7 @@ from typing import Dict, Optional, Tuple
 
 
 # CLI version. Keep in sync with scripts/skillhub's SKILLHUB_VERSION.
-SKILLHUB_VERSION = "1.0.1"
+SKILLHUB_VERSION = "1.0.2"
 
 SKILLHUB_URL = "{PLACEHOLDER_SKILLHUB_URL}"
 
@@ -38,12 +38,81 @@ def success(message: str) -> None:
     print(f"{GREEN}{message}{NC}")
 
 
+# warning/info go to stderr so stdout carries only the command's result.
 def warning(message: str) -> None:
-    print(f"{YELLOW}Warning: {message}{NC}")
+    print(f"{YELLOW}Warning: {message}{NC}", file=sys.stderr)
 
 
 def info(message: str) -> None:
-    print(f"{BLUE}{message}{NC}")
+    print(f"{BLUE}{message}{NC}", file=sys.stderr)
+
+
+def url_encode(value: str) -> str:
+    """Percent-encode one value for a URL query value or path segment."""
+    return urllib.parse.quote(str(value), safe="")
+
+
+NO_TOKEN_MESSAGE = (
+    "No authentication token found. Please provide via -token option, set SKILLHUB_API_KEY "
+    "environment variable, or add SKILLHUB_API_KEY=<token> to ~/.skillhub/.env"
+)
+
+
+def read_env_file_token() -> str:
+    """SKILLHUB_API_KEY from ~/.skillhub/.env, or "" if missing/unset.
+
+    The file is parsed, never executed: KEY=VALUE lines, optional 'export ',
+    '#' comments, optional surrounding quotes; the last assignment wins.
+    Keep in sync with scripts/skillhub's read_env_file_token().
+    """
+    env_file = os.path.join(os.path.expanduser("~"), ".skillhub", ".env")
+    try:
+        with open(env_file, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+    value = ""
+    for line in lines:
+        line = line.strip()
+        if line.startswith("export "):
+            line = line[len("export "):].lstrip()
+        name, sep, raw = line.partition("=")
+        if not sep or name.strip() != "SKILLHUB_API_KEY":
+            continue
+        raw = raw.strip()
+        close = raw.find(raw[0], 1) if raw[:1] in ("\"", "'") else -1
+        if close != -1:
+            raw = raw[1:close]  # quoted: anything after the closing quote is ignored
+        else:
+            raw = re.split(r"\s+#", raw, maxsplit=1)[0].strip()
+        value = raw
+    return value
+
+
+def resolve_token(token: str) -> str:
+    """Token in priority order: -token option, SKILLHUB_API_KEY env var,
+    SKILLHUB_API_KEY in ~/.skillhub/.env. "" if none is set."""
+    return token or os.environ.get("SKILLHUB_API_KEY", "") or read_env_file_token()
+
+
+def require_token(token: str) -> str:
+    """resolve_token, and fail if no token was found anywhere."""
+    token = resolve_token(token)
+    if not token:
+        error(NO_TOKEN_MESSAGE)
+    return token
+
+
+def build_list_url(search_term: str, page: str) -> str:
+    """Skills list URL with the search term and page percent-encoded."""
+    params = []
+    if search_term:
+        params.append(f"search={url_encode(search_term)}")
+    if page:
+        params.append(f"page={url_encode(page)}")
+    query = "&".join(params)
+    return f"{SKILLHUB_URL}/api/v1/skills/" + (f"?{query}" if query else "")
 
 
 def show_version() -> None:
@@ -112,7 +181,7 @@ def show_help() -> None:
     print("    --known-fields <s>  Identifier hints for 'composio search' (optional)")
     print("    --tools <json>      JSON array of tools for 'composio exec' batch form (optional)")
     print("    --outdir <path>     Install path for 'install' command (optional, default: ~/.agents/skills)")
-    print("    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)")
+    print("    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var, then ~/.skillhub/.env)")
     print("    -timeout <seconds>  Request timeout in seconds (optional, default: 30)")
     print("    -page <number>      Page number for list command (optional)")
     print("    -v                  Verbose mode: show curl command being executed (optional)")
@@ -152,7 +221,12 @@ def show_help() -> None:
     print(f"    {YELLOW}# Using custom token{NC}")
     print("    skillhub third weather-api -method GET -inputs '{\"city\":\"Shanghai\"}' -token your-api-token-here\n")
     print(f"{BLUE}ENVIRONMENT VARIABLES{NC}")
-    print("    SKILLHUB_API_KEY   Default API token if -token is not provided")
+    print("    SKILLHUB_API_KEY   Default API token if -token is not provided\n")
+    print(f"{BLUE}CONFIG FILE{NC}")
+    print("    ~/.skillhub/.env   Read only when neither -token nor SKILLHUB_API_KEY is set.")
+    print("                       One KEY=VALUE per line ('export ', quotes and # comments allowed):")
+    print("                         SKILLHUB_API_KEY=sk_your_api_key")
+    print("                       The file is parsed, never executed. Keep it private: chmod 600.\n")
     print(f"{BLUE}RESOURCE TYPES{NC}")
     print("    third       Third-party API resources (requires -method)")
     print("    gateway     Gateway resources with path support (requires -method and -path)")
@@ -162,7 +236,8 @@ def show_help() -> None:
     print("    Token priority:")
     print("    1. Token provided via -token option")
     print("    2. SKILLHUB_API_KEY environment variable")
-    print("    3. Error if neither is available")
+    print("    3. SKILLHUB_API_KEY in ~/.skillhub/.env")
+    print("    4. Error if none is available (list/install still work for public skills)")
 
 
 def _parse_timeout(timeout_value: str) -> float:
@@ -212,11 +287,7 @@ def json_to_query_params(raw_json: str) -> Optional[str]:
 
 
 def getme_user(token: str, timeout_value: str) -> None:
-    if not token:
-        token = os.environ.get("SKILLHUB_API_KEY", "")
-
-    if not token:
-        error("No authentication token found. Please provide via -token option or set SKILLHUB_API_KEY environment variable")
+    token = require_token(token)
 
     api_url = f"{SKILLHUB_URL}/api/v1/auth/me/"
 
@@ -245,8 +316,8 @@ def install_skill(skill_name: str, token: str, timeout_value: str, outdir: str =
     if not skill_name:
         error("install command requires a skill name")
 
-    if not token:
-        token = os.environ.get("SKILLHUB_API_KEY", "")
+    # Token is optional here: without one only public skills can be installed
+    token = resolve_token(token)
 
     info(f"Installing skill: {skill_name}")
 
@@ -268,7 +339,7 @@ def install_skill(skill_name: str, token: str, timeout_value: str, outdir: str =
         except Exception:
             error(f"Failed to create directory: {actual_dir}")
 
-    api_url = f"{SKILLHUB_URL}/api/v1/skills/{skill_name}/?install=true"
+    api_url = f"{SKILLHUB_URL}/api/v1/skills/{url_encode(skill_name)}/?install=true"
     info(f"Fetching skill from: {api_url}")
 
     try:
@@ -305,26 +376,17 @@ def install_skill(skill_name: str, token: str, timeout_value: str, outdir: str =
 
 
 def list_skills(search_term: str, page: str, token: str, timeout_value: str) -> None:
-    if not token:
-        token = os.environ.get("SKILLHUB_API_KEY", "")
-
-    api_url = f"{SKILLHUB_URL}/api/v1/skills/"
-    query_params = ""
+    # Token is optional here: without one only public skills are listed
+    token = resolve_token(token)
 
     if search_term:
-        query_params = f"?search={search_term}"
         info(f"Searching for skills matching: {search_term}")
     else:
         info("Listing all skills")
-
     if page:
-        if query_params:
-            query_params = f"{query_params}&page={page}"
-        else:
-            query_params = f"?page={page}"
         info(f"Page: {page}")
 
-    api_url = f"{api_url}{query_params}"
+    api_url = build_list_url(search_term, page)
     info(f"Fetching skills from {api_url}")
 
     try:
@@ -379,10 +441,7 @@ def parse_composio_tools(raw: str) -> list:
 
 
 def composio_call(endpoint: str, body: dict, token: str, timeout_value: str, verbose: int) -> None:
-    if not token:
-        token = os.environ.get("SKILLHUB_API_KEY", "")
-    if not token:
-        error("No authentication token found. Please provide via -token option or set SKILLHUB_API_KEY environment variable")
+    token = require_token(token)
 
     api_url = f"{SKILLHUB_URL}/api/v1/gateway/composio/{endpoint}"
     payload = json.dumps(body)
@@ -700,11 +759,7 @@ def main() -> None:
         else:
             error(f"Unknown option: {a}")
 
-    if not token:
-        token = os.environ.get("SKILLHUB_API_KEY", "")
-
-    if not token:
-        error("No authentication token found. Please provide via -token option or set SKILLHUB_API_KEY environment variable")
+    token = require_token(token)
 
     if res_type == "third":
         if not method:

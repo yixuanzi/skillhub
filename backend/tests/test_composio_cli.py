@@ -181,7 +181,7 @@ class TestVersionFlag:
     must not drift apart.
     """
 
-    EXPECTED = "1.0.1"
+    EXPECTED = "1.0.2"
 
     def test_python_cli_declares_the_version(self):
         assert py_cli.SKILLHUB_VERSION == self.EXPECTED

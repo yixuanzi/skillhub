@@ -216,7 +216,7 @@ OPTIONS
     --known-fields <s>  Identifier hints for 'composio search' (optional)
     --tools <json>      JSON array of tools for 'composio exec' batch form (optional)
     --outdir <path>     Install path for 'install' command (optional, default: ~/.agents/skills)
-    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var)
+    -token <token>      SkillHub API token (optional, defaults to SKILLHUB_API_KEY env var, then ~/.skillhub/.env)
     -timeout <seconds>  Request timeout in seconds (optional, default: 30)
     -v                  Verbose mode: show curl command being executed (optional)
     --version           Print the CLI version and exit (also -version).
@@ -277,6 +277,12 @@ EXAMPLES
 ENVIRONMENT VARIABLES
     SKILLHUB_API_KEY   Default API token if -token is not provided
 
+CONFIG FILE
+    ~/.skillhub/.env   Read only when neither -token nor SKILLHUB_API_KEY is set.
+                       One KEY=VALUE per line ('export ', quotes and # comments allowed):
+                         SKILLHUB_API_KEY=sk_your_api_key
+                       The file is parsed, never executed. Keep it private: chmod 600.
+
 RESOURCE TYPES
     third       Third-party API resources (requires -method)
     gateway     Gateway resources with path support (requires -method and -path)
@@ -287,4 +293,5 @@ AUTHENTICATION
     Token priority:
     1. Token provided via -token option
     2. SKILLHUB_API_KEY environment variable
-    3. Error if neither is available
+    3. SKILLHUB_API_KEY in ~/.skillhub/.env
+    4. Error if none is available (list/install still work for public skills)
