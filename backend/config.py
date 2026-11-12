@@ -14,13 +14,6 @@ class Settings(BaseSettings):
     ANTHROPIC_BASE_URL:str=""
     ANTHROPIC_AUTH_TOKEN:str=""
     GATEWAY_FORCE_PLAINTEXT: bool = False
-    # Outbound targets that resources may point at even though they are not
-    # publicly routable (see core/url_guard.py). By default the gateway refuses
-    # loopback, private, link-local and other non-public addresses, so that a
-    # resource cannot be used to reach the internal network. Entries are CIDRs
-    # or IPs ("10.20.0.0/16"), hostnames ("billing.internal"), wildcard
-    # suffixes ("*.corp.example.com"), or "*" to disable the check.
-    GATEWAY_ALLOWED_HOSTS: List[str] = []
     SKIP_VERIFY: bool = False
     AUDIT_LOG_RETENTION_DAYS: int = 120
 

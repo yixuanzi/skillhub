@@ -177,9 +177,6 @@ DATABASE_URL=sqlite:///./data/skillhub.db
 #   python -c "import secrets; print(secrets.token_urlsafe(48))"
 SECRET_KEY=<粘贴生成的值>
 
-# 允许资源访问的内网目标（JSON 数组：CIDR、主机名或 "*.后缀"）。默认只允许公网地址。
-GATEWAY_ALLOWED_HOSTS=[]
-
 # Token 过期时间
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 REFRESH_TOKEN_EXPIRE_DAYS=7

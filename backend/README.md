@@ -245,9 +245,6 @@ DATABASE_URL=sqlite:///./data/skillhub.db
 #   python -c "import secrets; print(secrets.token_urlsafe(48))"
 SECRET_KEY=<粘贴生成的值>
 
-# 允许资源访问的内网目标（JSON 数组：CIDR、主机名或 "*.后缀"）。默认只允许公网地址。
-GATEWAY_ALLOWED_HOSTS=[]
-
 # Token 过期时间（分钟）
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 
@@ -311,7 +308,6 @@ python main.py
 |------|------|--------|
 | `DATABASE_URL` | 数据库连接字符串 | `sqlite:///./data/skillhub.db` |
 | `SECRET_KEY` | JWT 签名密钥，必填。占位值或短于 32 个字符时服务拒绝启动 | 无可用默认值 |
-| `GATEWAY_ALLOWED_HOSTS` | 允许资源访问的内网目标（CIDR、主机名、`*.后缀`），JSON 数组 | `[]`（仅公网地址） |
 | `LOGIN_MAX_FAILURES` | 同一用户名在窗口期内允许的登录失败次数，0 为不限 | 5 |
 | `LOGIN_MAX_FAILURES_PER_IP` | 同一 IP 在窗口期内允许的登录失败次数，0 为不限 | 50 |
 | `LOGIN_FAILURE_WINDOW_SECONDS` | 登录失败计数的滑动窗口（秒） | 900 |

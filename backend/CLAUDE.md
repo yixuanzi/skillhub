@@ -83,7 +83,6 @@ DATABASE_URL=sqlite:///./data/skillhub.db
 SECRET_KEY=<random, >= 32 chars>    # required; startup fails on a placeholder
 SKILL_HOST=0.0.0.0
 SKILL_PORT=8000
-GATEWAY_ALLOWED_HOSTS=[]            # internal targets resources may call
 LOGIN_MAX_FAILURES=5                # per username, per 15-minute window
 LOGIN_MAX_FAILURES_PER_IP=50
 ```
@@ -96,11 +95,6 @@ around them.
   When adding an endpoint whose body carries a secret under a new field name,
   add that name there. `scripts/redact_audit_logs.py` cleans rows written
   before redaction existed.
-- **Resources cannot target the internal network.** `core/url_guard.py`:
-  `check_url` when a resource is saved, `ensure_url_allowed` (resolves DNS)
-  right before every outbound call in `gateway_service.py` and
-  `mcp_service.py`. Any new code path that calls a user-supplied URL must go
-  through `ensure_url_allowed`, and must not follow redirects.
 - **No placeholder signing key.** `core/security.ensure_secret_key_is_safe`
   runs at startup and stops the server.
 - **Login throttling.** `core/login_throttle.py`, in-process; counts failed

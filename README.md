@@ -189,10 +189,6 @@ DATABASE_URL=sqlite:///./data/skillhub.db
 #   python -c "import secrets; print(secrets.token_urlsafe(48))"
 SECRET_KEY=<paste the generated value>
 
-# Internal targets resources may call (JSON list of CIDRs, hostnames or "*.suffix").
-# By default only publicly routable addresses are allowed.
-GATEWAY_ALLOWED_HOSTS=[]
-
 # Token expiration time
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 REFRESH_TOKEN_EXPIRE_DAYS=7

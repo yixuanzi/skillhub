@@ -123,7 +123,7 @@ def test_create_mcp_resource_sse(db, test_user):
         view_scope=ViewScope.PUBLIC,
         ext={
             "transport": "sse",
-            "endpoint": "http://mcp.example.com/sse",
+            "endpoint": "http://localhost:3000/sse",
             "timeout": 30000
         }
     )
@@ -133,7 +133,7 @@ def test_create_mcp_resource_sse(db, test_user):
     assert resource.type == ResourceType.MCP
     assert resource.ext is not None
     assert resource.ext.get("transport") == "sse"
-    assert resource.ext.get("endpoint") == "http://mcp.example.com/sse"
+    assert resource.ext.get("endpoint") == "http://localhost:3000/sse"
 
 
 def test_duplicate_name(db, test_user):

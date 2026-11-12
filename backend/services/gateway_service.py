@@ -10,7 +10,6 @@ from schemas.acl_resource import PermissionCheckRequest
 from services.acl_resource_service import ACLResourceService
 from services.mtoken_service import MTokenService
 from core.exceptions import NotFoundException, ValidationException
-from core.url_guard import ensure_url_allowed
 from typing import Optional, Dict, Any
 import httpx
 import asyncio
@@ -313,7 +312,6 @@ class GatewayService:
         """
         if not resource.url:
             raise Exception("third resource has no URL configured")
-        await ensure_url_allowed(resource.url, "Resource URL")
 
         # Parse ext for additional configuration
         ext_config = resource.ext or {}
@@ -417,7 +415,6 @@ class GatewayService:
 
         # Build full URL with path
         full_url = GatewayService._build_url(resource.url, path)
-        await ensure_url_allowed(full_url, "Resource URL")
 
         # Parse ext for additional configuration
         ext_config = resource.ext or {}

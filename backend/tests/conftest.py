@@ -50,19 +50,6 @@ def reset_login_throttle():
     login_throttle.reset()
 
 
-@pytest.fixture(autouse=True)
-def offline_dns(monkeypatch):
-    """The outbound URL guard resolves hostnames before each call. Tests use
-    made-up names (api.example.com, ...), so answer with a public address
-    instead of asking a real resolver. Tests of the guard itself override this."""
-    from core import url_guard
-
-    async def resolve(host, port):
-        return ["93.184.216.34"]
-
-    monkeypatch.setattr(url_guard, "_resolve", resolve)
-
-
 @pytest.fixture(scope="function")
 def db():
     """Create a new database session for each test."""

@@ -27,7 +27,6 @@ from models.resource import Resource, ResourceType
 from models.user import User
 from schemas.resource import MCPConfig, MCPServerType
 from core.exceptions import ValidationException, ExternalServiceException
-from core.url_guard import ensure_url_allowed
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -271,10 +270,6 @@ class MCPService:
                     "Check that langchain-mcp-adapters and a compatible mcp "
                     "version (mcp<2) are installed."
                 )
-
-            # Refuse to connect to a local/private endpoint (core/url_guard.py).
-            # Cached clients were checked when they were created.
-            await ensure_url_allowed(config.endpoint, "MCP endpoint")
 
             # Create new client, resolving tokens for the current user
             try:

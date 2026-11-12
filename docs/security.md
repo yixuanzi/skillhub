@@ -22,7 +22,6 @@
 | 审计日志 | ✅ | 记录访问决策 |
 | HTTPS | ⚠️ | 开发环境 HTTP，生产环境需配置 |
 | 登录限流 | ✅ | 按用户名和 IP 统计失败次数 |
-| 出站地址限制 | ✅ | 资源不能指向本地或内网地址（SSRF 防护） |
 | 审计日志脱敏 | ✅ | 密码、令牌、凭证不落库 |
 | 多因素认证 | ❌ | 未实现 |
 | API 限流 | ✅ | 基础限流（内存） |
@@ -526,7 +525,6 @@ DATABASE_URL=sqlite:///./data/skillhub.db
 SECRET_KEY=<随机字符串，至少 32 个字符>
 ACCESS_TOKEN_EXPIRE_MINUTES=60
 REFRESH_TOKEN_EXPIRE_DAYS=7
-GATEWAY_ALLOWED_HOSTS=[]
 ```
 
 **签名密钥检查**：`SECRET_KEY` 用于签发所有访问令牌和刷新令牌，知道它的人可以伪造任意用户（包括 `super_admin`）的登录态。服务启动时会检查（`core/security.ensure_secret_key_is_safe`），遇到以下情况直接拒绝启动：
@@ -541,29 +539,6 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 更换密钥会使已签发的令牌全部失效，用户需要重新登录。
-
-### 8.1.1 出站地址限制（SSRF 防护）
-
-任何登录用户都能创建资源并让网关代为请求其地址，所以资源的目标地址必须受限（`backend/core/url_guard.py`）：
-
-- 只允许 `http` / `https`。
-- 默认只允许公网可路由的地址。回环、私网（10/8、172.16/12、192.168/16）、链路本地（含云厂商元数据地址 169.254.169.254）、IPv6 本地地址、运营商级 NAT 等一律拒绝。
-- 需要访问内网服务时，由管理员在 `GATEWAY_ALLOWED_HOSTS` 中显式放行，JSON 数组，条目可以是：
-  - CIDR 或单个 IP：`"10.20.0.0/16"`
-  - 主机名：`"billing.internal"`（该名称无论解析到哪里都放行）
-  - 通配后缀：`"*.corp.example.com"`
-  - `"*"`：完全关闭检查，仅用于开发环境
-
-检查发生在两个时机：
-
-| 时机 | 做什么 |
-|------|--------|
-| 保存资源（创建、修改） | 不做 DNS 解析，直接拒绝协议不对、字面量为本地或私网 IP、`localhost` 的地址 |
-| 每次调用前（gateway、third、mcp） | 解析域名，解析结果中只要有一个地址不被允许就拒绝，请求不会发出 |
-
-对调用方的报错不包含解析出的 IP，避免被用来探测内网 DNS；具体地址记录在服务端日志里。
-
-已知局限：HTTP 客户端建立连接时会再解析一次域名，检查与连接之间如果 DNS 记录被切换（DNS rebinding），这里拦不住。网关不跟随重定向，所以公网地址无法把请求跳转到内网。
 
 ### 8.2 CORS 配置
 
@@ -642,7 +617,6 @@ user = db.query(User).filter(User.username == username).first()
 | 配置 | 开发环境 | 生产环境 |
 |------|----------|----------|
 | SECRET_KEY | 随机字符串（占位值无法启动） | 独立生成的强随机字符串 |
-| GATEWAY_ALLOWED_HOSTS | 按需放行本机或内网 | 只放行确实需要的内网目标 |
 | 数据库密码 | 无 | 强密码 |
 | HTTPS | HTTP | HTTPS |
 | CORS | 允许所有源 | 限制源 |
@@ -650,7 +624,6 @@ user = db.query(User).filter(User.username == username).first()
 ### 10.2 部署前检查清单
 
 - [ ] 设置独立生成的 SECRET_KEY
-- [ ] 核对 GATEWAY_ALLOWED_HOSTS 只包含必要的内网目标
 - [ ] 修改默认管理员密码（`admin / admin123`）
 - [ ] 启用 HTTPS
 - [ ] 配置 CORS 白名单
